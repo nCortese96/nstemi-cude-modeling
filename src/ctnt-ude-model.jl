@@ -88,7 +88,7 @@ function ctntCUDEModel(
     θ::AbstractVector{T}
     ) where T <: Real
 
-    # construct the ude function
+    # construct the ude function PROVA GIT
     cude!(du, u, p, t) = ctnt_cude!(du, u, p, t, chain)
 
     tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
