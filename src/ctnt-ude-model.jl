@@ -169,7 +169,10 @@ function training_loss(θ, training_dataset, nn_params_init)
     N_nn = length(nn_params_init)
     loss_tot = 0.0
     nn_param_vec = θ[1:N_nn]
+    # pbar = Progress(length(training_dataset), desc="Calcolo training_loss")
+    # println("Calcolo training loss...")
     for (i, patient) in enumerate(training_dataset)
+        # println(patient.id)
         idx_start = N_nn + 5*(i-1) + 1
         idx_end   = N_nn + 5*i
         patient_params = θ[idx_start:idx_end]
@@ -183,6 +186,7 @@ function training_loss(θ, training_dataset, nn_params_init)
         # pred = [u[3] for u in sol.u]
         # loss_tot += sum((pred .- patient.ctnt_data).^2)
         loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
+        # next!(pbar)
     end
     return loss_tot
 end

@@ -57,20 +57,38 @@ println("Vettore iniziale θ_init creato (dimensione: ", length(θ_init), ")")
 # 7. FASE DI TRAINING: OTTIMIZZAZIONE IN DUE STEP
 ################################################################################
 println("Inizio fase di training...")
+global_progress = Progress(100, desc="Ottimizzazione globale ADAM", dt=0.5)
+
+# Definisci una callback che verrà chiamata ad ogni iterazione.
+# La callback riceve lo "stato" corrente dell'ottimizzazione (state).
+callback_func = (state) -> begin
+    next!(global_progress)  # Avanza la progress bar di uno step.
+    return false            # Restituisce false per non terminare prematuramente.
+end
 
 # Definisci la funzione di loss come una funzione che accetta due argomenti:
 # - θ: il vettore dei parametri
 # - data: una tupla contenente il training_dataset (in questo caso)
 optfunc = OptimizationFunction((θ, x) -> training_loss(θ, training_dataset, nn_params_init), AutoForwardDiff())
-
+println("- Optimization function defined")
+println("- Adam Optimization started")
 # Primo step: utilizziamo Gradient Descent per una convergenza rapida
 optprob = Optimization.OptimizationProblem(optfunc, θ_init)
-opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=1000)
+opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=1000, callback=callback_func)
 θ_intermediate = opt_result1.u
+println("- LBFGS Optimization started")
+# Per il secondo step, creiamo una nuova progress bar con, ad esempio, 100 iterazioni
+global_progress2 = Progress(100, desc="Affinamento LBFGS", dt=0.5)
 
+
+# Definiamo la callback per il secondo step:
+callback_func2 = (state) -> begin
+    next!(global_progress2)
+    return false   # false indica che non vogliamo interrompere l'ottimizzazione
+end
 # Secondo step: affinamento con LBFGS usando BackTracking per la line search
 optprob2 = Optimization.OptimizationProblem(optfunc, θ_intermediate)
-opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=1000)
+opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=1000, callback=callback_func2)
 θ_opt = opt_result2.u
 
 final_loss = training_loss(θ_opt, training_dataset, nn_params_init)
