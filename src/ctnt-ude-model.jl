@@ -40,20 +40,6 @@ function row_to_patient(i, ids::DataFrame, timepoints_df::DataFrame, troponin_df
     return PatientData(id_val, tp_row, ctnt_row, initial_params)
 end
 
-
-"""
-neural_network_model(depth::Int, width::Int; input_dims::Int = 2)
-
-Constructs a neural network model with a given depth and width. The input dimensions are set to 2 by default.
-
-# Arguments
-- `depth::Int`: The depth of the neural network.
-- `width::Int`: The width of the neural network.
-- `input_dims::Int`: The number of input dimensions. Default is 2.
-
-# Returns
-- `SimpleChain`: A neural network model.
-"""
 function neural_network_model(depth::Int, width::Int; input_dims::Int = 7)
 
     layers = []
@@ -63,15 +49,6 @@ function neural_network_model(depth::Int, width::Int; input_dims::Int = 7)
     SimpleChain(static(input_dims), layers...)
 end
 
-"""
-    ctnt_cude!(du, u, p, t)
-
-Compartments. 
-- u[1]: sarcomere
-- u[2]: citosol
-- u[3]: plasma
-- p: model parameters
-"""
 function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     # Esempio di termini dinamici (da adattare al modello specifico)
     # Termini base (senza correzione)
@@ -80,15 +57,19 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     # Cc_ctnt = u[2]
     # Cp_ctnt = u[3]
 
-    β = exp(p.ode[5])
+    β = exp(p.ode[5]) # sempre positivo
 
     # a = 10 ^ θ[1]
     # b = 10 ^ θ[2]
 
-    a = p.ode[1]
-    b = p.ode[2]
+    a = exp(p.ode[1])
+    b = exp(p.ode[2])
+    Cc0 = exp(p.ode[3])
+    Cs0 = exp(p.ode[4])
 
-    correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
+    # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
+
+    correction = chain([u[1], t, a, b, Cc0, Cs0, β], p.neural)[1]
 
     du[1] = - (u[1] - u[2] + correction)
     du[2] = (u[1] - u[2] + correction) - a*(u[2] - u[3])
@@ -101,16 +82,6 @@ struct ctntCUDEModel
     chain::SimpleChain
 end
 
-"""
-ctntCUDEModel
-
-# Arguments
-
-# Returns
-- `ctntCUDEModel`: A ctnt model with conditional neural network for module flux between sarcomere and cytosol
-
-TODO: Add docs
-"""
 function ctntCUDEModel(
     # ctnt_timepoints::AbstractVector{T},
     θ,
@@ -123,7 +94,10 @@ function ctntCUDEModel(
 
     # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
 
-    u0 = [θ[3], θ[4], 0];
+    Cc0 = exp(θ[3])
+    Cs0 = exp(θ[4])
+
+    u0 = [Cc0, Cs0, 0];
 
     # ode = ODEProblem(cude!, u0, tspan, θ)
     ode = ODEProblem(cude!, u0, tspan)
@@ -135,36 +109,20 @@ end
 ########################## LOSS FUNCTIONS ##########################################
 
 
-"""
-loss(θ, (model, timepoints, ctnt_data))
-
-Sum of squared errors loss function for the ctnt release model.
-
-# Arguments
-- `θ`: The parameter vector.
-- `model::ctntCUDEModel`: The ctnt release model.
-- `timepoints::AbstractVector{T}`: The timepoints.
-- `ctnt_data::AbstractVector{T}`: The ctnt release data.
-
-# Returns
-- `Real`: The sum of squared errors.
-"""
 function loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
 
     # solve the ODE problem
-    sol = Array(solve(model.problem, p=θ, saveat=timepoints))
+    sol = solve(model.problem, p=θ, saveat=patient.timepoints)
+    pred = [u[3] for u in sol.u]
     # Calculate the mean squared error
-    return sum(abs2, sol[3,:] - ctnt_data)
+    return sum((pred .- patient.ctnt_data).^2)
 end
 
-
-"""
 # 4. Funzione training_loss: somma la loss su tutti i pazienti del training
 #
 # x è un vettore contenente:
 #   - i parametri della rete neurale (globali) (primi N_nn elementi)
 #   - per ciascun paziente, 5 parametri specifici: [a, b, Cs0, Cc0, log(β)]
-"""
 function training_loss(θ, training_dataset, nn_params_init)
     N_nn = length(nn_params_init)
     loss_tot = 0.0
@@ -178,27 +136,58 @@ function training_loss(θ, training_dataset, nn_params_init)
         patient_params = θ[idx_start:idx_end]
         tspan = (patient.timepoints[1], patient.timepoints[end])
 
-        model = ctntCUDEModel(θ[idx_start:idx_end], chain, tspan)
+        model = ctntCUDEModel(patient_params, chain, tspan)
         p = ComponentArray(ode = patient_params, neural = nn_param_vec)
         # println(patient.timepoints)
-        sol = Array(solve(model.problem, Tsit5(); p=p, saveat=patient.timepoints))
+        ### Calcolo cost function ###
+        sol = solve(model.problem, p=p, saveat=patient.timepoints)
         # println(sol)
-        # pred = [u[3] for u in sol.u]
-        # loss_tot += sum((pred .- patient.ctnt_data).^2)
-        loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
+        pred = [u[3] for u in sol.u]
+        loss_tot += sum((pred .- patient.ctnt_data).^2)
+        # println(sol)
+        # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
         # next!(pbar)
     end
     return loss_tot
 end
 
-
-function create_progressbar_callback(its, run)
-    prog = Progress(its; dt=1, desc="Optimizing run $(run) ", showspeed=true, color=:blue)
-    function callback(_, _)
-        next!(prog)
-        false
-    end
-
-    return callback
+# patient_loss: calcola la loss per un singolo paziente dato un vettore di parametri specifici
+function patient_loss(patient_params, model::ctntCUDEModel, fixed_nn_params, timepoints, ctnt_data)
+    p = ComponentArray(ode = patient_params, neural = fixed_nn_params)
+    sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
+    pred = [u[3] for u in sol.u]
+    return sum((pred .- ctnt_data).^2)
 end
 
+################################################################################
+# 4. FUNZIONE select_model: seleziona il candidato migliore "a voto" sul validation set
+#
+# validation_dataset: vettore di PatientData
+# candidate_nn_params: vettore di set di parametri globali della rete (candidati)
+function select_model(validation_dataset, candidate_nn_params)
+    counts = Dict{Int,Int}()
+    for i in 1:length(candidate_nn_params)
+        counts[i] = 0
+    end
+
+    for patient in validation_dataset
+        candidate_losses = Float64[]
+        tspan = (patient.timepoints[1], patient.timepoints[end])
+        for (i, candidate_nn) in enumerate(candidate_nn_params)
+            model_candidate = ctntCUDEModel(θ, candidate_nn, tspan)
+            # Guess iniziale per i parametri specifici: fissiamo log(β) = log(0.1)
+            initial_guess = [log(patient.init_params[1]),
+                             log(patient.init_params[2]),
+                             log(patient.init_params[3]),
+                             log(patient.init_params[4]),
+                             log(patient.init_params[5])]
+            l = patient_loss(initial_guess, model_candidate, candidate_nn, patient.timepoints, patient.ctnt_data)
+            push!(candidate_losses, l)
+        end
+        best_candidate_idx = argmin(candidate_losses)
+        counts[best_candidate_idx] += 1
+    end
+
+    best_model_index = argmax(values(counts))
+    return best_model_index, counts
+end
