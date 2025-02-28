@@ -3,6 +3,8 @@ using SciMLBase: ODEProblem, OptimizationSolution
 using Random: AbstractRNG
 using QuasiMonteCarlo: LatinHypercubeSample, sample
 using ComponentArrays: ComponentArray
+using DataFrames: DataFrame
+using StableRNGs
 
 using ProgressMeter: Progress, next!
 
@@ -105,17 +107,20 @@ function ctntCUDEModel(
     return ctntCUDEModel(ode, chain)
 end
 
+################################# PREDICT ##########################################
+
+function solve_model(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
+    return solve(model.problem, p=θ, saveat=timepoints)
+end
 
 ########################## LOSS FUNCTIONS ##########################################
 
-
-function loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
-
+function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
     # solve the ODE problem
-    sol = solve(model.problem, p=θ, saveat=patient.timepoints)
+    sol = solve_model(θ, (model, timepoints, ctnt_data))
     pred = [u[3] for u in sol.u]
-    # Calculate the mean squared error
-    return sum((pred .- patient.ctnt_data).^2)
+    # Calculate the squared error
+    return sum((pred .- ctnt_data).^2)
 end
 
 # 4. Funzione training_loss: somma la loss su tutti i pazienti del training
@@ -123,71 +128,138 @@ end
 # x è un vettore contenente:
 #   - i parametri della rete neurale (globali) (primi N_nn elementi)
 #   - per ciascun paziente, 5 parametri specifici: [a, b, Cs0, Cc0, log(β)]
-function training_loss(θ, training_dataset, nn_params_init)
+function training_loss(p, training_dataset, nn_params_init)
     N_nn = length(nn_params_init)
     loss_tot = 0.0
-    nn_param_vec = θ[1:N_nn]
-    # pbar = Progress(length(training_dataset), desc="Calcolo training_loss")
-    # println("Calcolo training loss...")
+    nn_param_vec = p[1:N_nn]
     for (i, patient) in enumerate(training_dataset)
-        # println(patient.id)
         idx_start = N_nn + 5*(i-1) + 1
         idx_end   = N_nn + 5*i
-        patient_params = θ[idx_start:idx_end]
+        patient_params = p[idx_start:idx_end]
         tspan = (patient.timepoints[1], patient.timepoints[end])
 
         model = ctntCUDEModel(patient_params, chain, tspan)
-        p = ComponentArray(ode = patient_params, neural = nn_param_vec)
-        # println(patient.timepoints)
+        θ = ComponentArray(ode = patient_params, neural = nn_param_vec)
         ### Calcolo cost function ###
-        sol = solve(model.problem, p=p, saveat=patient.timepoints)
-        # println(sol)
-        pred = [u[3] for u in sol.u]
-        loss_tot += sum((pred .- patient.ctnt_data).^2)
-        # println(sol)
+        loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
-        # next!(pbar)
     end
-    return loss_tot
+    return loss_tot / length(training_dataset) # MSE
 end
 
+function sample_initial_neural_parameters(n_initials::Int, chain::SimpleChain, rng::AbstractRNG)
+    return [init_params(chain, rng=rng) for _ in 1:n_initials]
+end
+
+function sample_initial_ode_parameters(n_initials::Int, lhs_lb::AbstractVector{T}, lhs_ub::AbstractVector{T}, rng::AbstractRNG) where T <: Real
+    return sample(n_initials, lhs_lb, lhs_ub, LatinHypercubeSample(rng))
+end
+
+function create_start_points(
+    chain::SimpleChain,
+    initial_guesses::Int = 25_000,
+    lhs_lb::AbstractVector{T} = [0.001, 0.001, 0.01, 0.001, -Inf],
+    lhs_ub::AbstractVector{T} = [5, 5, 300, 400, Inf],
+    n_params_guess::Int = 1,
+    rng::AbstractRNG = StableRNG(42)
+    ) where T <: Real
+
+    initial_nn = sample_initial_neural_parameters(initial_guesses, chain, rng)
+    initial_ode = sample_initial_ode_parameters(initial_guesses, lhs_lb, lhs_ub, rng)
+
+    initial_parameters = [ComponentArray(
+        neural = initial_nn[i],
+        ode = repeat(initial_ode[:,i], 1, n_params_guess)
+    ) for i in eachindex(initial_guesses)]
+    return initial_parameters
+end
+
+function select_best_starts(
+    chain::SimpleChain,
+    n_best::Int = 25,
+    initial_guesses::Int = 25_000,
+    lhs_lb::AbstractVector{T} = [0.001, 0.001, 0.01, 0.001, -Inf],
+    lhs_ub::AbstractVector{T} = [5, 5, 300, 400, Inf],
+    n_params_guess::Int = 1,
+    rng::AbstractRNG = StableRNG(42)
+    ) where T <: Real
+
+    initial_parameters = create_start_points(initial_guesses, chain, lhs_lb, lhs_ub, n_params_guess, rng)
+    losses = Float64[]
+    prog = Progress(initial_guesses; dt=0.01, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick)
+    for p in initial_parameters
+        loss_value = compute_loss(p, (models, timepoints, cpeptide_data))
+        push!(losses, loss_value)
+        next!(prog)
+    end
+
+    println("Initial parameters evaluated. Optimizing for the best $(n_best) initial parameters.")
+    best_indices = partialsortperm(losses, 1:n_best)
+    return initial_parameters[best_indices] # collezione di θ_init
+end
+
+function otpimize(optfunc::OptimizationFunction, θ_init, adam_maxiters, lbfgs_maxiters)
+
+    # Definisci la funzione di loss come una funzione che accetta due argomenti:
+    # - θ: il vettore dei parametri
+    # - data: una tupla contenente il training_dataset (in questo caso)
+    # optfunc = OptimizationFunction((θ, x) -> training_loss(θ, training_dataset, θ_init.neural), AutoForwardDiff());
+
+    # Primo step: utilizziamo Gradient Descent per una convergenza rapida
+    optprob = Optimization.OptimizationProblem(optfunc, θ_init);
+    opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=adam_maxiters);
+
+    optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u);
+    opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters);
+
+    return opt_result2
+end
+
+function train(training_dataset, initial_parameters, adam_maxiters, lbfgs_maxiters)
+    optsols = OptimizationSolution[]
+    optfunc = OptimizationFunction((θ, x) -> training_loss(θ, training_dataset, θ_init.neural), AutoForwardDiff())
+    prog = Progress(selected_initials; dt=1.0, desc="Optimizing...", color=:blue)
+    for i in initial_parameters
+        opt_sol = optimize(optfunc, initial_parameters[i], adam_maxiters, lbfgs_maxiters)
+        push!(optsols, opt_sol)
+        next!(prog)
+    end
+    return optsols
+end
+
+## Finito il train si estraggono i parametri della rete 
 # patient_loss: calcola la loss per un singolo paziente dato un vettore di parametri specifici
-function patient_loss(patient_params, model::ctntCUDEModel, fixed_nn_params, timepoints, ctnt_data)
+function patient_loss(patient_params, model::ctntCUDEModel, timepoints, ctnt_data, fixed_nn_params)
     p = ComponentArray(ode = patient_params, neural = fixed_nn_params)
     sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
     pred = [u[3] for u in sol.u]
     return sum((pred .- ctnt_data).^2)
 end
 
-################################################################################
-# 4. FUNZIONE select_model: seleziona il candidato migliore "a voto" sul validation set
-#
-# validation_dataset: vettore di PatientData
-# candidate_nn_params: vettore di set di parametri globali della rete (candidati)
-function select_model(validation_dataset, candidate_nn_params)
-    counts = Dict{Int,Int}()
-    for i in 1:length(candidate_nn_params)
-        counts[i] = 0
-    end
+function otpimize(optfunc::OptimizationFunction,
+    lbfgs_maxiters,
+    initial_ode_params::AbstractVector{T} = [0.005, 0.005, 0.1, 0.001]) where T<:Real
 
-    for patient in validation_dataset
-        candidate_losses = Float64[]
-        tspan = (patient.timepoints[1], patient.timepoints[end])
-        for (i, candidate_nn) in enumerate(candidate_nn_params)
-            model_candidate = ctntCUDEModel(θ, candidate_nn, tspan)
-            # Guess iniziale per i parametri specifici: fissiamo log(β) = log(0.1)
-            initial_guess = [log(patient.init_params[1]),
-                             log(patient.init_params[2]),
-                             log(patient.init_params[3]),
-                             log(patient.init_params[4]),
-                             log(patient.init_params[5])]
-            l = patient_loss(initial_guess, model_candidate, candidate_nn, patient.timepoints, patient.ctnt_data)
-            push!(candidate_losses, l)
-        end
-        best_candidate_idx = argmin(candidate_losses)
-        counts[best_candidate_idx] += 1
-    end
+    optprob2 = Optimization.OptimizationProblem(optfunc, initial_ode_params);
+    opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters);
 
-    best_model_index = argmax(values(counts))
-    return best_model_index, counts
+    return opt_result2
+end
+
+# function train(validation_dataset, initial_ode_params, fixed_nn_params, lower_bounds, upper_bounds, lbfgs_maxiters)
+#     optsols = OptimizationSolution[]
+#     model = ctntCUDEModel(patient_params, chain, tspan)
+#     optfunc = OptimizationFunction((θ, x) -> patient_loss(θ, training_dataset, θ_init.neural), AutoForwardDiff())
+#     prog = Progress(selected_initials; dt=1.0, desc="Optimizing...", color=:blue)
+#     for i in initial_parameters
+#         opt_sol = optimize(optfunc, initial_parameters[i], validation_dataset, adam_maxiters, lbfgs_maxiters)
+#         push!(optsols, opt_sol)
+#         next!(prog)
+#     end
+#     return optsols
+# end
+
+function select_model(validation_dataset, fixed_nn_params, initial_ode_params::AbstractVector{T} = [0.005, 0.005, 0.1, 0.001], 
+    
+) where T<:Real
 end
