@@ -1,6 +1,6 @@
 using StableRNGs, DataFrames, StatsBase, XLSX, Random
 using Optimization, OptimizationOptimisers, LineSearches
-using Plots
+using Plots, JLD2
 
 include("ctnt-ude-model.jl")
 
@@ -110,3 +110,6 @@ plot!(101:length(losses), losses[101:end], yaxis = :log10, xaxis = :log10,
 # Ho bisogno ora di ottimizzare il processo, magari creando un multistart
 
 println("Flusso di esecuzione completato.")
+
+using JLD2
+@save "theta_opt.jld2" θ_opt
