@@ -235,6 +235,9 @@ function patient_loss(patient_params, model::ctntCUDEModel, timepoints, ctnt_dat
     pred = [u[3] for u in sol.u]
     return sum((pred .- ctnt_data).^2)
 end
+# La differenza sta nel dove si crea il component array:
+# Se lo dai in pasto alla loss lo ottimizza tutto,
+# se lo costruisci dentro ottimizza solo i parametri del modello
 
 function otpimize(optfunc::OptimizationFunction,
     lbfgs_maxiters,
