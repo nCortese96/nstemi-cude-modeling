@@ -9,14 +9,20 @@ include("ctnt-ude-model.jl")
 ############################
 println("Caricamento del dataset...")
 # Percorso del file Excel
-file_path = "data/STEMI_merged.xlsx";
-sheet_times = "Tempi cleaned";
-sheet_values = "Misurazioni cleaned";
+# file_path = "data/STEMI_merged.xlsx";
+# sheet_times = "Tempi cleaned";
+# sheet_values = "Misurazioni cleaned";
+
+file_path = "data/ANN_dataset_IX.xlsx";
+sheet_ids = "id";
+sheet_times = "times";
+sheet_values = "values";
 
 # Caricamento dei fogli in DataFrame
-ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "B:X", header=false, infer_eltypes=true));
-troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "B:X", header=false, infer_eltypes=true));
+# ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
+ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "B:N", header=false, infer_eltypes=true));
+troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "B:N", header=false, infer_eltypes=true));
 
 initial_params = [log(0.005), log(0.005), log(0.1), log(0.001), log(0.1)];
 
@@ -111,5 +117,4 @@ plot!(101:length(losses), losses[101:end], yaxis = :log10, xaxis = :log10,
 
 println("Flusso di esecuzione completato.")
 
-using JLD2
-@save "theta_opt.jld2" θ_opt
+@save "res/models/theta_opt_ann.jld2" θ_opt

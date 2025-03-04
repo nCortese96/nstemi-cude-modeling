@@ -4,18 +4,24 @@ using Plots, JLD2
 
 include("ctnt-ude-model.jl")
 
-@load "theta_opt.jld2" θ_opt
+@load "res/models/theta_opt_ann.jld2" θ_opt
 
 println("Caricamento del dataset...")
 # Percorso del file Excel
-file_path = "data/STEMI_merged.xlsx";
-sheet_times = "Tempi cleaned";
-sheet_values = "Misurazioni cleaned";
+# # file_path = "data/STEMI_merged.xlsx";
+# sheet_times = "Tempi cleaned";
+# sheet_values = "Misurazioni cleaned";
+
+file_path = "data/ANN_dataset_IX.xlsx";
+sheet_ids = "id";
+sheet_times = "times";
+sheet_values = "values";
 
 # Caricamento dei fogli in DataFrame
-ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "B:X", header=false, infer_eltypes=true));
-troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "B:X", header=false, infer_eltypes=true));
+# ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
+ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "B:N", header=false, infer_eltypes=true));
+troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "B:N", header=false, infer_eltypes=true));
 
 initial_params = [log(0.005), log(0.005), log(0.1), log(0.001), log(0.1)];
 
@@ -38,7 +44,7 @@ N_nn = 97 # oppure un valore noto, ad esempio 97
 fixed_nn_params = θ_opt[1:N_nn]
 
 # Supponiamo di prendere il primo paziente dal training_dataset:
-i = 6
+i = 2
 patient = training_dataset[i]
 idx_start = N_nn + 5*(i-1) + 1  # per il primo paziente
 idx_end   = N_nn + 5*i
