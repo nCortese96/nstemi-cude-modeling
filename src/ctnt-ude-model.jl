@@ -174,30 +174,6 @@ function create_start_points(
     return initial_parameters
 end
 
-function select_best_starts(
-    chain::SimpleChain,
-    n_best::Int = 25,
-    initial_guesses::Int = 25_000,
-    lhs_lb::AbstractVector{T} = [0.001, 0.001, 0.01, 0.001, -Inf],
-    lhs_ub::AbstractVector{T} = [5, 5, 300, 400, Inf],
-    n_params_guess::Int = 1,
-    rng::AbstractRNG = StableRNG(42)
-    ) where T <: Real
-
-    initial_parameters = create_start_points(initial_guesses, chain, lhs_lb, lhs_ub, n_params_guess, rng)
-    losses = Float64[]
-    prog = Progress(initial_guesses; dt=0.01, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick)
-    for p in initial_parameters
-        loss_value = compute_loss(p, (models, timepoints, cpeptide_data))
-        push!(losses, loss_value)
-        next!(prog)
-    end
-
-    println("Initial parameters evaluated. Optimizing for the best $(n_best) initial parameters.")
-    best_indices = partialsortperm(losses, 1:n_best)
-    return initial_parameters[best_indices] # collezione di θ_init
-end
-
 function otpimize(optfunc::OptimizationFunction, θ_init, adam_maxiters, lbfgs_maxiters)
 
     # Definisci la funzione di loss come una funzione che accetta due argomenti:
@@ -261,6 +237,32 @@ end
 #     end
 #     return optsols
 # end
+
+function select_best_starts(
+    chain::SimpleChain,
+    n_best::Int = 25,
+    initial_guesses::Int = 25_000,
+    lhs_lb::AbstractVector{T} = [0.001, 0.001, 0.01, 0.001, -Inf],
+    lhs_ub::AbstractVector{T} = [5, 5, 300, 400, Inf],
+    n_params_guess::Int = 1,
+    rng::AbstractRNG = StableRNG(42)
+    ) where T <: Real
+
+    initial_parameters = create_start_points(initial_guesses, chain, lhs_lb, lhs_ub, n_params_guess, rng)
+    losses = Float64[]
+    prog = Progress(initial_guesses; dt=0.01, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick)
+    for p in initial_parameters
+        loss_value = compute_loss(p, (models, timepoints, cpeptide_data))
+        push!(losses, loss_value)
+        next!(prog)
+    end
+
+    println("Initial parameters evaluated. Optimizing for the best $(n_best) initial parameters.")
+    best_indices = partialsortperm(losses, 1:n_best)
+    return initial_parameters[best_indices] # collezione di θ_init
+end
+
+
 
 function select_model(validation_dataset, fixed_nn_params, initial_ode_params::AbstractVector{T} = [0.005, 0.005, 0.1, 0.001], 
     
