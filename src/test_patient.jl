@@ -44,7 +44,7 @@ N_nn = 97 # oppure un valore noto, ad esempio 97
 fixed_nn_params = θ_opt[1:N_nn]
 
 # Supponiamo di prendere il primo paziente dal training_dataset:
-i = 2
+i = 8
 patient = training_dataset[i]
 idx_start = N_nn + 5*(i-1) + 1  # per il primo paziente
 idx_end   = N_nn + 5*i
@@ -65,11 +65,11 @@ opt_result2
 
 # Prova a risolvere l'ODE:
 p = ComponentArray(ode = opt_result2.u, neural = fixed_nn_params)
-sol = solve(model.problem, p=p, saveat=patient.timepoints)
+sol = solve(model.problem, p=p, saveat=1)
 pred = [u[3] for u in sol.u]
-sum((pred .- patient.ctnt_data).^2)
+# sum((pred .- patient.ctnt_data).^2)
 # println("Dimensioni sol: ", size(Array(sol)))
 println("Patient ctnt_data: ", patient.ctnt_data)
 
-plot(patient.timepoints, pred, lw=2, label="Model Prediction", xlabel="Time", ylabel="CTNT", title="Patient $(patient.id)")
+plot(pred, lw=2, label="Model Prediction", xlabel="Time", ylabel="CTNT", title="Patient $(patient.id)")
 scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")

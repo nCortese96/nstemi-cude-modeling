@@ -123,6 +123,19 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
     return sum((pred .- ctnt_data).^2)
 end
 
+## Finito il train si estraggono i parametri della rete 
+# patient_loss: calcola la loss per un singolo paziente dato un vettore di parametri specifici
+function patient_loss(patient_params, model::ctntCUDEModel, timepoints, ctnt_data, fixed_nn_params)
+    p = ComponentArray(ode = patient_params, neural = fixed_nn_params)
+    sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
+    pred = [u[3] for u in sol.u]
+    return sum((pred .- ctnt_data).^2)
+end
+# La differenza sta nel dove si crea il component array:
+# Se lo dai in pasto alla loss lo ottimizza tutto,
+# se lo costruisci dentro ottimizza solo i parametri del modello
+
+
 # 4. Funzione training_loss: somma la loss su tutti i pazienti del training
 #
 # x è un vettore contenente:
@@ -147,12 +160,28 @@ function training_loss(p, training_dataset, nn_params_init)
     return loss_tot / length(training_dataset) # MSE
 end
 
+function training_loss(p, training_dataset)
+    loss_tot = 0.0
+    for (i, patient) in enumerate(training_dataset)
+        idx_start = 5*(i-1) + 1
+        idx_end   = 5*i
+        tspan = (patient.timepoints[1], patient.timepoints[end])
+        model = ctntCUDEModel(p, chain, tspan)
+        θ = ComponentArray(ode = p.ode[idx_start:idx_end], neural = p.neural)
+        ### Calcolo cost function ###
+        loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
+        # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
+    end
+    return loss_tot / length(training_dataset) # MSE
+end
+
 function sample_initial_neural_parameters(n_initials::Int, chain::SimpleChain, rng::AbstractRNG)
     return [init_params(chain, rng=rng) for _ in 1:n_initials]
 end
 
-function sample_initial_ode_parameters(n_initials::Int, lhs_lb::AbstractVector{T}, lhs_ub::AbstractVector{T}, rng::AbstractRNG) where T <: Real
-    return sample(n_initials, lhs_lb, lhs_ub, LatinHypercubeSample(rng))
+function sample_initial_ode_parameters(n_patients::Int, n_initials::Int, lhs_lb::AbstractVector{T}, lhs_ub::AbstractVector{T}, rng::AbstractRNG) where T <: Real
+    # return sample(n_initials, lhs_lb, lhs_ub, LatinHypercubeSample(rng))
+    return sample(n_initials, repeat(lhs_lb, n_patients), repeat(lhs_ub, n_patients), LatinHypercubeSample(rng))
 end
 
 function create_start_points(
@@ -160,7 +189,7 @@ function create_start_points(
     initial_guesses::Int = 25_000,
     lhs_lb::AbstractVector{T} = [0.001, 0.001, 0.01, 0.001, -Inf],
     lhs_ub::AbstractVector{T} = [5, 5, 300, 400, Inf],
-    n_params_guess::Int = 1,
+    n_params_guess::Int = 1, # number of conditional parameters
     rng::AbstractRNG = StableRNG(42)
     ) where T <: Real
 
@@ -202,18 +231,6 @@ function train(training_dataset, initial_parameters, adam_maxiters, lbfgs_maxite
     end
     return optsols
 end
-
-## Finito il train si estraggono i parametri della rete 
-# patient_loss: calcola la loss per un singolo paziente dato un vettore di parametri specifici
-function patient_loss(patient_params, model::ctntCUDEModel, timepoints, ctnt_data, fixed_nn_params)
-    p = ComponentArray(ode = patient_params, neural = fixed_nn_params)
-    sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
-    pred = [u[3] for u in sol.u]
-    return sum((pred .- ctnt_data).^2)
-end
-# La differenza sta nel dove si crea il component array:
-# Se lo dai in pasto alla loss lo ottimizza tutto,
-# se lo costruisci dentro ottimizza solo i parametri del modello
 
 function otpimize(optfunc::OptimizationFunction,
     lbfgs_maxiters,
