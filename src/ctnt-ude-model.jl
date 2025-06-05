@@ -14,43 +14,6 @@ using SciMLSensitivity, LineSearches
 
 softplus(x) = log(1 + exp(x))
 
-# Definizione della struttura per i dati del paziente
-struct PatientData
-    id::String
-    timepoints::Vector{Float64}   # vettore dei timepoints per il paziente
-    ctnt_data::Vector{Float64}      # vettore dei valori di troponina
-    init_params::Vector{Float64}    # guess iniziale, ad esempio: [a, b, Cs0, Cc0]
-end
-
-# Funzione per convertire la riga i-esima dei tre DataFrame in una struttura PatientData.
-# Per ogni riga vengono rimossi i valori mancanti (missing) e si mantengono solo i valori validi.
-function row_to_patient(i, ids::DataFrame, timepoints_df::DataFrame, troponin_df::DataFrame, initial_params::AbstractVector{Float64})
-    # Estrai l'ID (se serve)
-    id_val = ids[i, :][1]
-    
-    # Estrai i valori della riga come vettori.
-    # timepoints_df[i, :] restituisce una NamedTuple; convertiamola in vettore.
-    tp_row = [x for x in collect(values(timepoints_df[i, :])) if !ismissing(x)]
-    ctnt_row = [x for x in collect(values(troponin_df[i, :])) if !ismissing(x)]
-    
-    # Opzionalmente, se i valori sono stringhe, li puoi convertire in Float64.
-    # In questo esempio assumiamo che infer_eltypes=true li abbia già convertiti.
-    
-    # Definisci dei guess iniziali standard, ad esempio:
-    # init_params = [0.005, 0.005, 0.1, 0.001, log(0.1)]
-    
-    return PatientData(id_val, tp_row, ctnt_row, initial_params)
-end
-
-function neural_network_model(depth::Int, width::Int; input_dims::Int = 7)
-
-    layers = []
-    append!(layers, [TurboDense{true}(tanh, width) for _ in 1:depth])
-    push!(layers, TurboDense{true}(softplus, 1))
-
-    SimpleChain(static(input_dims), layers...)
-end
-
 function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     # Esempio di termini dinamici (da adattare al modello specifico)
     # Termini base (senza correzione)
@@ -73,8 +36,8 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     correction = chain([u[1], t, a, b, Cc0, Cs0, β], p.neural)[1]
 
-    du[1] = - (u[1] - u[2] + correction)
-    du[2] = (u[1] - u[2] + correction) - a*(u[2] - u[3])
+    du[1] = - (u[1] - u[2] - correction)
+    du[2] = (u[1] - u[2] - correction) - a*(u[2] - u[3])
     du[3] = a*(u[2] - u[3]) - b*u[3]
 
 end
@@ -95,8 +58,7 @@ function ctntCUDEModel(
     cude!(du, u, p, t) = ctnt_cude!(du, u, p, t, chain)
 
     # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
-
-    Cc0 = exp(θ[3])
+    Cc0 = exp(θ[3]) # exp both if params in log
     Cs0 = exp(θ[4])
 
     u0 = [Cc0, Cs0, 0];
@@ -107,10 +69,48 @@ function ctntCUDEModel(
     return ctntCUDEModel(ode, chain)
 end
 
+# Definizione della struttura per i dati del paziente
+struct PatientData
+    id::String
+    timepoints::Vector{Float64}   # vettore dei timepoints per il paziente
+    ctnt_data::Vector{Float64}    # vettore dei valori di troponina
+end
+
+function row2Patient(id::String, timepoints_df::AbstractVector, troponin_df::AbstractVector)
+    tp_row = [x for x in collect(values(timepoints_df)) if !ismissing(x)]
+    ctnt_row = [x for x in collect(values(troponin_df)) if !ismissing(x)]
+    return PatientData(id, tp_row, ctnt_row)
+end
+
+function row2Patient(ids::DataFrameRow, timepoints_df::DataFrameRow, troponin_df::DataFrameRow)
+    id_val = ids[1]
+    tp_row = [x for x in collect(values(timepoints_df)) if !ismissing(x)]
+    ctnt_row = [x for x in collect(values(troponin_df)) if !ismissing(x)]
+    return PatientData(id_val, tp_row, ctnt_row)
+end
+
+function neural_network_model(depth::Int, width::Int; input_dims::Int = 7)
+
+    layers = []
+    append!(layers, [TurboDense{true}(tanh, width) for _ in 1:depth])
+    push!(layers, TurboDense{true}(softplus, 1))
+
+    SimpleChain(static(input_dims), layers...)
+end
+
+function sample_initial_neural_parameters(n_initials::Int, chain::SimpleChain, rng::AbstractRNG)
+    return [init_params(chain, rng=rng) for _ in 1:n_initials]
+end
+
+function sample_initial_parameters(n_patients::Int, n_initials::Int, lhs_lb::AbstractVector{T}, lhs_ub::AbstractVector{T}, rng::AbstractRNG) where T <: Real
+    # return sample(n_initials, lhs_lb, lhs_ub, LatinHypercubeSample(rng))
+    return sample(n_initials, repeat(lhs_lb, n_patients), repeat(lhs_ub, n_patients), LatinHypercubeSample(rng))
+end
+
 ################################# PREDICT ##########################################
 
 function solve_model(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
-    return solve(model.problem, p=θ, saveat=timepoints)
+    return Array(solve(model.problem, p=θ, saveat=timepoints))
 end
 
 ########################## LOSS FUNCTIONS ##########################################
@@ -118,18 +118,20 @@ end
 function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
     # solve the ODE problem
     sol = solve_model(θ, (model, timepoints, ctnt_data))
-    pred = [u[3] for u in sol.u]
+    # pred = [u[3] for u in sol.u]
     # Calculate the squared error
-    return sum((pred .- ctnt_data).^2)
+    # return sum((pred .- ctnt_data).^2)
+    sum(abs2, sol[3,:] - ctnt_data)
 end
 
 ## Finito il train si estraggono i parametri della rete 
-# patient_loss: calcola la loss per un singolo paziente dato un vettore di parametri specifici
-function patient_loss(patient_params, model::ctntCUDEModel, timepoints, ctnt_data, fixed_nn_params)
-    p = ComponentArray(ode = patient_params, neural = fixed_nn_params)
-    sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
-    pred = [u[3] for u in sol.u]
-    return sum((pred .- ctnt_data).^2)
+# patient_loss: Quando sono noti i parametri della rete
+function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
+    p = ComponentArray(ode = θ, neural = fixed_nn_params)
+    # sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
+    # pred = [u[3] for u in sol.u]
+    # return sum((pred .- ctnt_data).^2)
+    return compute_loss(p, (model, timepoints, ctnt_data))
 end
 # La differenza sta nel dove si crea il component array:
 # Se lo dai in pasto alla loss lo ottimizza tutto,
@@ -140,25 +142,25 @@ end
 #
 # x è un vettore contenente:
 #   - i parametri della rete neurale (globali) (primi N_nn elementi)
-#   - per ciascun paziente, 5 parametri specifici: [a, b, Cs0, Cc0, log(β)]
-function training_loss(p, training_dataset, nn_params_init)
-    N_nn = length(nn_params_init)
-    loss_tot = 0.0
-    nn_param_vec = p[1:N_nn]
-    for (i, patient) in enumerate(training_dataset)
-        idx_start = N_nn + 5*(i-1) + 1
-        idx_end   = N_nn + 5*i
-        patient_params = p[idx_start:idx_end]
-        tspan = (patient.timepoints[1], patient.timepoints[end])
+#   - per ciascun paziente, 5 parametri specifici: [a, b, Cs0, Cc0, β]
+# function training_loss(p, training_dataset, nn_params_init)
+#     N_nn = length(nn_params_init)
+#     loss_tot = 0.0
+#     nn_param_vec = p[1:N_nn]
+#     for (i, patient) in enumerate(training_dataset)
+#         idx_start = N_nn + 5*(i-1) + 1
+#         idx_end   = N_nn + 5*i
+#         patient_params = p[idx_start:idx_end]
+#         tspan = (patient.timepoints[1], patient.timepoints[end])
 
-        model = ctntCUDEModel(patient_params, chain, tspan)
-        θ = ComponentArray(ode = patient_params, neural = nn_param_vec)
-        ### Calcolo cost function ###
-        loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
-        # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
-    end
-    return loss_tot / length(training_dataset) # MSE
-end
+#         model = ctntCUDEModel(patient_params, chain, tspan)
+#         θ = ComponentArray(ode = patient_params, neural = nn_param_vec)
+#         ### Calcolo cost function ###
+#         loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
+#         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
+#     end
+#     return loss_tot / length(training_dataset) # MSE
+# end
 
 function training_loss(p, training_dataset)
     loss_tot = 0.0
@@ -175,13 +177,18 @@ function training_loss(p, training_dataset)
     return loss_tot / length(training_dataset) # MSE
 end
 
-function sample_initial_neural_parameters(n_initials::Int, chain::SimpleChain, rng::AbstractRNG)
-    return [init_params(chain, rng=rng) for _ in 1:n_initials]
-end
-
-function sample_initial_ode_parameters(n_patients::Int, n_initials::Int, lhs_lb::AbstractVector{T}, lhs_ub::AbstractVector{T}, rng::AbstractRNG) where T <: Real
-    # return sample(n_initials, lhs_lb, lhs_ub, LatinHypercubeSample(rng))
-    return sample(n_initials, repeat(lhs_lb, n_patients), repeat(lhs_ub, n_patients), LatinHypercubeSample(rng))
+function training_loss(p, (models, training_dataset))
+    loss_tot = 0.0
+    for (i, model) in enumerate(models)
+        patient = training_dataset[i];
+        idx_start = 5*(i-1) + 1
+        idx_end   = 5*i
+        θ = ComponentArray(ode = p.ode[idx_start:idx_end], neural = p.neural)
+        ### Calcolo cost function ###
+        loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
+        # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
+    end
+    return loss_tot / length(training_dataset) # MSE
 end
 
 function create_start_points(
