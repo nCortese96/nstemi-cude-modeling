@@ -1,18 +1,21 @@
 using SimpleChains: SimpleChain, TurboDense, static, init_params
-using SciMLBase: ODEProblem, OptimizationSolution
+using SciMLBase: successful_retcode, ODEProblem, OptimizationSolution, OptimizationFunction, OptimizationProblem
 using Random: AbstractRNG
 using QuasiMonteCarlo: LatinHypercubeSample, sample
 using ComponentArrays: ComponentArray
 using DataFrames: DataFrame
 using StableRNGs
+# using OrdinaryDiffEq
+using Optimization, OptimizationOptimisers, OptimizationOptimJL
+using SciMLSensitivity, LineSearches
+using OrdinaryDiffEq: AutoTsit5, Rosenbrock23
 
 using ProgressMeter: Progress, next!
 
-using OrdinaryDiffEq
-using Optimization, OptimizationOptimisers, OptimizationOptimJL
-using SciMLSensitivity, LineSearches
-
 softplus(x) = log(1 + exp(x))
+
+const DELTA = 1e-6
+const EPS   = 0.0014
 
 function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     # Esempio di termini dinamici (da adattare al modello specifico)
@@ -58,6 +61,7 @@ function ctntCUDEModel(
     cude!(du, u, p, t) = ctnt_cude!(du, u, p, t, chain)
 
     # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
+    
     Cc0 = exp(θ[3]) # exp both if params in log
     Cs0 = exp(θ[4])
 
@@ -110,18 +114,34 @@ end
 ################################# PREDICT ##########################################
 
 function solve_model(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
-    return Array(solve(model.problem, p=θ, saveat=timepoints))
+    return solve(model.problem, AutoTsit5(Rosenbrock23()); p=θ, saveat=timepoints)
 end
 
 ########################## LOSS FUNCTIONS ##########################################
 
 function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
     # solve the ODE problem
-    sol = solve_model(θ, (model, timepoints, ctnt_data))
+    try
+        sol = solve_model(θ, (model, timepoints, ctnt_data)) 
     # pred = [u[3] for u in sol.u]
     # Calculate the squared error
     # return sum((pred .- ctnt_data).^2)
-    sum(abs2, sol[3,:] - ctnt_data)
+        if !successful_retcode(sol)
+            # If the solver fails, return infinity
+            return Inf
+        end
+        solution = Array(sol)
+        # return sum(abs2, solution[3,:] - ctnt_data)
+        return 100 * mean(abs, (solution[3,:] .- ctnt_data) ./ (ctnt_data .+ EPS))
+        # return sqrt(mean((log.(solution[3,:] .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
+    catch e
+        # println(θ)
+        # println(timepoints)
+        # println(length(timepoints))
+        # println(ctnt_data)
+        # println(length(ctnt_data))
+        throw(e)
+    end
 end
 
 ## Finito il train si estraggono i parametri della rete 
@@ -174,7 +194,7 @@ function training_loss(p, training_dataset)
         loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
     end
-    return loss_tot / length(training_dataset) # MSE
+    return loss_tot / length(training_dataset) 
 end
 
 function training_loss(p, (models, training_dataset))
@@ -188,7 +208,7 @@ function training_loss(p, (models, training_dataset))
         loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
     end
-    return loss_tot / length(training_dataset) # MSE
+    return loss_tot / length(training_dataset)
 end
 
 function create_start_points(
