@@ -2,6 +2,7 @@ using StableRNGs, DataFrames, StatsBase, XLSX, Random
 using Optimization, OptimizationOptimisers, LineSearches
 using Plots, JLD2
 using ProgressMeter
+using Statistics
 
 println("Algorithm started")
 
@@ -143,8 +144,8 @@ println(losses_initial[param_indxs])
 
 models = models[param_indxs];
 
-@save "res/models/out_paramsNSTEMI_MAPE_0606log.jld2" out_params;
-@load "res/models/out_paramsNSTEMI_MAPE_0606log.jld2" out_params;
+@save "res/models/out_paramsNSTEMI_SSE_0706log.jld2" out_params;
+@load "res/models/out_paramsNSTEMI_SSE_0706log.jld2" out_params;
 
 # for param_indx in partialsortperm(losses_initial, 1:25)
 #     println(initial_parameters[param_indx])
@@ -187,7 +188,7 @@ optfunc = OptimizationFunction(training_loss, AutoForwardDiff());
 # upper_bound = log.([5, 5, 400, 400, 1])
 # prog = Progress(100; dt=0.5, desc="Single solution optimizing...", showspeed=true, color=:firebrick)
 # global_prog = Progress(selected_initials; dt=1, desc="Global process optimizing...", showspeed=true, color=:blue);
-@showprogress for (i, θ_init) in enumerate(out_params)
+for (i, θ_init) in enumerate(out_params)
     # try
     println("ADAM for parameter set: $(i)")
     # global_progress = Progress(100, desc="Ottimizzazione globale ADAM", dt=0.5);
@@ -200,14 +201,83 @@ optfunc = OptimizationFunction(training_loss, AutoForwardDiff());
     opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters, callback=callback_func);
     push!(optsols, opt_result2)
     println("Solutions: $(length(optsols))/$selected_initials")
+    println(opt_result2.retcode)
     # catch
         # println("Optimization failed... Skipping")
     # end
     # next!(global_prog)
 end
 
-@save "res/models/lossesNSTEMI_MAPE_0606log.jld2" losses;
-@save "res/models/optsolsNSTEMI_MAPE_0606log.jld2" optsols;
+@save "res/models/lossesNSTEMI_SSE_0706log.jld2" losses;
+@load "res/models/lossesNSTEMI_SSE_0706log.jld2" losses;
+@save "res/models/optsolsNSTEMI_SSE_0706log.jld2" optsols;
+@load "res/models/optsolsNSTEMI_SSE_0706log.jld2" optsols;
+
+neural_network_parameters = [optsol.u.neural[:] for optsol in optsols]
+ode_params = [optsol.u.ode[:] for optsol in optsols]
+
+@save "res/models/nnNSTEMI_SSE_0706log.jld2" neural_network_parameters;
+@save "res/models/odebetasNSTEMI_SSE_0706log.jld2" ode_params;
+
+opt_solutions = []
+model_objectives = []
+for opt_sol in optsols
+    # try
+        models_valid = [ctntCUDEModel(opt_sol.u.ode[5*(j-1) + 1:5*j], chain,
+        (test_dataset[j].timepoints[1], test_dataset[j].timepoints[end])) for j in eachindex(test_dataset)];
+        initial = vec(mean(reshape(opt_sol.u.ode, :, 5), dims=1))
+
+        optsols_valid = OptimizationSolution[]
+        optfunc = OptimizationFunction(patient_loss, AutoForwardDiff())
+        for (i, model) in enumerate(models_valid)
+            patient = test_dataset[i]
+            # mean_params = mean ode params and β
+            optprob = OptimizationProblem(optfunc, initial,
+                (model, patient.timepoints, patient.ctnt_data, opt_sol.u.neural),
+                lb = lhs_lb, ub = lhs_ub)
+
+            optsol = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
+                maxiters=200)
+            
+            push!(optsols_valid, optsol)
+        end
+        push!(opt_solutions, optsols_valid)
+
+        objectives = [sol.objective for sol in optsols_valid]
+        push!(model_objectives, objectives)
+    # catch
+    #     push!(model_objectives, repeat([Inf], length(models)))
+    # end
+end
+
+# model_objectives = model_objectives[2]
+# find the model that performs best on each individual
+objectives = hcat(model_objectives...)
+
+best_model_index = argmin(mean(objectives, dims=1)[:])
+
+# best_model_index = argmin(sum(objectives, dims=2)[:])
+best_model = optsols[best_model_index]
+
+best_nn = best_model.u.neural
+best_ode_beta = best_model.u.ode 
+
+# indices = [idx[2] for idx in argmin(objectives, dims=2)[:]]
+
+# find the amount each model occurs in the best performing models
+# frequency = countmap(indices)
+
+# select the model that is most frequently selected as the best model
+# best_model = argmax([frequency[i] for i in sort(unique(indices))])
+
+ode_betas_test = [optsol.u for optsol in optsols_valid]
+@save "res/models/odebetastestNSTEMI_SSE_0706log.jld2" ode_betas_test;
+losses_test = [optsol.objective for optsol in optsols_valid]
+@save "res/models/objectivetestNSTEMI_SSE_0706log.jld2" ode_betas_test;
+
+@save "res/models/best_nn_NSTEMI_SSE_0706log.jld2" best_nn
+@save "res/models/best_ode_beta_NSTEMI_SSE_0706log.jld2" best_ode_beta
+
 
 # Plot the losses
 # pl_losses = plot(1:adam_maxiters, losses[1:adam_maxiters], yaxis = :log10, xaxis = :log10,

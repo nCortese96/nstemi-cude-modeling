@@ -131,8 +131,8 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
             return Inf
         end
         solution = Array(sol)
-        # return sum(abs2, solution[3,:] - ctnt_data)
-        return 100 * mean(abs, (solution[3,:] .- ctnt_data) ./ (ctnt_data .+ EPS))
+        return sum(abs2, solution[3,:] - ctnt_data)
+        # return 100 * mean(abs, (solution[3,:] .- ctnt_data) ./ (ctnt_data .+ EPS))
         # return sqrt(mean((log.(solution[3,:] .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
     catch e
         # println(θ)
