@@ -148,6 +148,7 @@ end
 # patient_loss: Quando sono noti i parametri della rete
 function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     p = ComponentArray(ode = θ, neural = fixed_nn_params)
+    # println(fixed_nn_params==p.neural)
     # sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
     # pred = [u[3] for u in sol.u]
     # return sum((pred .- ctnt_data).^2)

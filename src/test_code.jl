@@ -42,14 +42,7 @@ Random.seed!(1234);
 rng = StableRNG(42);
 
 # initial_params = [0.005, 0.005, 0.1, 0.001, 0.1];
-# β_init = 0.1
 
-# initial_ode = sample_initial_parameters(nrow(ids), 1, lhs_lb, lhs_ub, rng)
-
-chain = neural_network_model(2, 6; input_dims=7);
-nn_params_init = init_params(chain);
-println("NN parameter len: $(length(nn_params_init))")
-# init_model = ComponentArray(neural = nn_params_init, ode = initial_params, β=β_init)
 # Costruisci l'array di PatientData iterando su tutte le righe.
 
 shuffle!(patients);
@@ -59,11 +52,25 @@ test_dataset = patients[n_train+1:end];
 println("Training split: ", length(training_dataset))
 println("Validation split: ", length(test_dataset))
 
+training_id = [patient.id for patient in training_dataset]
+test_id = [patient.id for patient in test_dataset]
+
+# check = [];
+# check = load("res/models/testsetNSTEMI_SSE_0706log.jld2", "test_dataset")
+# @load "res/models/testsetNSTEMI_SSE_0706log.jld2" check;
+
+@save "res/models/trainingsetNSTEMI_SSE_0806log.jld2" training_dataset;
+@save "res/models/testsetNSTEMI_SSE_0806log.jld2" test_dataset;
+
+chain = neural_network_model(2, 4; input_dims=7);
+# nn_params_init = init_params(chain);
+# println("NN parameter len: $(length(nn_params_init))")
+
 n_conditional = 1;
-lhs_lb = log.([0.001, 0.001, 0.01, 0.001, 0.001]);
+lhs_lb = log.([0.001, 0.001, 0.01, 0.01, 0.001]);
 lhs_ub = log.([5.0, 5.0, 300.0, 400.0, 3]);
 # [a, b, Cs0, Cc0 ... last one is conditional parameter β]
-initial_guesses = 10;
+initial_guesses = 25;
 
 initial_nn = sample_initial_neural_parameters(initial_guesses, chain, rng);
 initial_ode = sample_initial_parameters(length(training_dataset), initial_guesses, lhs_lb, lhs_ub, rng);
@@ -72,32 +79,6 @@ initial_parameters = [ComponentArray(
         neural = initial_nn[i],
         ode = repeat(initial_ode[:,i], 1, n_conditional)
         ) for i in eachindex(initial_nn)];
-
-# train_patients = []
-# for j in 1:initial_guesses
-#     patient = [row_to_patient(
-#         training_dataset[i].id,
-#         training_dataset[i].timepoints,
-#         training_dataset[i].ctnt_data,
-#         ComponentArray(neural = initial_nn[j],
-#                         ode = initial_ode[(length(lhs_lb)*(j-1) + 1):(length(lhs_lb)*j-1)],
-#                         β=initial_ode[length(lhs_lb)*j]))
-#         for i in eachindex(training_dataset)]
-#     push!(train_patients, patient...);
-# end
-
-# i = 1; k = 250; julia test_code.jl --project=. > log.txt 2>&1
-# #iterazione del for che somma le loss e calcola la media
-# p_model = initial_parameters[k] # k = indice random dei component arrays non collegato a i
-# θ_set = p_model.ode
-# neural = p_model.neural
-# idx_start = 5*(i-1) + 1  # per il primo paziente
-# idx_end   = 5*i
-# patient_params = log.(θ_set[idx_start:idx_end])  # usa il guess iniziale, per esempio
-# patient = training_dataset[i]
-# tspan = (patient.timepoints[1], patient.timepoints[end])
-# model = ctntCUDEModel(patient_params, chain, tspan)
-# test_loss = patient_loss(patient_params, model, patient.timepoints, patient.ctnt_data, neural) # patient_params, model::ctntCUDEModel, timepoints, ctnt_data, fixed_nn_params
 
 losses_initial = Float64[];
 models = [];
@@ -111,27 +92,8 @@ for p in initial_parameters # p = initial_parameters[k]
     push!(losses_initial, loss_value);
     next!(prog);
 end
-    # θ_set = p.ode
-    # neural = p.neural
-    # N_nn = length(nn_params_init)
-    # loss_tot = 0.0
-    # for (i, patient) in enumerate(training_dataset) # patient = training_dataset[i]
-    #     idx_start = 5*(i-1) + 1
-    #     idx_end   = 5*i
-    #     patient_params = log.(θ_set[idx_start:idx_end])
-    #     tspan = (patient.timepoints[1], patient.timepoints[end])
 
-    #     model = ctntCUDEModel(patient_params, chain, tspan)
-    #     ### Calcolo cost function ###
-    #     loss_tot += patient_loss(patient_params, model, patient.timepoints, patient.ctnt_data, neural)
-    #     # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
-    # end
-    # loss_value = loss_tot / length(training_dataset)
-    # loss_value = training_loss(p, training_dataset)
-    # push!(losses_initial, loss_value)
-    # next!(prog)
-
-selected_initials = 2;
+selected_initials = 5;
 param_indxs = partialsortperm(losses_initial, 1:selected_initials);
 out_params = initial_parameters[param_indxs];
 
@@ -144,8 +106,8 @@ println(losses_initial[param_indxs])
 
 models = models[param_indxs];
 
-@save "res/models/out_paramsNSTEMI_SSE_0706log.jld2" out_params;
-@load "res/models/out_paramsNSTEMI_SSE_0706log.jld2" out_params;
+@save "res/models/out_paramsNSTEMI_SSE_0806log.jld2" out_params;
+@load "res/models/out_paramsNSTEMI_SSE_0806log.jld2" out_params;
 
 # for param_indx in partialsortperm(losses_initial, 1:25)
 #     println(initial_parameters[param_indx])
@@ -163,24 +125,11 @@ callback_func = (state, l) -> begin
     if length(losses) % 10 == 0
         println("Current loss after $(length(losses)) iterations: $(losses[end])")
     end
-    # next!(prog)  # Avanza la progress bar di uno step.
-        # 2. early-stop: aggiorna record o conta stagnazione
-    # global best_loss, stagnation
-    # if l < best_loss - min_delta          # miglioramento significativo?
-    #     best_loss  = l
-    #     global best_θ = copy(state.u)
-    #     stagnation = 0                    # reset pazienza
-    # else
-    #     stagnation += 1                   # passo “a vuoto”
-    # end
-
-    # # 3. se ho superato la patience → fermo l’ottimizzatore
-    # return stagnation ≥ patience             # Restituisce false per non terminare prematuramente.
     return false
 end
 
-adam_maxiters = 500;
-lbfgs_maxiters = 250;
+adam_maxiters = 1000;
+lbfgs_maxiters = 500;
 
 optsols = OptimizationSolution[];
 optfunc = OptimizationFunction(training_loss, AutoForwardDiff());
@@ -206,26 +155,42 @@ for (i, θ_init) in enumerate(out_params)
         # println("Optimization failed... Skipping")
     # end
     # next!(global_prog)
+
+    # Plot the losses
+
+    # idx_start = adam_maxiters*(i-1) + 1  # per il primo paziente
+    # idx_end   = adam_maxiters*i
+
+    # pl_losses = plot(idx_start:idx_end, losses[idx_start:idx_end], yaxis = :log10, xaxis = :log10,
+    #     xlabel = "Iterations", ylabel = "Loss", label = "ADAM", color = :blue)
+
+    # idx_start = (adam_maxiters + 1)*(i-1) + 1  # per il primo paziente
+    # idx_end   = (adam_maxiters + 1 + lbfgs_maxiters)*i
+
+    # plot!(idx_start:idx_end, losses[idx_start:idx_end], yaxis = :log10, xaxis = :log10,
+    #     xlabel = "Iterations", ylabel = "Loss", label = "LBFGS", color = :red)
 end
 
-@save "res/models/lossesNSTEMI_SSE_0706log.jld2" losses;
-@load "res/models/lossesNSTEMI_SSE_0706log.jld2" losses;
-@save "res/models/optsolsNSTEMI_SSE_0706log.jld2" optsols;
-@load "res/models/optsolsNSTEMI_SSE_0706log.jld2" optsols;
+@save "res/models/lossesNSTEMI_SSE_0806log.jld2" losses;
+@load "res/models/lossesNSTEMI_SSE_0806log.jld2" losses;
+@save "res/models/optsolsNSTEMI_SSE_0806log.jld2" optsols;
+@load "res/models/optsolsNSTEMI_SSE_0806log.jld2" optsols;
 
 neural_network_parameters = [optsol.u.neural[:] for optsol in optsols]
 ode_params = [optsol.u.ode[:] for optsol in optsols]
 
-@save "res/models/nnNSTEMI_SSE_0706log.jld2" neural_network_parameters;
-@save "res/models/odebetasNSTEMI_SSE_0706log.jld2" ode_params;
+@save "res/models/nnNSTEMI_SSE_0806log.jld2" neural_network_parameters;
+@save "res/models/odebetasNSTEMI_SSE_0806log.jld2" ode_params;
 
 opt_solutions = []
 model_objectives = []
-for opt_sol in optsols
+for (k, opt_sol) in enumerate(optsols)
     # try
+        println("Optsolution n: $k")
         models_valid = [ctntCUDEModel(opt_sol.u.ode[5*(j-1) + 1:5*j], chain,
         (test_dataset[j].timepoints[1], test_dataset[j].timepoints[end])) for j in eachindex(test_dataset)];
         initial = vec(mean(reshape(opt_sol.u.ode, :, 5), dims=1))
+        println(initial)
 
         optsols_valid = OptimizationSolution[]
         optfunc = OptimizationFunction(patient_loss, AutoForwardDiff())
@@ -244,6 +209,7 @@ for opt_sol in optsols
         push!(opt_solutions, optsols_valid)
 
         objectives = [sol.objective for sol in optsols_valid]
+        println(mean(objectives))
         push!(model_objectives, objectives)
     # catch
     #     push!(model_objectives, repeat([Inf], length(models)))
@@ -253,8 +219,10 @@ end
 # model_objectives = model_objectives[2]
 # find the model that performs best on each individual
 objectives = hcat(model_objectives...)
+@save "res/models/objectivesNSTEMI_SSE_0806log.jld2" objectives;
 
 best_model_index = argmin(mean(objectives, dims=1)[:])
+println("Best model id: $best_model_index")
 
 # best_model_index = argmin(sum(objectives, dims=2)[:])
 best_model = optsols[best_model_index]
@@ -271,12 +239,12 @@ best_ode_beta = best_model.u.ode
 # best_model = argmax([frequency[i] for i in sort(unique(indices))])
 
 ode_betas_test = [optsol.u for optsol in optsols_valid]
-@save "res/models/odebetastestNSTEMI_SSE_0706log.jld2" ode_betas_test;
+@save "res/models/odebetastestNSTEMI_SSE_0806log.jld2" ode_betas_test;
 losses_test = [optsol.objective for optsol in optsols_valid]
-@save "res/models/objectivetestNSTEMI_SSE_0706log.jld2" ode_betas_test;
+@save "res/models/lossestestNSTEMI_SSE_0806log.jld2" losses_test;
 
-@save "res/models/best_nn_NSTEMI_SSE_0706log.jld2" best_nn
-@save "res/models/best_ode_beta_NSTEMI_SSE_0706log.jld2" best_ode_beta
+@save "res/models/best_nn_NSTEMI_SSE_0806log.jld2" best_nn
+@save "res/models/best_ode_beta_NSTEMI_SSE_0806log.jld2" best_ode_beta
 
 
 # Plot the losses
