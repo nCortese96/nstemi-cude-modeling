@@ -238,9 +238,9 @@ best_ode_beta = best_model.u.ode
 # select the model that is most frequently selected as the best model
 # best_model = argmax([frequency[i] for i in sort(unique(indices))])
 
-ode_betas_test = [optsol.u for optsol in optsols_valid]
+ode_betas_test = [optsol.u for optsol in opt_solutions]
 @save "res/models/odebetastestNSTEMI_SSE_0806log.jld2" ode_betas_test;
-losses_test = [optsol.objective for optsol in optsols_valid]
+losses_test = [optsol.objective for optsol in opt_solutions]
 @save "res/models/lossestestNSTEMI_SSE_0806log.jld2" losses_test;
 
 @save "res/models/best_nn_NSTEMI_SSE_0806log.jld2" best_nn

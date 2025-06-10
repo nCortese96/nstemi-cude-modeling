@@ -1,0 +1,779 @@
+Evaluating initial guesses...   8%|▌      |  ETA: 0:04:34 (11.92  s/it)[KEvaluating initial guesses...  96%|██████▊|  ETA: 0:00:01 ( 1.03  s/it)[KEvaluating initial guesses... 100%|███████| Time: 0:00:24 ( 0.99  s/it)[K
+Algorithm started
+Dataset loading...
+Patient loaded: 99
+Initialize...
+Training split: 79
+Validation split: 20
+Calculated losses
+[2515.4885792402833, 1267.8046466517533, 997.7821349556114, 4207.49427989056, 1119.1437156942402, 2337.2211611029884, 1746.5073635521182, 873.239647998422, 1637.4906174970708, 972.1868145414409, 2430.6564830077873, 1035.2322438324736, 2311.7616751254195, 553.8261904747623, 1348.8471226138222, 2167.839133704499, 2181.0155504828726, 1649.1351382076896, 2007.1942389753044, 1424.3275874858946, 3273.1046208293187, 4927.985519763558, 2460.032700409254, 1460.3576054431721, 2660.477493554166]
+Best starting points loss indexes
+[14, 8, 10, 3, 12]
+Best starting points losses
+[553.8261904747623, 873.239647998422, 972.1868145414409, 997.7821349556114, 1035.2322438324736]
+ADAM for parameter set: 1
+Current loss after 10 iterations: 501.72242248718857
+Current loss after 20 iterations: 448.3352629041236
+Current loss after 30 iterations: 398.84711168491435
+Current loss after 40 iterations: 353.3567414421533
+Current loss after 50 iterations: 311.72199754767934
+Current loss after 60 iterations: 274.20719989561155
+Current loss after 70 iterations: 240.3938280942001
+Current loss after 80 iterations: 210.5058047547799
+Current loss after 90 iterations: 183.91599327522505
+Current loss after 100 iterations: 160.2443825218344
+Current loss after 110 iterations: 139.28917588490953
+Current loss after 120 iterations: 121.11292344127064
+Current loss after 130 iterations: 105.58189542325714
+Current loss after 140 iterations: 92.4047723286121
+Current loss after 150 iterations: 81.24688128251056
+Current loss after 160 iterations: 71.7180017335184
+Current loss after 170 iterations: 63.627130229615595
+Current loss after 180 iterations: 56.673343671240474
+Current loss after 190 iterations: 50.63061711712742
+Current loss after 200 iterations: 45.34392755871118
+Current loss after 210 iterations: 40.76469788790395
+Current loss after 220 iterations: 36.87671233311383
+Current loss after 230 iterations: 33.62047985710019
+Current loss after 240 iterations: 30.884937656352417
+Current loss after 250 iterations: 28.58266695736183
+Current loss after 260 iterations: 26.61341988910369
+Current loss after 270 iterations: 24.892579906260707
+Current loss after 280 iterations: 23.38461494987693
+Current loss after 290 iterations: 22.068559241579692
+Current loss after 300 iterations: 20.891792984887754
+Current loss after 310 iterations: 19.834142107459165
+Current loss after 320 iterations: 18.885845562053337
+Current loss after 330 iterations: 18.02440117447419
+Current loss after 340 iterations: 17.241443660450035
+Current loss after 350 iterations: 16.543192033548646
+Current loss after 360 iterations: 15.87675134524815
+Current loss after 370 iterations: 15.26925709444694
+Current loss after 380 iterations: 14.708072265979382
+Current loss after 390 iterations: 14.199179334980254
+Current loss after 400 iterations: 13.722484061557084
+Current loss after 410 iterations: 13.347785643884375
+Current loss after 420 iterations: 12.929636929796999
+Current loss after 430 iterations: 12.540073163235938
+Current loss after 440 iterations: 12.173121180681639
+Current loss after 450 iterations: 11.918386723039957
+Current loss after 460 iterations: 11.603921292626815
+Current loss after 470 iterations: 11.305342239491077
+Current loss after 480 iterations: 11.026804639045121
+Current loss after 490 iterations: 10.774145034840304
+Current loss after 500 iterations: 10.540841900634522
+Current loss after 510 iterations: 10.31963068411644
+Current loss after 520 iterations: 10.116179045790076
+Current loss after 530 iterations: 9.925475335943633
+Current loss after 540 iterations: 9.746561237603746
+Current loss after 550 iterations: 9.578771156659815
+Current loss after 560 iterations: 9.421043476647533
+Current loss after 570 iterations: 9.27248336141323
+Current loss after 580 iterations: 9.132645737297443
+Current loss after 590 iterations: 8.999625850969755
+Current loss after 600 iterations: 8.874545148801001
+Current loss after 610 iterations: 8.756467370719063
+Current loss after 620 iterations: 8.645122970441571
+Current loss after 630 iterations: 8.54010994715935
+Current loss after 640 iterations: 8.440719424056216
+Current loss after 650 iterations: 8.347041406116084
+Current loss after 660 iterations: 8.258094637598127
+Current loss after 670 iterations: 8.172546696689002
+Current loss after 680 iterations: 8.092145617178721
+Current loss after 690 iterations: 8.015268158932036
+Current loss after 700 iterations: 7.941695398414414
+Current loss after 710 iterations: 7.871278425393201
+Current loss after 720 iterations: 7.803664872929292
+Current loss after 730 iterations: 7.738562445380167
+Current loss after 740 iterations: 7.676591337183061
+Current loss after 750 iterations: 7.61708449143946
+Current loss after 760 iterations: 7.560249321830749
+Current loss after 770 iterations: 7.506597014472922
+Current loss after 780 iterations: 7.456226206302768
+Current loss after 790 iterations: 7.405894497760386
+Current loss after 800 iterations: 7.355866974656129
+Current loss after 810 iterations: 7.312360044990676
+Current loss after 820 iterations: 7.267907317436385
+Current loss after 830 iterations: 7.224690907159609
+Current loss after 840 iterations: 7.182332448536416
+Current loss after 850 iterations: 7.141024991776434
+Current loss after 860 iterations: 7.100212709635762
+Current loss after 870 iterations: 7.059893417416273
+Current loss after 880 iterations: 7.019593322604982
+Current loss after 890 iterations: 6.979173921257435
+Current loss after 900 iterations: 6.939702321714855
+Current loss after 910 iterations: 6.899856066974552
+Current loss after 920 iterations: 6.8585302426512476
+Current loss after 930 iterations: 6.817605503247698
+Current loss after 940 iterations: 6.77788913747376
+Current loss after 950 iterations: 6.739863215081613
+Current loss after 960 iterations: 6.704306546685743
+Current loss after 970 iterations: 6.671268221784016
+Current loss after 980 iterations: 6.640782604823958
+Current loss after 990 iterations: 6.612140783407603
+Current loss after 1000 iterations: 6.584820628338986
+LBFGS for parameter set: 1
+Default
+Current loss after 1010 iterations: 5.883610594155798
+Current loss after 1020 iterations: 5.810160944721624
+Current loss after 1030 iterations: 5.724445212910402
+Current loss after 1040 iterations: 5.640189596724378
+Current loss after 1050 iterations: 5.630849006113104
+Solutions: 1/5
+Success
+ADAM for parameter set: 2
+Current loss after 1060 iterations: 849.9657090582325
+Current loss after 1070 iterations: 776.0204400658217
+Current loss after 1080 iterations: 710.0072314177444
+Current loss after 1090 iterations: 650.650641385031
+Current loss after 1100 iterations: 597.0998863077747
+Current loss after 1110 iterations: 549.0508949167233
+Current loss after 1120 iterations: 505.4987362927783
+Current loss after 1130 iterations: 466.1723052196446
+Current loss after 1140 iterations: 430.20902791325756
+Current loss after 1150 iterations: 396.88792155286745
+Current loss after 1160 iterations: 365.5762655212362
+Current loss after 1170 iterations: 335.77562598435145
+Current loss after 1180 iterations: 307.10736119116217
+Current loss after 1190 iterations: 279.2590838848755
+Current loss after 1200 iterations: 252.06205627059188
+Current loss after 1210 iterations: 225.46385682853287
+Current loss after 1220 iterations: 199.667663363236
+Current loss after 1230 iterations: 175.0136852799286
+Current loss after 1240 iterations: 151.99337479395084
+Current loss after 1250 iterations: 131.0034709614295
+Current loss after 1260 iterations: 112.29762249796845
+Current loss after 1270 iterations: 95.93519700912962
+Current loss after 1280 iterations: 81.90438945213755
+Current loss after 1290 iterations: 70.15333720103523
+Current loss after 1300 iterations: 60.510391234449415
+Current loss after 1310 iterations: 52.71798271947458
+Current loss after 1320 iterations: 46.4382985530583
+Current loss after 1330 iterations: 41.348277479697764
+Current loss after 1340 iterations: 37.17885707054335
+Current loss after 1350 iterations: 33.71655068982508
+Current loss after 1360 iterations: 30.801827042639882
+Current loss after 1370 iterations: 28.31953620962883
+Current loss after 1380 iterations: 26.181036582265392
+Current loss after 1390 iterations: 24.323458679247672
+Current loss after 1400 iterations: 22.69731879741058
+Current loss after 1410 iterations: 21.264264773843678
+Current loss after 1420 iterations: 19.9946535824775
+Current loss after 1430 iterations: 18.86464731568905
+Current loss after 1440 iterations: 17.853619053001015
+Current loss after 1450 iterations: 16.945027331254124
+Current loss after 1460 iterations: 16.127353288677046
+Current loss after 1470 iterations: 15.386916133788663
+Current loss after 1480 iterations: 14.715610181290955
+Current loss after 1490 iterations: 14.105670953548348
+Current loss after 1500 iterations: 13.550821563316857
+Current loss after 1510 iterations: 13.043173725909606
+Current loss after 1520 iterations: 12.576508227528858
+Current loss after 1530 iterations: 12.147580964254663
+Current loss after 1540 iterations: 11.752113296199141
+Current loss after 1550 iterations: 11.387711753458662
+Current loss after 1560 iterations: 11.048329319775382
+Current loss after 1570 iterations: 10.733904661831945
+Current loss after 1580 iterations: 10.442468340779518
+Current loss after 1590 iterations: 10.170863969577415
+Current loss after 1600 iterations: 9.916958712694587
+Current loss after 1610 iterations: 9.6784673240334
+Current loss after 1620 iterations: 9.456405964977897
+Current loss after 1630 iterations: 9.24980054047148
+Current loss after 1640 iterations: 9.054082107998106
+Current loss after 1650 iterations: 8.870954252033771
+Current loss after 1660 iterations: 8.69807230831741
+Current loss after 1670 iterations: 8.53420768903361
+Current loss after 1680 iterations: 8.379202796919886
+Current loss after 1690 iterations: 8.232783222109681
+Current loss after 1700 iterations: 8.09419970893881
+Current loss after 1710 iterations: 7.965042647732675
+Current loss after 1720 iterations: 7.8413859332169205
+Current loss after 1730 iterations: 7.724725792730264
+Current loss after 1740 iterations: 7.614226718875325
+Current loss after 1750 iterations: 7.509831263981851
+Current loss after 1760 iterations: 7.410868929130169
+Current loss after 1770 iterations: 7.316661576066974
+Current loss after 1780 iterations: 7.2269679184349025
+Current loss after 1790 iterations: 7.141470845174945
+Current loss after 1800 iterations: 7.0601391578682
+Current loss after 1810 iterations: 6.982526386503713
+Current loss after 1820 iterations: 6.908714669337862
+Current loss after 1830 iterations: 6.838108615774894
+Current loss after 1840 iterations: 6.77733754143837
+Current loss after 1850 iterations: 6.711044918043712
+Current loss after 1860 iterations: 6.6478361542944935
+Current loss after 1870 iterations: 6.5868554834181605
+Current loss after 1880 iterations: 6.529604294919901
+Current loss after 1890 iterations: 6.474833182738027
+Current loss after 1900 iterations: 6.4227387719339974
+Current loss after 1910 iterations: 6.372531391078362
+Current loss after 1920 iterations: 6.324481034408433
+Current loss after 1930 iterations: 6.2785912146748935
+Current loss after 1940 iterations: 6.234195798729132
+Current loss after 1950 iterations: 6.191626747940577
+Current loss after 1960 iterations: 6.15085321391376
+Current loss after 1970 iterations: 6.111517012363088
+Current loss after 1980 iterations: 6.073626360832863
+Current loss after 1990 iterations: 6.037030746860653
+Current loss after 2000 iterations: 6.001751396708627
+Current loss after 2010 iterations: 5.967795408357779
+Current loss after 2020 iterations: 5.935093665448265
+Current loss after 2030 iterations: 5.903338299965822
+Current loss after 2040 iterations: 5.872971108670548
+Current loss after 2050 iterations: 5.84339554771374
+LBFGS for parameter set: 2
+Default
+Current loss after 2060 iterations: 5.208990302938789
+Current loss after 2070 iterations: 5.071212142830083
+Current loss after 2080 iterations: 4.918856735525802
+Current loss after 2090 iterations: 4.84632885889585
+Current loss after 2100 iterations: 4.817954685159553
+Current loss after 2110 iterations: 4.790872144932626
+Current loss after 2120 iterations: 4.762878217782422
+Current loss after 2130 iterations: 4.7378293269950555
+Current loss after 2140 iterations: 4.716087942381017
+Current loss after 2150 iterations: 4.702413190858262
+Current loss after 2160 iterations: 4.692601209012503
+Current loss after 2170 iterations: 4.681566686110638
+Current loss after 2180 iterations: 4.674950522351441
+Current loss after 2190 iterations: 4.663422751293254
+Current loss after 2200 iterations: 4.661844667618049
+Current loss after 2210 iterations: 4.660650524599648
+Current loss after 2220 iterations: 4.658583160946841
+Current loss after 2230 iterations: 4.654756672682105
+Current loss after 2240 iterations: 4.652866792214742
+Current loss after 2250 iterations: 4.651947993522304
+Current loss after 2260 iterations: 4.651119793759593
+Current loss after 2270 iterations: 4.6508230859262785
+Current loss after 2280 iterations: 4.6503739339515855
+Current loss after 2290 iterations: 4.649914954471514
+Current loss after 2300 iterations: 4.649622576675005
+Current loss after 2310 iterations: 4.649430205930605
+Current loss after 2320 iterations: 4.64925784364171
+Current loss after 2330 iterations: 4.649222196587117
+Current loss after 2340 iterations: 4.649215977066226
+Current loss after 2350 iterations: 4.6491869578764335
+Current loss after 2360 iterations: 4.649134707054568
+Current loss after 2370 iterations: 4.649092347563131
+Current loss after 2380 iterations: 4.648950130215967
+Current loss after 2390 iterations: 4.64892789941495
+Current loss after 2400 iterations: 4.648772906733284
+Current loss after 2410 iterations: 4.64875791255909
+Current loss after 2420 iterations: 4.6486774337939964
+Current loss after 2430 iterations: 4.6486768991510345
+Current loss after 2440 iterations: 4.648592665232862
+Current loss after 2450 iterations: 4.648591491354768
+Solutions: 2/5
+Success
+ADAM for parameter set: 3
+Current loss after 2460 iterations: 954.8572080469445
+Current loss after 2470 iterations: 872.2521146500387
+Current loss after 2480 iterations: 799.1544282204969
+Current loss after 2490 iterations: 733.2964407225845
+Current loss after 2500 iterations: 673.5797891462988
+Current loss after 2510 iterations: 618.6899711818668
+Current loss after 2520 iterations: 567.7011701442405
+Current loss after 2530 iterations: 519.5695353047663
+Current loss after 2540 iterations: 473.51027433480203
+Current loss after 2550 iterations: 429.132178651393
+Current loss after 2560 iterations: 386.1723813564282
+Current loss after 2570 iterations: 344.67556750128426
+Current loss after 2580 iterations: 304.94277233710307
+Current loss after 2590 iterations: 267.50998912582793
+Current loss after 2600 iterations: 232.92899417403274
+Current loss after 2610 iterations: 201.80185844041276
+Current loss after 2620 iterations: 174.41857281242153
+Current loss after 2630 iterations: 150.8453320026271
+Current loss after 2640 iterations: 130.89423200864718
+Current loss after 2650 iterations: 114.20137374725977
+Current loss after 2660 iterations: 100.31771346835966
+Current loss after 2670 iterations: 88.78545989155933
+Current loss after 2680 iterations: 79.18412711511436
+Current loss after 2690 iterations: 71.15372826315348
+Current loss after 2700 iterations: 64.39555689459388
+Current loss after 2710 iterations: 58.66789985188718
+Current loss after 2720 iterations: 53.77809312036724
+Current loss after 2730 iterations: 49.572422121995544
+Current loss after 2740 iterations: 45.92895462141682
+Current loss after 2750 iterations: 42.75052325739952
+Current loss after 2760 iterations: 39.959686245680466
+Current loss after 2770 iterations: 37.49567062611194
+Current loss after 2780 iterations: 35.30906691340358
+Current loss after 2790 iterations: 33.358396913942855
+Current loss after 2800 iterations: 31.608546344803926
+Current loss after 2810 iterations: 30.034693769949264
+Current loss after 2820 iterations: 28.612668688960852
+Current loss after 2830 iterations: 27.32281793293706
+Current loss after 2840 iterations: 26.14872981810056
+Current loss after 2850 iterations: 25.077401258576106
+Current loss after 2860 iterations: 24.097736873447946
+Current loss after 2870 iterations: 23.20095994069381
+Current loss after 2880 iterations: 22.378895272272448
+Current loss after 2890 iterations: 21.636046887220157
+Current loss after 2900 iterations: 21.006803073134883
+Current loss after 2910 iterations: 20.47860315053191
+Current loss after 2920 iterations: 19.8808643338995
+Current loss after 2930 iterations: 19.273809518853188
+Current loss after 2940 iterations: 18.736421932258157
+Current loss after 2950 iterations: 18.238453476816844
+Current loss after 2960 iterations: 17.781275005739634
+Current loss after 2970 iterations: 17.355049736012223
+Current loss after 2980 iterations: 16.956265351132224
+Current loss after 2990 iterations: 16.57998269010299
+Current loss after 3000 iterations: 16.226547528550547
+Current loss after 3010 iterations: 15.895518589062974
+Current loss after 3020 iterations: 15.584942689826375
+Current loss after 3030 iterations: 15.292468976850934
+Current loss after 3040 iterations: 15.015346173377866
+Current loss after 3050 iterations: 14.750825265693873
+Current loss after 3060 iterations: 14.50243207429987
+Current loss after 3070 iterations: 14.267759005667575
+Current loss after 3080 iterations: 14.044937002107247
+Current loss after 3090 iterations: 13.832988117423735
+Current loss after 3100 iterations: 13.622881209734029
+Current loss after 3110 iterations: 13.428967343409996
+Current loss after 3120 iterations: 13.23747737600575
+Current loss after 3130 iterations: 13.06382485028494
+Current loss after 3140 iterations: 12.901162092688745
+Current loss after 3150 iterations: 12.746989994019094
+Current loss after 3160 iterations: 12.599724986331346
+Current loss after 3170 iterations: 12.460094594853548
+Current loss after 3180 iterations: 12.326200782728703
+Current loss after 3190 iterations: 12.197756262581512
+Current loss after 3200 iterations: 12.073657517818264
+Current loss after 3210 iterations: 11.9555054652869
+Current loss after 3220 iterations: 11.84215709079771
+Current loss after 3230 iterations: 11.733700764686018
+Current loss after 3240 iterations: 11.629659065854439
+Current loss after 3250 iterations: 11.529636080310045
+Current loss after 3260 iterations: 11.433554304232079
+Current loss after 3270 iterations: 11.341118070131623
+Current loss after 3280 iterations: 11.252115187223009
+Current loss after 3290 iterations: 11.166532796602413
+Current loss after 3300 iterations: 11.083934371733262
+Current loss after 3310 iterations: 11.004329256159586
+Current loss after 3320 iterations: 10.92749537857377
+Current loss after 3330 iterations: 10.853100277905018
+Current loss after 3340 iterations: 10.781393971129761
+Current loss after 3350 iterations: 10.71213600587326
+Current loss after 3360 iterations: 10.645103416792795
+Current loss after 3370 iterations: 10.580244258381141
+Current loss after 3380 iterations: 10.517379306529469
+Current loss after 3390 iterations: 10.456380192192906
+Current loss after 3400 iterations: 10.39727814149912
+Current loss after 3410 iterations: 10.33984497410111
+Current loss after 3420 iterations: 10.283503940850768
+Current loss after 3430 iterations: 10.229129752300578
+Current loss after 3440 iterations: 10.175093222557875
+Current loss after 3450 iterations: 10.12121680444381
+LBFGS for parameter set: 3
+Default
+Current loss after 3460 iterations: 8.196650560418387
+Current loss after 3470 iterations: 8.060050108898375
+Current loss after 3480 iterations: 8.027678069446559
+Current loss after 3490 iterations: 7.981615966899064
+Current loss after 3500 iterations: 7.74996913372401
+Current loss after 3510 iterations: 7.527698007472917
+Current loss after 3520 iterations: 7.383165720955843
+Current loss after 3530 iterations: 7.283552945401246
+Current loss after 3540 iterations: 7.2501073214168485
+Current loss after 3550 iterations: 7.180539358605294
+Current loss after 3560 iterations: 7.177359779533271
+Current loss after 3570 iterations: 7.170633654619543
+Current loss after 3580 iterations: 7.157895408044557
+Current loss after 3590 iterations: 7.115901268722847
+Current loss after 3600 iterations: 7.099118162227601
+Current loss after 3610 iterations: 7.087580394802526
+Current loss after 3620 iterations: 7.077432100222625
+Current loss after 3630 iterations: 7.068900378275887
+Current loss after 3640 iterations: 7.065642147251804
+Current loss after 3650 iterations: 7.0626189301009505
+Current loss after 3660 iterations: 7.058341318973005
+Current loss after 3670 iterations: 7.051301213587278
+Current loss after 3680 iterations: 7.04847616394908
+Current loss after 3690 iterations: 7.042408213570996
+Current loss after 3700 iterations: 7.037941866362438
+Current loss after 3710 iterations: 7.024846497359268
+Current loss after 3720 iterations: 7.013824384363672
+Current loss after 3730 iterations: 6.998329364883739
+Current loss after 3740 iterations: 6.98898091720349
+Current loss after 3750 iterations: 6.984139072027569
+Current loss after 3760 iterations: 6.979830629157609
+Current loss after 3770 iterations: 6.977684025677784
+Current loss after 3780 iterations: 6.975942286180118
+Current loss after 3790 iterations: 6.974985914282647
+Current loss after 3800 iterations: 6.973892441505193
+Current loss after 3810 iterations: 6.971802369300071
+Current loss after 3820 iterations: 6.9707366409069875
+Current loss after 3830 iterations: 6.9700626247179995
+Current loss after 3840 iterations: 6.969196285670181
+Current loss after 3850 iterations: 6.968259854756611
+Current loss after 3860 iterations: 6.9671186138361945
+Current loss after 3870 iterations: 6.9662916791499825
+Current loss after 3880 iterations: 6.965142117511129
+Current loss after 3890 iterations: 6.964285098707109
+Current loss after 3900 iterations: 6.962647761511761
+Current loss after 3910 iterations: 6.961657787155615
+Current loss after 3920 iterations: 6.9597046423012205
+Current loss after 3930 iterations: 6.956685319331125
+Current loss after 3940 iterations: 6.951522013176707
+Current loss after 3950 iterations: 6.949022552674294
+Solutions: 3/5
+Failure
+ADAM for parameter set: 4
+Current loss after 3960 iterations: 997.7331734778934
+Current loss after 3970 iterations: 920.1161705523466
+Current loss after 3980 iterations: 847.845007416758
+Current loss after 3990 iterations: 778.8254155676201
+Current loss after 4000 iterations: 714.5418278908573
+Current loss after 4010 iterations: 654.3454074315009
+Current loss after 4020 iterations: 597.8496707556762
+Current loss after 4030 iterations: 544.701945388763
+Current loss after 4040 iterations: 494.8119383278261
+Current loss after 4050 iterations: 448.22771228917674
+Current loss after 4060 iterations: 405.0233614434177
+Current loss after 4070 iterations: 364.7488556605934
+Current loss after 4080 iterations: 327.7108504378227
+Current loss after 4090 iterations: 293.7891800748866
+Current loss after 4100 iterations: 263.0067630498608
+Current loss after 4110 iterations: 235.3351019909563
+Current loss after 4120 iterations: 210.5775603380426
+Current loss after 4130 iterations: 188.49942615903277
+Current loss after 4140 iterations: 168.8058664677301
+Current loss after 4150 iterations: 151.23607328041683
+Current loss after 4160 iterations: 135.58084381521428
+Current loss after 4170 iterations: 121.6318485150023
+Current loss after 4180 iterations: 109.23658015453042
+Current loss after 4190 iterations: 98.28247945377414
+Current loss after 4200 iterations: 88.61759851812197
+Current loss after 4210 iterations: 80.1283328477858
+Current loss after 4220 iterations: 72.69333484064997
+Current loss after 4230 iterations: 66.20414861532107
+Current loss after 4240 iterations: 60.54506118232507
+Current loss after 4250 iterations: 55.59576941272019
+Current loss after 4260 iterations: 51.24971405416233
+Current loss after 4270 iterations: 47.4237498209184
+Current loss after 4280 iterations: 44.04181051472775
+Current loss after 4290 iterations: 41.04157210598622
+Current loss after 4300 iterations: 38.36385795510327
+Current loss after 4310 iterations: 35.95380200924145
+Current loss after 4320 iterations: 33.77929693309958
+Current loss after 4330 iterations: 31.824392809701795
+Current loss after 4340 iterations: 30.15178572255753
+Current loss after 4350 iterations: 28.487407287038256
+Current loss after 4360 iterations: 26.999133317936902
+Current loss after 4370 iterations: 25.66477409748456
+Current loss after 4380 iterations: 24.46682729262274
+Current loss after 4390 iterations: 23.338912913478847
+Current loss after 4400 iterations: 22.317843004805134
+Current loss after 4410 iterations: 21.373806346507713
+Current loss after 4420 iterations: 20.507578567840273
+Current loss after 4430 iterations: 19.714341157049155
+Current loss after 4440 iterations: 18.981231843912703
+Current loss after 4450 iterations: 18.2999026962519
+Current loss after 4460 iterations: 17.66700271671879
+Current loss after 4470 iterations: 17.078791468710946
+Current loss after 4480 iterations: 16.53257384780106
+Current loss after 4490 iterations: 16.025869339894673
+Current loss after 4500 iterations: 15.554906446099332
+Current loss after 4510 iterations: 15.11115379504357
+Current loss after 4520 iterations: 14.690491725142415
+Current loss after 4530 iterations: 14.28252557325757
+Current loss after 4540 iterations: 13.877809160898016
+Current loss after 4550 iterations: 13.655823248404221
+Current loss after 4560 iterations: 13.346592360704781
+Current loss after 4570 iterations: 12.964111609494614
+Current loss after 4580 iterations: 12.643469543530935
+Current loss after 4590 iterations: 12.327194885217144
+Current loss after 4600 iterations: 12.074113730853869
+Current loss after 4610 iterations: 11.833626672205042
+Current loss after 4620 iterations: 11.606092947755519
+Current loss after 4630 iterations: 11.390870482536824
+Current loss after 4640 iterations: 11.187179039036364
+Current loss after 4650 iterations: 10.994352964140138
+Current loss after 4660 iterations: 10.809449310097493
+Current loss after 4670 iterations: 10.633242541538882
+Current loss after 4680 iterations: 10.465415542165966
+Current loss after 4690 iterations: 10.305409933553365
+Current loss after 4700 iterations: 10.151763171084626
+Current loss after 4710 iterations: 10.004933135469326
+Current loss after 4720 iterations: 9.865383865670879
+Current loss after 4730 iterations: 9.733611722738864
+Current loss after 4740 iterations: 9.609062589537237
+Current loss after 4750 iterations: 9.491511276802978
+Current loss after 4760 iterations: 9.380246988064085
+Current loss after 4770 iterations: 9.274714105767407
+Current loss after 4780 iterations: 9.174422204592746
+Current loss after 4790 iterations: 9.079167192175907
+Current loss after 4800 iterations: 8.988529634211119
+Current loss after 4810 iterations: 8.902254953644338
+Current loss after 4820 iterations: 8.820411534894781
+Current loss after 4830 iterations: 8.742022926452925
+Current loss after 4840 iterations: 8.666766605622307
+Current loss after 4850 iterations: 8.594556640414963
+Current loss after 4860 iterations: 8.525147897340771
+Current loss after 4870 iterations: 8.458344352779905
+Current loss after 4880 iterations: 8.394155896093613
+Current loss after 4890 iterations: 8.33250508320771
+Current loss after 4900 iterations: 8.27317038821683
+Current loss after 4910 iterations: 8.216242385645428
+Current loss after 4920 iterations: 8.16150809713452
+Current loss after 4930 iterations: 8.10881873030591
+Current loss after 4940 iterations: 8.058211634721598
+Current loss after 4950 iterations: 8.009488133632063
+Current loss after 4960 iterations: 7.9672864597156545
+LBFGS for parameter set: 4
+Default
+Current loss after 4970 iterations: 6.680457522425455
+Current loss after 4980 iterations: 6.621553330899806
+Current loss after 4990 iterations: 6.59806736952705
+Current loss after 5000 iterations: 6.59098415428346
+Current loss after 5010 iterations: 6.589723357327218
+Current loss after 5020 iterations: 6.58609727167902
+Current loss after 5030 iterations: 6.5834870529410905
+Current loss after 5040 iterations: 6.576689250635784
+Current loss after 5050 iterations: 6.566968039796796
+Current loss after 5060 iterations: 6.562081701251473
+Current loss after 5070 iterations: 6.561057673571029
+Current loss after 5080 iterations: 6.556362734614635
+Current loss after 5090 iterations: 6.55572980225408
+Current loss after 5100 iterations: 6.555568579468219
+Current loss after 5110 iterations: 6.553999305941013
+Current loss after 5120 iterations: 6.551301594561546
+Current loss after 5130 iterations: 6.548680632572256
+Current loss after 5140 iterations: 6.547758288363413
+Current loss after 5150 iterations: 6.546586509797811
+Current loss after 5160 iterations: 6.54535869615871
+Current loss after 5170 iterations: 6.543970067399344
+Current loss after 5180 iterations: 6.539086540622785
+Current loss after 5190 iterations: 6.536713311390651
+Current loss after 5200 iterations: 6.535602723033003
+Current loss after 5210 iterations: 6.53321523718471
+Current loss after 5220 iterations: 6.532010427339384
+Current loss after 5230 iterations: 6.527968956485057
+Current loss after 5240 iterations: 6.527825462052396
+Current loss after 5250 iterations: 6.526140348455569
+Current loss after 5260 iterations: 6.525302509965523
+Current loss after 5270 iterations: 6.52517512415972
+Current loss after 5280 iterations: 6.5248705723773925
+Current loss after 5290 iterations: 6.522961626929573
+Current loss after 5300 iterations: 6.520993254556308
+Current loss after 5310 iterations: 6.5199031957683005
+Current loss after 5320 iterations: 6.518080632060219
+Current loss after 5330 iterations: 6.516095213863099
+Current loss after 5340 iterations: 6.515981317023874
+Current loss after 5350 iterations: 6.515978115913279
+Current loss after 5360 iterations: 6.5159699614043385
+Current loss after 5370 iterations: 6.515958187080449
+Solutions: 4/5
+Success
+ADAM for parameter set: 5
+Current loss after 5380 iterations: 962.6499324969174
+Current loss after 5390 iterations: 876.5799184050405
+Current loss after 5400 iterations: 797.2262095395023
+Current loss after 5410 iterations: 724.5903039404636
+Current loss after 5420 iterations: 658.4816717492178
+Current loss after 5430 iterations: 598.3480678623552
+Current loss after 5440 iterations: 543.5200870523541
+Current loss after 5450 iterations: 493.0658286484045
+Current loss after 5460 iterations: 446.5349300109479
+Current loss after 5470 iterations: 403.3412823591703
+Current loss after 5480 iterations: 363.28489810808594
+Current loss after 5490 iterations: 326.1250675401636
+Current loss after 5500 iterations: 291.60820398215134
+Current loss after 5510 iterations: 259.75051972442327
+Current loss after 5520 iterations: 230.36280808891928
+Current loss after 5530 iterations: 203.22938950036198
+Current loss after 5540 iterations: 178.17053975792072
+Current loss after 5550 iterations: 155.0862496695094
+Current loss after 5560 iterations: 133.95191219389716
+Current loss after 5570 iterations: 115.00316832581247
+Current loss after 5580 iterations: 98.43616064435953
+Current loss after 5590 iterations: 84.42762545823838
+Current loss after 5600 iterations: 72.86717658527749
+Current loss after 5610 iterations: 63.465415459782754
+Current loss after 5620 iterations: 55.89616726037893
+Current loss after 5630 iterations: 49.74751006765672
+Current loss after 5640 iterations: 44.689880377968066
+Current loss after 5650 iterations: 40.48062778915713
+Current loss after 5660 iterations: 36.92943459085929
+Current loss after 5670 iterations: 33.90360474609999
+Current loss after 5680 iterations: 31.29752238184899
+Current loss after 5690 iterations: 29.034895328959028
+Current loss after 5700 iterations: 27.058511059131174
+Current loss after 5710 iterations: 25.317292074910096
+Current loss after 5720 iterations: 23.78150031072057
+Current loss after 5730 iterations: 22.425135893346
+Current loss after 5740 iterations: 21.188634470997105
+Current loss after 5750 iterations: 20.0739173041087
+Current loss after 5760 iterations: 19.0746970448765
+Current loss after 5770 iterations: 18.16799147841638
+Current loss after 5780 iterations: 17.343902707567583
+Current loss after 5790 iterations: 16.591019761518265
+Current loss after 5800 iterations: 15.901169664873878
+Current loss after 5810 iterations: 15.26749640152486
+Current loss after 5820 iterations: 14.683956746923542
+Current loss after 5830 iterations: 14.1452766293418
+Current loss after 5840 iterations: 13.646426976372553
+┌ Warning: At t=0.23333333322079852, dt was forced below floating point epsilon 2.7755575615628914e-17, and step error estimate = 1029.560403008622. Aborting. There is either an error in your model specification or the true solution is unstable (or the true solution can not be represented in the precision of Float64).
+└ @ SciMLBase ~/.julia/packages/SciMLBase/iHgIu/src/integrator_interface.jl:623
+┌ Warning: Attempting to store OptimizationBase.var"#grad#16"{Tuple{Vector{ctntCUDEModel}, Vector{PatientData}}, OptimizationFunction{true, AutoForwardDiff{nothing, Nothing}, typeof(training_loss), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, AutoForwardDiff{nothing, Nothing}}.
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store OptimizationFunction{true, AutoForwardDiff{nothing, Nothing}, typeof(training_loss), OptimizationBase.var"#grad#16"{Tuple{Vector{ctntCUDEModel}, Vector{PatientData}}, OptimizationFunction{true, AutoForwardDiff{nothing, Nothing}, typeof(training_loss), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}, AutoForwardDiff{nothing, Nothing}}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED_NO_TIME), Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing}.
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store var"#31#32".
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store var"#31#32".
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store var"#cude!#1"{SimpleChain{Tuple{Static.StaticInt{7}}, Tuple{TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{1}, typeof(softplus)}}}}.
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store ODEFunction{true, SciMLBase.AutoSpecialize, var"#cude!#1"{SimpleChain{Tuple{Static.StaticInt{7}}, Tuple{TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{1}, typeof(softplus)}}}}, LinearAlgebra.UniformScaling{Bool}, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, typeof(SciMLBase.DEFAULT_OBSERVED), Nothing, Nothing, Nothing, Nothing}.
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Attempting to store var"#cude!#1"{SimpleChain{Tuple{Static.StaticInt{7}}, Tuple{TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{4}, typeof(tanh)}, TurboDense{true, Static.StaticInt{1}, typeof(softplus)}}}}.
+│ JLD2 only stores functions by name.
+│  This may not be useful for anonymous functions.
+└ @ JLD2 ~/.julia/packages/JLD2/pdSa4/src/data/writing_datatypes.jl:447
+┌ Warning: Assignment to `optfunc` in soft scope is ambiguous because a global variable by the same name exists: `optfunc` will be treated as a new local. Disambiguate by using `local optfunc` to suppress this warning or `global optfunc` to assign to the existing global variable.
+└ @ ~/Projects/Hybrid modeling/MechanisticAI_jl/src/test_code.jl:196
+ERROR: LoadError: UndefVarError: `optsols_valid` not defined in `Main`
+Suggestion: check for spelling errors or missing imports.
+Stacktrace:
+ [1] top-level scope
+   @ ~/Projects/Hybrid modeling/MechanisticAI_jl/src/test_code.jl:241
+in expression starting at /home/nicola/Projects/Hybrid modeling/MechanisticAI_jl/src/test_code.jl:241
+Current loss after 5850 iterations: 13.188069304593816
+Current loss after 5860 iterations: 12.754409031395404
+Current loss after 5870 iterations: 12.354409759977449
+Current loss after 5880 iterations: 11.981973846739436
+Current loss after 5890 iterations: 11.633637757670781
+Current loss after 5900 iterations: 11.307940899415955
+Current loss after 5910 iterations: 11.002889832105978
+Current loss after 5920 iterations: 10.716726857799394
+Current loss after 5930 iterations: 10.448110950629532
+Current loss after 5940 iterations: 10.19521321268395
+Current loss after 5950 iterations: 9.957117335716875
+Current loss after 5960 iterations: 9.7326817829749
+Current loss after 5970 iterations: 9.52099280379887
+Current loss after 5980 iterations: 9.320444615623433
+Current loss after 5990 iterations: 9.131107062058053
+Current loss after 6000 iterations: 8.952140033878623
+Current loss after 6010 iterations: 8.782609557381052
+Current loss after 6020 iterations: 8.621387543691874
+Current loss after 6030 iterations: 8.468342483143536
+Current loss after 6040 iterations: 8.322755239692354
+Current loss after 6050 iterations: 8.184219384566296
+Current loss after 6060 iterations: 8.052368193762113
+Current loss after 6070 iterations: 7.92700519108026
+Current loss after 6080 iterations: 7.807261588999479
+Current loss after 6090 iterations: 7.693293319984894
+Current loss after 6100 iterations: 7.585787878163503
+Current loss after 6110 iterations: 7.47935187473671
+Current loss after 6120 iterations: 7.379520247034098
+Current loss after 6130 iterations: 7.28333656461948
+Current loss after 6140 iterations: 7.192662632018986
+Current loss after 6150 iterations: 7.105087977199504
+Current loss after 6160 iterations: 7.02241991600963
+Current loss after 6170 iterations: 6.939665222919521
+Current loss after 6180 iterations: 6.8611774095671
+Current loss after 6190 iterations: 6.786752988392406
+Current loss after 6200 iterations: 6.715035987709262
+Current loss after 6210 iterations: 6.648149660454361
+Current loss after 6220 iterations: 6.583566146947527
+Current loss after 6230 iterations: 6.517912285730548
+Current loss after 6240 iterations: 6.469303031047224
+Current loss after 6250 iterations: 6.433598067584581
+Current loss after 6260 iterations: 6.367713467356942
+Current loss after 6270 iterations: 6.306423377815119
+Current loss after 6280 iterations: 6.24913446400093
+Current loss after 6290 iterations: 6.193904598864141
+Current loss after 6300 iterations: 6.140358947799212
+Current loss after 6310 iterations: 6.087982817072507
+Current loss after 6320 iterations: 6.037965571763261
+Current loss after 6330 iterations: 5.988950682540641
+Current loss after 6340 iterations: 5.942575203446687
+Current loss after 6350 iterations: 5.897724193491692
+Current loss after 6360 iterations: 5.85455026173564
+Current loss after 6370 iterations: 5.812660616653422
+LBFGS for parameter set: 5
+Default
+Current loss after 6380 iterations: 4.29968176009153
+Current loss after 6390 iterations: 4.260616085780668
+Current loss after 6400 iterations: 4.218768211980256
+Current loss after 6410 iterations: 4.162229751209641
+Current loss after 6420 iterations: 4.038987938632971
+Current loss after 6430 iterations: 3.9648385356662557
+Current loss after 6440 iterations: 3.9033896143826086
+Current loss after 6450 iterations: 3.890085911355969
+Current loss after 6460 iterations: 3.88498559048411
+Current loss after 6470 iterations: 3.8785477106094555
+Current loss after 6480 iterations: 3.870104825360124
+Current loss after 6490 iterations: 3.865110895407071
+Current loss after 6500 iterations: 3.8621493098915947
+Current loss after 6510 iterations: 3.858590046002631
+Current loss after 6520 iterations: 3.8555876132319433
+Current loss after 6530 iterations: 3.8500751327673175
+Current loss after 6540 iterations: 3.8446902554400664
+Current loss after 6550 iterations: 3.8420052357285397
+Current loss after 6560 iterations: 3.8349970980975985
+Current loss after 6570 iterations: 3.8329825912708495
+Current loss after 6580 iterations: 3.8321723801788083
+Current loss after 6590 iterations: 3.831101555033974
+Current loss after 6600 iterations: 3.830113593593583
+Current loss after 6610 iterations: 3.8280300809480177
+Current loss after 6620 iterations: 3.8262605942490504
+Current loss after 6630 iterations: 3.8196882476655745
+Current loss after 6640 iterations: 3.8156782084517324
+Current loss after 6650 iterations: 3.812233898434802
+Current loss after 6660 iterations: 3.809629713274771
+Current loss after 6670 iterations: 3.806719593958213
+Current loss after 6680 iterations: 3.804859085996661
+Current loss after 6690 iterations: 3.8029854564018923
+Current loss after 6700 iterations: 3.7968860222991556
+Current loss after 6710 iterations: 3.792732375338924
+Current loss after 6720 iterations: 3.790753710824048
+Current loss after 6730 iterations: 3.7873881094214243
+Current loss after 6740 iterations: 3.785430123396561
+Current loss after 6750 iterations: 3.783061866619531
+Current loss after 6760 iterations: 3.7813266873878932
+Current loss after 6770 iterations: 3.77916897471219
+Current loss after 6780 iterations: 3.7768053531501375
+Current loss after 6790 iterations: 3.7741805796809156
+Current loss after 6800 iterations: 3.771276205665341
+Current loss after 6810 iterations: 3.7691369357205486
+Current loss after 6820 iterations: 3.767704344435202
+Current loss after 6830 iterations: 3.7667117179782177
+Current loss after 6840 iterations: 3.7659842713520826
+Current loss after 6850 iterations: 3.7655414952287023
+Current loss after 6860 iterations: 3.764329495878202
+Current loss after 6870 iterations: 3.7638276702739
+Solutions: 5/5
+Failure
+Optsolution n: 1
+[-1.0090502587454304, -1.1204300792070545, -1.728012265955177, -1.4386668796745175, -0.5233537259192503]
+9.243903673627988
+Optsolution n: 2
+[-1.2761528981748176, -1.3361216720180584, -0.9008670959868811, -1.4227531499677615, -1.4091045386627525]
+9.165044663976415
+Optsolution n: 3
+[-1.5879491249522952, -1.5829481905672231, -1.6728673083074332, -1.0572781977944734, -1.4510742722486445]
+13.184184926102763
+Optsolution n: 4
+[-0.28873168828139517, -1.4855271566341983, -1.3924732794396464, -1.4920724999329578, -1.616477429347813]
+8.549381657125252
+Optsolution n: 5
+[-1.1457412584406692, -1.447102552757451, -1.6947157323576394, -1.3433314011475137, -1.2344675634818485]
+6.906730349860437
+Best model id: 5

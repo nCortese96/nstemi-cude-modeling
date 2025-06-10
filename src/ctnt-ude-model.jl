@@ -114,6 +114,7 @@ end
 ################################# PREDICT ##########################################
 
 function solve_model(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
+    println(timepoints)
     return solve(model.problem, AutoTsit5(Rosenbrock23()); p=θ, saveat=timepoints)
 end
 
