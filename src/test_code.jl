@@ -3,6 +3,8 @@ using Optimization, OptimizationOptimisers, LineSearches
 using Plots, JLD2
 using ProgressMeter
 using Statistics
+using Logging
+using Base.Threads: @threads, nthreads
 
 println("⚠️ Algorithm started")
 
@@ -23,30 +25,30 @@ sheet_times = "times";
 sheet_values = "values";
 
 input_dim = 2;
-depth = 2;
-width = 6;
-inputs_str = "t, β"
+nn_depth = 2;
+nn_width = 8;
+inputs_str = "t, β";
 if input_dim == 3
-    inputs_str = "u[1], t, β"
+    inputs_str = "u[1], t, β";
 elseif input_dim == 7
-    inputs_str == "u[1], t, a, b, Cs0, Cc0, β"
+    inputs_str == "u[1], t, a, b, Cs0, Cc0, β";
 end
 
-experiment = "NSTEMI_SSE_26_inp2_multip_sigmoid";
-fig_path = "res/$(experiment)/figs"
-models_path = "res/$(experiment)/models"
+chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
+
+experiment = "NSTEMI_logSSE_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+fig_path = "res/$(experiment)/figs";
+models_path = "res/$(experiment)/models";
 mkpath(fig_path)
 mkpath(models_path)
 open("res/$(experiment)/info_output.txt", "w") do io          # "w" = write (sovrascrive)
     println(io, "Experiment $(experiment) log file")
     println(io, "Neural network settings:")
-    println(io, "dept: $(depth); width: $(width); inputs($(input_dim)): $(inputs_str)")
+    println(io, "dept: $(nn_depth); width: $(nn_width); inputs($(input_dim)): $(inputs_str)")
     println(io, "dataset: $(file_path)")
 end
 
-chain = neural_network_model(2, 6; input_dims=input_dim);
-
-xf = XLSX.readxlsx(file_path)
+xf = XLSX.readxlsx(file_path);
 # Caricamento dei fogli in DataFrame
 # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
 ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
@@ -56,8 +58,63 @@ troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=f
 println("Patient loaded: ", nrow(ids))
 println("Initialize...")
 
+# ------------------------------------------------------------------
+# 1) TIME POINTS  ───────────────────────────────────────────────────
+# ------------------------------------------------------------------
+all_times = Float64[]
+for col in eachcol(timepoints_df)
+    append!(all_times, skipmissing(col))      # concatena tutti i valori
+end
+
+t_min = minimum(all_times)
+t_max = maximum(all_times)
+
+T_SCALE = 350
+
+@info "Tempo  min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h"
+
+# ------------------------------------------------------------------
+# 2) TROPONINA  ─────────────────────────────────────────────────────
+# ------------------------------------------------------------------
+all_ctnt = Float64[]
+for col in eachcol(troponin_df)
+    append!(all_ctnt, skipmissing(col))
+end
+
+c_min = minimum(all_ctnt)
+c_max = maximum(all_ctnt)
+
+@info "CTnT   min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL"
+
+all_ctnt_log = log.(all_ctnt .+ DELTA);
+μ_u1 = mean(all_ctnt_log)
+σ_u1 = std(all_ctnt_log)
+
+# ------------------------------------------------------------------
+# 3) GRAFICO DELLE DISTRIBUZIONI  (tempo & troponina)  --------------
+# ------------------------------------------------------------------
+
+plt1 = histogram(all_times;
+                 bins = 40,
+                 xlabel = "Time (h)",
+                 ylabel = "#",
+                 title = "Time-points distribution",
+                 legend = false)
+
+plt2 = histogram(all_ctnt_log;
+                 bins = 40, # log-scale consigliata
+                 xlabel = "CTnT (ng/mL)",
+                 ylabel = "#",
+                 title = "Troponin log distribution",
+                 legend = false)
+
+plot(plt1, plt2; layout = (2,1), size = (900,600))
+savefig("$(fig_path)/dataset_distributions.svg")
+
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "Patient loaded: ", nrow(ids))
+    println(io, "Time: min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h")
+    println(io, "cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
 end
 
 patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
@@ -208,15 +265,64 @@ models = models[param_indxs];
 # best_loss  = Inf;         # parte a +∞
 # stagnation = 0;           # contatore interno
 # best_θ     = copy(out_params[1]);
-losses     = Float64[];   # vettore per il log, come prima
+# losses     = Float64[];   # vettore per il log, come prima
 
-callback_func = (state, l) -> begin
-    push!(losses, l)
-    if length(losses) % 10 == 0
-        println("Current loss after $(length(losses)) iterations: $(losses[end])")
-    end
-    return false
-end
+# callback_func = (state, l) -> begin
+#     push!(losses, l)
+#     if length(losses) % 10 == 0
+#         println("Current loss after $(length(losses)) iterations: $(losses[end])")
+#     end
+#     return false
+# end
+
+const STEP_LR   = 200          # ogni 200 iter dimezzo lr
+const PATIENCE  = 20           # early-stop se nessun miglioramento
+const MIN_DELTA = 1e-6         # quanto deve scendere la loss per "migliorare"
+
+"""
+    make_callback(loss_vec, opt_state)
+
+Crea un callback chiuso sul vettore `loss_vec` e sullo stato `opt_state`
+(AdamW) in modo da:
+  • salvare tutte le loss            → push!
+  • stampare ogni 10 iterazioni
+  • dimezzare il learning-rate ogni STEP_LR iter
+  • fermare Adam se la valid-loss (train, nel tuo caso) non migliora più
+"""
+# function make_callback(loss_vec, opt_state)
+#     best_loss      = Inf
+#     patience_left  = PATIENCE
+
+#     function cb(state, l)
+#         push!(loss_vec, l)
+
+#         # log ogni 10 step
+#         if length(loss_vec) % 10 == 0
+#             @info "iter $(state.iteration)  loss = $(round(l; digits=5))"
+#         end
+
+#         # step-decay LR
+#         if state.iteration % STEP_LR == 0
+#             opt_state.opt.inner.eta *= 0.5
+#             @info "lr  -> $(opt_state.opt.inner.eta)"
+#         end
+
+#         # early-stopping semplice su train-loss
+#         if l < best_loss - MIN_DELTA
+#             best_loss     = l
+#             patience_left = PATIENCE
+#         else
+#             patience_left -= 1
+#             if patience_left == 0
+#                 @info "Early stop: best = $(round(best_loss; digits=5))"
+#                 return true        # ← dice a Optimization di fermarsi
+#             end
+#         end
+#         return false
+#     end
+
+#     return cb
+# end
 
 adam_maxiters = 800;
 lbfgs_maxiters = 500;
@@ -228,29 +334,73 @@ end
 
 optsols = OptimizationSolution[];
 optfunc = OptimizationFunction(training_loss, AutoForwardDiff());
+losses_per_model = Vector{Vector{Float64}}()
+adam_iters_per_model = Int[] 
 # lower_bound = log.([0.001, 0.001, 0.001, 0.001, 0.001])
 # upper_bound = log.([5, 5, 400, 400, 1])
 # prog = Progress(100; dt=0.5, desc="Single solution optimizing...", showspeed=true, color=:firebrick)
 # global_prog = Progress(selected_initials; dt=1, desc="Global process optimizing...", showspeed=true, color=:blue);
+# η      = 0.01             # learning-rate che usavi già
+# betas  = (0.9, 0.999)     # default di Adam
+# λdecay = 1f-4             # weight-decay (prova 10-4)
+
+# opt_adamw = AdamW(η, betas; decay = λdecay)
+#   oppure forma posizionale equivalente:
+# opt_adamw = AdamW(η, betas, λdecay)
+
 for (i, θ_init) in enumerate(out_params)
+
+    losses_this = Float64[]
     # try
     println("ADAM for parameter set: $(i)")
-    # global_progress = Progress(100, desc="Ottimizzazione globale ADAM", dt=0.5);
+
     optprob = Optimization.OptimizationProblem(optfunc, θ_init, (models[i], training_dataset));
-    opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=adam_maxiters, callback=callback_func);
+
+    # cb = make_callback(losses_this, state0)
+
+    # opt_adamw = AdamW(η, betas, λdecay)
+
+    opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=adam_maxiters,
+            callback = (state, l) -> begin
+                            push!(losses_this, l)
+                                if length(losses_this) % 10 == 0
+                                    println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
+                                end
+                            return false
+                        end); # Optimisers.Adam(0.01)
     println("LBFGS for parameter set: $(i)")
-    # global_progress = Progress(100, desc="Affinament LBFGS", dt=0.5);
     println(opt_result1.retcode)
+
+    println("Adam iterations: $(length(losses_this))")
+    push!(adam_iters_per_model, length(losses_this))
+    
     optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u, (models[i], training_dataset));
-    opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters, callback=callback_func);
+    opt_result2 = Optimization.solve(
+        optprob2,
+        LBFGS(linesearch=LineSearches.BackTracking()),
+        maxiters=lbfgs_maxiters,
+        callback = (state, l) -> begin
+                        push!(losses_this, l)
+                            if length(losses_this) % 10 == 0
+                                println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
+                            end
+                        return false
+                    end
+    );
+
     push!(optsols, opt_result2)
+    
     println("Solutions: $(length(optsols))/$selected_initials")
     println(opt_result2.retcode)
+
+    println("LBFGS iterations: $(length(losses_this))")
 
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
         println(io, "Returncode model $(i): ", opt_result2.retcode)
         println(io, "Final loss model $(i): ", opt_result2.objective)
     end
+
+    push!(losses_per_model, losses_this)
 
     # catch
         # println("Optimization failed... Skipping")
@@ -258,41 +408,59 @@ for (i, θ_init) in enumerate(out_params)
     # next!(global_prog)
 end
 
-segments = []         # raccoglierà i range di indici
-sp = 1             # inizio del primo segmento
-n = length(losses)
-@assert n > 0 "Array vuoto!"
+for (k, loss_vec) in enumerate(losses_per_model)
+    n_adam = adam_iters_per_model[k]      # confine reale
 
-for i in 1:(n-1)
-    global sp
-    if i+1 < length(losses) && abs(losses[i+1] / losses[i]) ≥ 10
-        push!(segments, sp:i)
-        sp = i + 1
+    # Adam
+    plot(1:n_adam, loss_vec[1:n_adam];
+         yaxis = :log10, xaxis = :log10,
+         label = "Adam", color = :blue)
+
+    # LBFGS (solo se c’è qualcosa dopo)
+    if n_adam < length(loss_vec)
+        plot!(n_adam+1:length(loss_vec),
+              loss_vec[n_adam+1:end];
+              label = "LBFGS", color = :red)
     end
-end
-# chiudi l’ultimo segmento
-push!(segments, sp:n)
-println(segments)
 
-n = length(segments)
-
-open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-    println(io, "Loss segments: ", n)
-    println(io, segments)
+    savefig("$(fig_path)/loss_$(experiment)_$(k).svg")
 end
 
-for i in 1:n
-    loss = losses[segments[i]]
-    pl_losses = plot(1:800, loss[1:800], yaxis = :log10, xaxis = :log10,
-    xlabel = "Iterations", ylabel = "Loss", label = "ADAM", color = :blue)
-    plot!(801:length(loss), loss[801:end], yaxis = :log10, xaxis = :log10,
-    xlabel = "Iterations", ylabel = "Loss", label = "LBFGS", color = :red)
-    display(pl_losses)
-    save("$(fig_path)/loss_$(experiment)_$(i).svg", pl_losses) 
-end
+# segments = []         # raccoglierà i range di indici
+# sp = 1             # inizio del primo segmento
+# n = length(losses)
+# @assert n > 0 "Array vuoto!"
 
-@save "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses;
-@load "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses;
+# for i in 1:(n-1)
+#     global sp
+#     if i+1 < length(losses) && abs(losses[i+1] / losses[i]) ≥ 10
+#         push!(segments, sp:i)
+#         sp = i + 1
+#     end
+# end
+# # chiudi l’ultimo segmento
+# push!(segments, sp:n)
+# println(segments)
+
+# n = length(segments)
+
+# open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+#     println(io, "Loss segments: ", n)
+#     println(io, segments)
+# end
+
+# for i in 1:n
+#     loss = losses[segments[i]]
+#     pl_losses = plot(1:800, loss[1:800], yaxis = :log10, xaxis = :log10,
+#     xlabel = "Iterations", ylabel = "Loss", label = "ADAM", color = :blue)
+#     plot!(801:length(loss), loss[801:end], yaxis = :log10, xaxis = :log10,
+#     xlabel = "Iterations", ylabel = "Loss", label = "LBFGS", color = :red)
+#     display(pl_losses)
+#     save("$(fig_path)/loss_$(experiment)_$(i).svg", pl_losses) 
+# end
+
+@save "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses_per_model;
+@load "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses_per_model;
 @save "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
 @load "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
 
@@ -353,13 +521,14 @@ for (k, opt_sol) in enumerate(optsols)
             # Costruisci il modello per questo paziente:
             # opt_model = ctntCUDEModel(optsol_lbfgs.u, chain, tspan);
             # push!(opt_models, opt_model);
-            opt_model = model;
             p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = opt_sol.u.neural);
 
             u0_new = [exp(p_opt.ode[3]), exp(p_opt.ode[4]), 0.0]
             
-            prob   = remake(opt_model.problem; u0 = u0_new, p = p_opt)
-            push!(opt_models, ctntCUDEModel(prob, chain));
+            prob   = remake(model.problem; u0 = u0_new, p = p_opt)
+            opt_model = ctntCUDEModel(prob, chain);
+
+            push!(opt_models, opt_model);
             sol = Array(solve(opt_model.problem, AutoTsit5(Rosenbrock23()); p=p_opt, saveat=1));
             # sol = Array(solve_model(p_opt, (model, patient.timepoints, patient.ctnt_data)))
             println("Patient loss: ", patient_loss(p_opt.ode, (opt_model, patient.timepoints, patient.ctnt_data, p_opt.neural)))

@@ -1,0 +1,16 @@
+Experiment NSTEMI_logSSE_28_inp2_add_softplus log file
+Neural network settings:
+dept: 2; width: 8; inputs(2): t, β
+dataset: data/UMG_NSTEMI_Dataset.xlsx
+Patient loaded: 99
+Time: min = 0.02 h   max = 334.97 h
+cTnT: min = 0.003 ng/mL   max = 9.92 ng/mL
+Training split: 79
+Validation split: 20
+LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.010000000000000004, 0.010000000000000004, 0.0010000000000000002]
+UB exp: [4.999999999999999, 4.999999999999999, 299.99999999999994, 399.9999999999999, 3.0000000000000004]
+Starting points: 2
+Best starting points loss indexes: [821, 337]
+Best starting points losses: [87.76495632507509, 91.7796698273018]
+adam_maxiters: 800
+lbfgs_maxiters: 500

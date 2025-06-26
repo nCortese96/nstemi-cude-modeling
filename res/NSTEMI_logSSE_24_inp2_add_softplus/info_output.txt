@@ -1,0 +1,7 @@
+Experiment NSTEMI_logSSE_24_inp2_add_softplus log file
+Neural network settings:
+dept: 2; width: 4; inputs(2): t, β
+dataset: data/UMG_NSTEMI_Dataset.xlsx
+Patient loaded: 99
+Time: min = 0.02 h   max = 334.97 h
+cTnT: min = 0.003 ng/mL   max = 9.92 ng/mL

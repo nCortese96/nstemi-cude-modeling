@@ -16,8 +16,11 @@ softplus(x) = log(1 + exp(x))
 
 sigmoid(x) = 1 / (1 + exp(-x))
 
-const DELTA = 1e-6
-const EPS   = 0.0014
+const DELTA = 1e-6 # 0.007 # con cutoff 0.014 ng/mL # 1e-3
+const EPS   = 0.014
+T_SCALE = 350
+μ_u1 = -1.5
+σ_u1 = 1.5
 
 smape(pred, obs) = 200 * mean(abs.(pred .- obs) ./ (abs.(pred) .+ abs.(obs) .+ EPS))
 
@@ -45,10 +48,12 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     # correction = chain([u[1], t, β], p.neural)[1]
 
-    correction = chain([t, β], p.neural)[1]
+    t_norm   = t / T_SCALE
 
-    du[1] = - (u[1] - u[2])*correction
-    du[2] = (u[1] - u[2])*correction - a*(u[2] - u[3])
+    correction = chain([t_norm, β], p.neural)[1]
+
+    du[1] = - (u[1] - u[2]) * correction
+    du[2] = (u[1] - u[2]) * correction - a*(u[2] - u[3])
     du[3] = a*(u[2] - u[3]) - b*u[3]
 
 end
@@ -105,9 +110,10 @@ end
 function neural_network_model(depth::Int, width::Int; input_dims::Int = 7)
 
     layers = []
+
     append!(layers, [TurboDense{true}(tanh, width) for _ in 1:depth])
-    # push!(layers, TurboDense{true}(softplus, 1))
-    push!(layers, TurboDense{true}(sigmoid, 1))
+    push!(layers, TurboDense{true}(softplus, 1))
+    # push!(layers, TurboDense{true}(sigmoid, 1))
 
     SimpleChain(static(input_dims), layers...)
 end
@@ -136,17 +142,20 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
         end
         solution = Array(sol);
         pred = solution[3,:];
-        return sum(abs2, solution[3,:] - ctnt_data)
+        # println(pred)
+        # return sum(abs2, solution[3,:] - ctnt_data)
+        return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
         # return smape(pred, ctnt_data)   # % su base 0–100
         # return 100 * mean(abs, (pred .- ctnt_data) ./ (ctnt_data .+ EPS))
         # return sqrt(mean((log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
     catch e
-        # println(θ)
+        # println(θ) 
         # println(timepoints)
         # println(length(timepoints))
         # println(ctnt_data)
         # println(length(ctnt_data))
-        throw(e)
+        # throw(e)
+        # return Inf
     end
 end
 
@@ -172,7 +181,8 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     end
     solution = Array(sol)
     pred = solution[3,:];
-    return sum(abs2, solution[3,:] - ctnt_data)
+    # return sum(abs2, solution[3,:] - ctnt_data)
+    return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
     # return smape(pred, ctnt_data)
 end
 # La differenza sta nel dove si crea il component array:
