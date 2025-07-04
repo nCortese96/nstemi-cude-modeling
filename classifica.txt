@@ -1,0 +1,9 @@
+Best setup:
+0. NSTEMI SSE 24 inp2 multipl softplus
+1. NSTEMI SSE 28 inp2 multipl softplus
+2. NSTEMI logSSE 28 inp2 multipl softplus
+3. NSTEMI wSSE 28 inp2 multipl softplus
+4. NSTEMI logSSE 38 inp2 multipl softplus
+5. NSTEMI sMAPE 28 inp2 multipl softplus
+6. NSTEMI SSE 28 inp2 multipl sigmoid
+

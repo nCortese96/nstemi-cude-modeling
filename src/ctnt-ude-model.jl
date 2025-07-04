@@ -4,8 +4,7 @@ using Random: AbstractRNG
 using QuasiMonteCarlo: LatinHypercubeSample, sample
 using ComponentArrays: ComponentArray
 using DataFrames: DataFrame
-using StableRNGs
-# using OrdinaryDiffEq
+using StableRNGs, StatsBase
 using Optimization, OptimizationOptimisers, OptimizationOptimJL
 using SciMLSensitivity, LineSearches
 using OrdinaryDiffEq: AutoTsit5, Rosenbrock23
@@ -25,26 +24,20 @@ T_SCALE = 350
 smape(pred, obs) = 200 * mean(abs.(pred .- obs) ./ (abs.(pred) .+ abs.(obs) .+ EPS))
 
 function ctnt_cude!(du, u, p, t, chain::SimpleChain)
-    # Esempio di termini dinamici (da adattare al modello specifico)
-    # Termini base (senza correzione)
-    # p.ode = [a, b, Cs0, Cc0]
-    # Cs_ctnt = u[1]
-    # Cc_ctnt = u[2]
-    # Cp_ctnt = u[3]
+    Cs = u[1]
+    Cc = u[2]
+    Cp = u[3]
 
-    β = exp(p.ode[5]) # sempre positivo
-
-    # a = 10 ^ θ[1]
-    # b = 10 ^ θ[2]
+    β = exp(p.ode[5]) # Positive conditional parameter
 
     a = exp(p.ode[1])
     b = exp(p.ode[2])
-    # Cc0 = exp(p.ode[3])
-    # Cs0 = exp(p.ode[4])
+    # Cs0 = exp(p.ode[3])
+    # Cc0 = exp(p.ode[4])
 
     # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
 
-    # correction = chain([u[1], t, a, b, Cc0, Cs0, β], p.neural)[1]
+    # correction = chain([u[1], t, a, b, Cs0, Cc0, β], p.neural)[1]
 
     # correction = chain([u[1], t, β], p.neural)[1]
 
@@ -52,9 +45,9 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     correction = chain([t_norm, β], p.neural)[1]
 
-    du[1] = - (u[1] - u[2]) * correction
-    du[2] = (u[1] - u[2]) * correction - a*(u[2] - u[3])
-    du[3] = a*(u[2] - u[3]) - b*u[3]
+    du[1] = - (Cs - Cc) * correction
+    du[2] = (Cs - Cc) * correction - a*(Cc - u[3])
+    du[3] = a*(Cc - Cp) - b*Cp
 
 end
 
@@ -76,8 +69,8 @@ function ctntCUDEModel(
 
     # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
     
-    Cc0 = exp(θ[3]) # exp both if params in log
-    Cs0 = exp(θ[4])
+    Cs0 = exp(θ[3]) # exp both if params in log
+    Cc0 = exp(θ[4])
 
     u0 = [Cc0, Cs0, 0];
 
@@ -131,42 +124,26 @@ end
 
 function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
     # solve the ODE problem
-    try
-        sol = solve(model.problem, AutoTsit5(Rosenbrock23()); p=θ, saveat=timepoints) 
-    # pred = [u[3] for u in sol.u]
-    # Calculate the squared error
-    # return sum((pred .- ctnt_data).^2)
+        sol = solve(model.problem, AutoTsit5(Rosenbrock23()); p=θ, saveat=timepoints)
+
         if !successful_retcode(sol)
             # If the solver fails, return infinity
             return Inf
         end
         solution = Array(sol);
         pred = solution[3,:];
-        # println(pred)
-        # return sum(abs2, solution[3,:] - ctnt_data)
-        return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
+        return sum(abs2, pred - ctnt_data)
+        # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
+        # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
         # return smape(pred, ctnt_data)   # % su base 0–100
         # return 100 * mean(abs, (pred .- ctnt_data) ./ (ctnt_data .+ EPS))
         # return sqrt(mean((log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
-    catch e
-        # println(θ) 
-        # println(timepoints)
-        # println(length(timepoints))
-        # println(ctnt_data)
-        # println(length(ctnt_data))
-        # throw(e)
-        # return Inf
-    end
 end
 
 ## Finito il train si estraggono i parametri della rete 
 # patient_loss: Quando sono noti i parametri della rete
 function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     p = ComponentArray(ode = θ, neural = fixed_nn_params)
-    # println(fixed_nn_params==p.neural)
-    # sol = solve(model.problem, Tsit5(); p=p, saveat=timepoints)
-    # pred = [u[3] for u in sol.u]
-    # return sum((pred .- ctnt_data).^2)
 
     u0 = [exp(θ[3]), exp(θ[4]), 0.0]
 
@@ -181,28 +158,36 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     end
     solution = Array(sol)
     pred = solution[3,:];
-    # return sum(abs2, solution[3,:] - ctnt_data)
-    return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    return sum(abs2, pred - ctnt_data)
+    # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
     # return smape(pred, ctnt_data)
 end
 # La differenza sta nel dove si crea il component array:
 # Se lo dai in pasto alla loss lo ottimizza tutto,
 # se lo costruisci dentro ottimizza solo i parametri del modello
 
-# function training_loss(p, training_dataset)
-#     loss_tot = 0.0
-#     for (i, patient) in enumerate(training_dataset)
-#         idx_start = 5*(i-1) + 1
-#         idx_end   = 5*i
-#         tspan = (0.0, patient.timepoints[end])
-#         model = ctntCUDEModel(p, chain, tspan)
-#         θ = ComponentArray(ode = p.ode[idx_start:idx_end], neural = p.neural)
-#         ### Calcolo cost function ###
-#         loss_tot += compute_loss(θ, (model, patient.timepoints, patient.ctnt_data))
-#         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
-#     end
-#     return loss_tot / length(training_dataset) 
-# end
+function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
+    p = ComponentArray(ode = θ, neural = fixed_nn_params)
+
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+
+    # ODEProblem aggiornato
+    prob = remake(model.problem; u0 = u0, p = p)
+
+    sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints) 
+
+    if !successful_retcode(sol)
+        # If the solver fails, return infinity
+        return Inf
+    end
+    solution = Array(sol)
+    pred = solution[3,:];
+    # return sum(abs2, pred - ctnt_data)
+    # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
+    return smape(pred, ctnt_data)
+end
 
 function training_loss(p, (models, training_dataset))
     loss_tot = 0.0
@@ -218,43 +203,4 @@ function training_loss(p, (models, training_dataset))
         # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
     end
     return loss_tot / length(training_dataset)
-end
-
-function otpimize(optfunc::OptimizationFunction, θ_init, adam_maxiters, lbfgs_maxiters)
-
-    # Definisci la funzione di loss come una funzione che accetta due argomenti:
-    # - θ: il vettore dei parametri
-    # - data: una tupla contenente il training_dataset (in questo caso)
-    # optfunc = OptimizationFunction((θ, x) -> training_loss(θ, training_dataset, θ_init.neural), AutoForwardDiff());
-
-    # Primo step: utilizziamo Gradient Descent per una convergenza rapida
-    optprob = Optimization.OptimizationProblem(optfunc, θ_init);
-    opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=adam_maxiters);
-
-    optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u);
-    opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters);
-
-    return opt_result2
-end
-
-function train(training_dataset, initial_parameters, adam_maxiters, lbfgs_maxiters)
-    optsols = OptimizationSolution[]
-    optfunc = OptimizationFunction((θ, x) -> training_loss(θ, training_dataset, θ_init.neural), AutoForwardDiff())
-    prog = Progress(selected_initials; dt=1.0, desc="Optimizing...", color=:blue)
-    for i in initial_parameters
-        opt_sol = optimize(optfunc, initial_parameters[i], adam_maxiters, lbfgs_maxiters)
-        push!(optsols, opt_sol)
-        next!(prog)
-    end
-    return optsols
-end
-
-function otpimize(optfunc::OptimizationFunction,
-    lbfgs_maxiters,
-    initial_ode_params::AbstractVector{T} = [0.005, 0.005, 0.1, 0.001]) where T<:Real
-
-    optprob2 = Optimization.OptimizationProblem(optfunc, initial_ode_params);
-    opt_result2 = Optimization.solve(optprob2, LBFGS(linesearch=LineSearches.BackTracking()), maxiters=lbfgs_maxiters);
-
-    return opt_result2
 end

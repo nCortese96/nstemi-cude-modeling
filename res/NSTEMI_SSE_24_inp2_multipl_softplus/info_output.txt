@@ -221,3 +221,5 @@ Objective model 2:    0.020904466395756535
 Average in validation: [1.0571968962216134, 1.1694171119264378]
 Median in validation: [0.022198676458624313, 0.01991556187081838]
 Best model id: 2
+Median in sMAPE validation: 14.527557694269705
+Median in sMAPE validation: 14.544680995408509
