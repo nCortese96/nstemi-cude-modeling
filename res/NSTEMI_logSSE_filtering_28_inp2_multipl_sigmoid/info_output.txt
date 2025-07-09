@@ -1,0 +1,14 @@
+Experiment NSTEMI_logSSE_filtering_28_inp2_multipl_sigmoid log file
+be = bounds edited
+Neural network settings:
+dept: 2; width: 8; inputs(2): t, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+Patient loaded: 1575
+Time: min = -7.17 h   max = 2116.5 h
+cTnT: min = 0.01 ng/mL   max = 24.8 ng/mL
+Patient loaded: 1575
+Time: min = 0.05 h   max = 2116.5 h
+cTnT: min = 0.01 ng/mL   max = 24.8 ng/mL
+Patient loaded: 1575
+Time: min = 0.05 h   max = 2116.5 h
+cTnT: min = 0.01 ng/mL   max = 24.8 ng/mL

@@ -130,14 +130,17 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
             # If the solver fails, return infinity
             return Inf
         end
-        solution = Array(sol);
-        pred = solution[3,:];
-        return sum(abs2, pred - ctnt_data)
+        if length(Array(sol)[3,:]) != length(ctnt_data)
+            println(timepoints)
+            println(Array(sol)[3,:])
+            println(ctnt_data)
+        end        
+        # return sum(abs2, Array(sol)[3,:] - ctnt_data)
         # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
-        # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
-        # return smape(pred, ctnt_data)   # % su base 0–100
-        # return 100 * mean(abs, (pred .- ctnt_data) ./ (ctnt_data .+ EPS))
-        # return sqrt(mean((log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
+        return sum(abs2, log.(Array(sol)[3,:] .+ DELTA) .- log.(ctnt_data .+ DELTA))
+        # return smape(Array(sol)[3,:], ctnt_data)   # % su base 0–100
+        # return 100 * mean(abs, (Array(sol)[3,:] .- ctnt_data) ./ (ctnt_data .+ EPS))
+        # return sqrt(mean((log.(Array(sol)[3,:] .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
 end
 
 ## Finito il train si estraggono i parametri della rete 
@@ -156,12 +159,10 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
         # If the solver fails, return infinity
         return Inf
     end
-    solution = Array(sol)
-    pred = solution[3,:];
-    return sum(abs2, pred - ctnt_data)
-    # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    # return sum(abs2, Array(sol)[3,:] - ctnt_data)
+    return sum(abs2, log.(Array(sol)[3,:] .+ DELTA) .- log.(ctnt_data .+ DELTA))
     # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
-    # return smape(pred, ctnt_data)
+    # return smape(Array(sol)[3,:], ctnt_data)
 end
 # La differenza sta nel dove si crea il component array:
 # Se lo dai in pasto alla loss lo ottimizza tutto,
@@ -181,12 +182,7 @@ function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
         # If the solver fails, return infinity
         return Inf
     end
-    solution = Array(sol)
-    pred = solution[3,:];
-    # return sum(abs2, pred - ctnt_data)
-    # return sum(abs2, log.(pred .+ DELTA) .- log.(ctnt_data .+ DELTA))
-    # return sum(((solution[3,:] - ctnt_data).^2).*ctnt_data)
-    return smape(pred, ctnt_data)
+    return smape(Array(sol)[3,:], ctnt_data)
 end
 
 function training_loss(p, (models, training_dataset))
@@ -200,7 +196,180 @@ function training_loss(p, (models, training_dataset))
         prob = remake(model.problem; u0 = u0_new, p = θ)
         new_model = ctntCUDEModel(prob, model.chain) 
         loss_tot += compute_loss(θ, (new_model, patient.timepoints, patient.ctnt_data))
-        # loss_tot += sum(abs2, sol[3,:] - patient.ctnt_data)
     end
     return loss_tot / length(training_dataset)
+end
+
+function deduplicate_times!(p::PatientData)
+    tp, ct = p.timepoints, p.ctnt_data
+    @assert length(tp) == length(ct) "Lunghezze diverse per ID=$(p.id)"
+
+    seen = Set{Float64}()       # tempi già incontrati
+    removed = 0
+    # scorri al contrario così gli indici restanti non cambiano
+    for i in reverse(eachindex(tp))
+        t = tp[i]
+        if t in seen            # duplicato → rimuovi
+            println("ID=$(p.id)  t=$(t)  ctnt=$(ct[i])  [rimosso]")
+            splice!(tp, i)
+            splice!(ct, i)
+            removed += 1
+        else
+            push!(seen, t)
+        end
+    end
+    return removed
+end
+
+"""
+    find_anomalies(patients::Vector{PatientData})
+
+Restituisce un dizionario id → Lista di messaggi di errore:
+  • “negative time”      → sono presenti timepoints < 0
+  • “negative ctnt”      → sono presenti valori di troponina < 0
+  • “times not sorted”   → i timepoints non sono in ordine non decrescente
+"""
+function find_anomalies(patients::Vector{PatientData}, n::Int64)
+    anomalies = Dict{String, Vector{String}}()
+    for p in patients
+        issues = String[]
+
+        if isempty(p.ctnt_data) || isempty(p.timepoints)
+            push!(issues, "empty ctnt data")
+        end
+
+        if isempty(p.timepoints)
+            push!(issues, "empty timepoints data")
+        end
+
+        if length(p.timepoints) != length(p.ctnt_data)
+            push!(issues, "time ctnt mismatch")
+        end
+
+        # tempi negativi
+        if any(t -> t < 0, p.timepoints)
+            push!(issues, "negative time")
+        end
+
+        # ctnt negativi
+        if any(c -> c < 0, p.ctnt_data)
+            push!(issues, "negative ctnt")
+        end
+
+        if length(p.timepoints) < n
+            push!(issues, "n acquisizion < $n")
+        end
+
+        # ordinamento dei tempi
+        if !issorted(p.timepoints; lt = ≤)  # lt=≤ permette anche tempo duplicato
+            push!(issues, "times not sorted")
+        end
+
+        if !isempty(issues)
+            anomalies[p.id] = issues
+        end
+
+    end
+
+    if isempty(anomalies)
+        println("No anomalies found")
+    else
+        for (id, issues) in anomalies
+            @warn "Patient ", id, ": ", join(issues, ", ")
+        end
+    end
+    return anomalies
+end
+
+function plot_distribution(patients::AbstractVector{PatientData})
+    all_times = vcat([p.timepoints for p in patients]...)                 # Vector{Float64}
+    all_ctnt  = vcat([p.ctnt_data for p in patients]...)                # Vector{Float64}
+
+    t_min = minimum(all_times)
+    t_max = maximum(all_times)
+
+    @info "Tempo  min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h"
+
+    c_min = minimum(all_ctnt)
+    c_max = maximum(all_ctnt)
+
+    @info "CTnT   min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL"
+
+    all_ctnt_log = log.(all_ctnt .+ DELTA);
+
+    # ------------------------------------------------------------------
+    # 3) GRAFICO DELLE DISTRIBUZIONI  (tempo & troponina)  --------------
+    # ------------------------------------------------------------------
+
+    plt1 = histogram(all_times;
+                    bins = 40,
+                    xlabel = "Time (h)",
+                    ylabel = "#",
+                    title = "Time-points distribution",
+                    legend = false)
+
+    plt2 = histogram(all_ctnt_log;
+                    bins = 40, # log-scale consigliata
+                    xlabel = "CTnT (ng/mL)",
+                    ylabel = "#",
+                    title = "Troponin log distribution",
+                    legend = false)
+
+    dist = plot(plt1, plt2; layout = (2,1), size = (900,600))
+
+    return all_times, all_ctnt, t_min, t_max, c_min, c_max, dist 
+end
+
+function patient_dims(patients::AbstractVector{PatientData})
+    # 1. Calcola il numero di acquisizioni per ciascun paziente
+    counts = [length(p.ctnt_data) for p in patients]
+
+    # 2. Trova gli indici del max e del min
+    i_max = argmax(counts)
+    i_min = argmin(counts)
+
+    # 3. Stampa id, numero di acquisizioni e (opzionale) il vettore dei valori
+    p_max = patients[i_max]
+    p_min = patients[i_min]
+
+    println("Patient with MAX acquisitions: ", p_max.id,
+            " -> ", counts[i_max], " samples; ctnt_data = ", length(p_max.ctnt_data))
+
+    println("Patient with MIN acquisitions: ", p_min.id,
+            " -> ", counts[i_min], " samples; ctnt_data = ", length(p_min.ctnt_data))
+    
+    return (length(p_min.ctnt_data), length(p_max.ctnt_data))
+end
+
+function trim_time(patients::AbstractVector{PatientData}, time_val)
+    filtered_patients = PatientData[]
+
+    for p in patients
+        # mask dei timepoints validi
+        mask = p.timepoints .<= time_val
+
+        if any(mask)
+            # conserva solo i punti ≤ time_val
+            tp = p.timepoints[mask]
+            ct = p.ctnt_data[mask]
+            push!(filtered_patients, PatientData(p.id, tp, ct))
+        else
+            @warn "Patient $(p.id) has no acquisitions ≤ $(time_val) h and will be excluded"
+        end
+    end
+
+    @info "Kept $(length(filtered_patients)) patients out of $(length(patients))"
+
+    return filtered_patients
+end
+
+function scutter_patients(patients::AbstractVector{PatientData})
+    plt = plot(; xlabel="Time (h)", ylabel="cTnT (ng/mL)",
+           title="All patients: troponin vs time", legend=false)
+
+    # Sovrapponi ogni paziente come una linea sottile
+    for p in trimmed_p
+        scatter!(plt, p.timepoints, p.ctnt_data; lw=1, alpha=0.5)
+    end
+    return plt
 end

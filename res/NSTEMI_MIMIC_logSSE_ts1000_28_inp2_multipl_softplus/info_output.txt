@@ -1,0 +1,5 @@
+Experiment NSTEMI_MIMIC_logSSE_ts1000_28_inp2_multipl_softplus log file
+be = bounds edited
+Neural network settings:
+dept: 2; width: 8; inputs(2): t, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx

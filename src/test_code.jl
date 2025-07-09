@@ -19,7 +19,7 @@ println("Dataset loading...")
 # sheet_times = "Tempi cleaned";
 # sheet_values = "Misurazioni cleaned";
 
-file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
+file_path = "data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
 sheet_ids = "IDs";
 sheet_times = "times";
 sheet_values = "values";
@@ -34,9 +34,11 @@ elseif input_dim == 7
     inputs_str = "u[1], t, a, b, Cs0, Cc0, β";
 end
 
+T_SCALE = 1000.0
+
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_logSSE_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_sigmoid";
+experiment = "NSTEMI_MIMIC_logSSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 mkpath(fig_path)
@@ -52,62 +54,26 @@ end
 xf = XLSX.readxlsx(file_path);
 # Caricamento dei fogli in DataFrame
 # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "B:B", header=false, infer_eltypes=true));
 timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
 troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
 
 println("Patient loaded: ", nrow(ids))
 println("Initialize...")
 
-# ------------------------------------------------------------------
-# 1) TIME POINTS  ───────────────────────────────────────────────────
-# ------------------------------------------------------------------
-all_times = Float64[]
-for col in eachcol(timepoints_df)
-    append!(all_times, skipmissing(col))      # concatena tutti i valori
-end
+patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
 
-t_min = minimum(all_times)
-t_max = maximum(all_times)
+# 0. Pre-processing
+anoms = find_anomalies(patients, 4);
+println("Campioni rimossi in totale: $(length(anoms))")
 
-T_SCALE = 350
+cleaned_patients = filter(p -> !haskey(anoms, p.id), patients);
+patient_dims(cleaned_patients)
+println("Totale campioni: $(length(cleaned_patients))")
 
-@info "Tempo  min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h"
+all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(cleaned_patients);
 
-# ------------------------------------------------------------------
-# 2) TROPONINA  ─────────────────────────────────────────────────────
-# ------------------------------------------------------------------
-all_ctnt = Float64[]
-for col in eachcol(troponin_df)
-    append!(all_ctnt, skipmissing(col))
-end
-
-c_min = minimum(all_ctnt)
-c_max = maximum(all_ctnt)
-
-@info "CTnT   min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL"
-
-all_ctnt_log = log.(all_ctnt .+ DELTA);
-
-# ------------------------------------------------------------------
-# 3) GRAFICO DELLE DISTRIBUZIONI  (tempo & troponina)  --------------
-# ------------------------------------------------------------------
-
-plt1 = histogram(all_times;
-                 bins = 40,
-                 xlabel = "Time (h)",
-                 ylabel = "#",
-                 title = "Time-points distribution",
-                 legend = false)
-
-plt2 = histogram(all_ctnt_log;
-                 bins = 40, # log-scale consigliata
-                 xlabel = "CTnT (ng/mL)",
-                 ylabel = "#",
-                 title = "Troponin log distribution",
-                 legend = false)
-
-plot(plt1, plt2; layout = (2,1), size = (900,600))
+display(dist)
 savefig("$(fig_path)/dataset_distributions.svg")
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
@@ -116,71 +82,25 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
     println(io, "cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
 end
 
-patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
+# Trim to a fixed time
 
-bad = String[]
-for p in patients
-    if length(p.timepoints) != length(p.ctnt_data)
-        println(p.id)
-        println(length(p.timepoints))
-        println(length(p.ctnt_data))
-        push!(bad, p.id)
-    end
-end
-return bad
+trimmed_p = trim_time(cleaned_patients, 1000.0);
+patient_dims(trimmed_p)
 
-if !isempty(bad)
-    @warn "⚠️  Pazienti con lunghezze discordanti" bad
-    # opzionale: rimuovili o gestiscili
-    # patients_raw = filter(p -> !(p.id in bad), patients_raw)
-end
+all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(trimmed_p);
+display(dist)
+savefig("$(fig_path)/dataset_distributions_post.svg")
 
-function deduplicate_times!(p::PatientData)
-    tp, ct = p.timepoints, p.ctnt_data
-    @assert length(tp) == length(ct) "Lunghezze diverse per ID=$(p.id)"
-
-    seen = Set{Float64}()       # tempi già incontrati
-    removed = 0
-    # scorri al contrario così gli indici restanti non cambiano
-    for i in reverse(eachindex(tp))
-        t = tp[i]
-        if t in seen            # duplicato → rimuovi
-            println("ID=$(p.id)  t=$(t)  ctnt=$(ct[i])  [rimosso]")
-            splice!(tp, i)
-            splice!(ct, i)
-            removed += 1
-        else
-            push!(seen, t)
-        end
-    end
-    return removed
-end
-
-total_removed = sum(deduplicate_times!(p) for p in patients);
-println("Campioni duplicati rimossi in totale: $total_removed")
-
-# dernormalization_time = Dict{String, Tuple{Float64,Float64}}()
-
-# for p in patients
-#     t0, tf = first(p.timepoints), last(p.timepoints)   # estremi del paziente
-#     Δt = tf - t0 + eps()
-#     p.timepoints .= (p.timepoints .- t0) ./ Δt
-#     dernormalization_time[p.id] = (t0, tf)         # ora 0–1
-# end
-
-# patients[2].timepoints
+plt = scutter_patients(trimmed_p)
+display(plt)
+savefig("$(fig_path)/scatter_post.svg")
 
 Random.seed!(1234);
 rng = StableRNG(42);
-
-# initial_params = [0.005, 0.005, 0.1, 0.001, 0.1];
-
-# Costruisci l'array di PatientData iterando su tutte le righe.
-
-shuffle!(patients);
-n_train = Int(round(length(patients) * 0.8));
-training_dataset = patients[1:n_train];
-test_dataset = patients[n_train+1:end];
+shuffle!(trimmed_p);
+n_train = Int(round(length(trimmed_p) * 0.8));
+training_dataset = trimmed_p[1:n_train];
+test_dataset = trimmed_p[n_train+1:end];
 println("Training split: ", length(training_dataset))
 println("Validation split: ", length(test_dataset))
 
@@ -189,8 +109,8 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
     println(io, "Validation split: ", length(test_dataset))
 end
 
-training_id = [patient.id for patient in training_dataset]
-test_id = [patient.id for patient in test_dataset]
+training_id = [patient.id for patient in training_dataset];
+test_id = [patient.id for patient in test_dataset];
 
 # check = [];
 # check = load("$(models_path)/testsetNSTEMI_MIMIC_0706log.jld2", "test_dataset")
@@ -223,7 +143,7 @@ initial_parameters = [ComponentArray(
 
 losses_initial = Float64[];
 models = [];
-prog = Progress(initial_guesses; dt=1, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick);
+init_bar = Progress(initial_guesses; dt=1, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick);
 # models = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (training_dataset[j].timepoints[1], training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
 
 for p in initial_parameters # p = initial_parameters[k]
@@ -231,7 +151,7 @@ for p in initial_parameters # p = initial_parameters[k]
     push!(models, models_array);
     loss_value = training_loss(p, (models_array, training_dataset));
     push!(losses_initial, loss_value);
-    next!(prog);
+    next!(init_bar);
 end
 
 selected_initials = 2;
@@ -278,16 +198,16 @@ const STEP_LR   = 200          # ogni 200 iter dimezzo lr
 const PATIENCE  = 20           # early-stop se nessun miglioramento
 const MIN_DELTA = 1e-6         # quanto deve scendere la loss per "migliorare"
 
-"""
-    make_callback(loss_vec, opt_state)
+# """
+#     make_callback(loss_vec, opt_state)
 
-Crea un callback chiuso sul vettore `loss_vec` e sullo stato `opt_state`
-(AdamW) in modo da:
-  • salvare tutte le loss            → push!
-  • stampare ogni 10 iterazioni
-  • dimezzare il learning-rate ogni STEP_LR iter
-  • fermare Adam se la valid-loss (train, nel tuo caso) non migliora più
-"""
+# Crea un callback chiuso sul vettore `loss_vec` e sullo stato `opt_state`
+# (AdamW) in modo da:
+#   • salvare tutte le loss            → push!
+#   • stampare ogni 10 iterazioni
+#   • dimezzare il learning-rate ogni STEP_LR iter
+#   • fermare Adam se la valid-loss (train, nel tuo caso) non migliora più
+# """
 # function make_callback(loss_vec, opt_state)
 #     best_loss      = Inf
 #     patience_left  = PATIENCE
@@ -347,7 +267,7 @@ adam_iters_per_model = Int[]
 #   oppure forma posizionale equivalente:
 # opt_adamw = AdamW(η, betas, λdecay)
 
-for (i, θ_init) in enumerate(out_params)
+@showprogress for (i, θ_init) in enumerate(out_params)
 
     losses_this = Float64[]
     # try
@@ -407,7 +327,7 @@ for (i, θ_init) in enumerate(out_params)
     # next!(global_prog)
 end
 
-for (k, loss_vec) in enumerate(losses_per_model)
+@showprogress for (k, loss_vec) in enumerate(losses_per_model)
     n_adam = adam_iters_per_model[k]      # confine reale
 
     # Adam
@@ -442,7 +362,7 @@ ode_params = [optsol.u.ode[:] for optsol in optsols]
 opt_solutions = []
 model_objectives = []
 optimized_models = []
-for (k, opt_sol) in enumerate(optsols)
+@showprogress for (k, opt_sol) in enumerate(optsols)
     # try
         println("Optsolution n: $k")
         models_valid = [
