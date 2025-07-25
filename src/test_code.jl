@@ -34,16 +34,17 @@ elseif input_dim == 7
     inputs_str = "u[1], t, a, b, Cs0, Cc0, β";
 end
 
-T_SCALE = 1000.0
+T_SCALE = 350.0;
+# dt = 0.1;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_MIMIC_logSSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+experiment = "NSTEMI_UMG_logSSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 mkpath(fig_path)
 mkpath(models_path)
-open("res/$(experiment)/info_output.txt", "w") do io          # "w" = write (sovrascrive)
+open("res/$(experiment)/info_output.txt", "w") do io
     println(io, "Experiment $(experiment) log file")
     println(io, "be = bounds edited")
     println(io, "Neural network settings:")
@@ -54,7 +55,7 @@ end
 xf = XLSX.readxlsx(file_path);
 # Caricamento dei fogli in DataFrame
 # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "B:B", header=false, infer_eltypes=true));
+ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
 timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
 troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
 
@@ -63,16 +64,20 @@ println("Initialize...")
 
 patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
 
+# Trimming to T_SCALE
+trimmed_p = trim_time(patients, T_SCALE);
+patient_dims(trimmed_p)
+
 # 0. Pre-processing
-anoms = find_anomalies(patients, 4);
+meas_min_number = 5;
+anoms = find_anomalies(trimmed_p, meas_min_number);
 println("Campioni rimossi in totale: $(length(anoms))")
 
-cleaned_patients = filter(p -> !haskey(anoms, p.id), patients);
+cleaned_patients = filter(p -> !haskey(anoms, p.id), trimmed_p);
 patient_dims(cleaned_patients)
 println("Totale campioni: $(length(cleaned_patients))")
 
 all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(cleaned_patients);
-
 display(dist)
 savefig("$(fig_path)/dataset_distributions.svg")
 
@@ -82,25 +87,16 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
     println(io, "cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
 end
 
-# Trim to a fixed time
-
-trimmed_p = trim_time(cleaned_patients, 1000.0);
-patient_dims(trimmed_p)
-
-all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(trimmed_p);
-display(dist)
-savefig("$(fig_path)/dataset_distributions_post.svg")
-
-plt = scutter_patients(trimmed_p)
-display(plt)
+plt = scutter_patients(cleaned_patients)
+# display(plt)
 savefig("$(fig_path)/scatter_post.svg")
 
 Random.seed!(1234);
 rng = StableRNG(42);
-shuffle!(trimmed_p);
-n_train = Int(round(length(trimmed_p) * 0.8));
-training_dataset = trimmed_p[1:n_train];
-test_dataset = trimmed_p[n_train+1:end];
+shuffle!(cleaned_patients);
+n_train = Int(round(length(cleaned_patients) * 0.8));
+training_dataset = cleaned_patients[1:n_train];
+test_dataset = cleaned_patients[n_train+1:end];
 println("Training split: ", length(training_dataset))
 println("Validation split: ", length(test_dataset))
 
@@ -149,9 +145,12 @@ init_bar = Progress(initial_guesses; dt=1, desc="Evaluating initial guesses... "
 for p in initial_parameters # p = initial_parameters[k]
     models_array = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (0.0, training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
     push!(models, models_array);
-    loss_value = training_loss(p, (models_array, training_dataset));
+    loss_value = parallel_training_loss(p, (models_array, training_dataset));
+    # loss_value = ensamble_training_loss(p, training_dataset);
+    # println(loss_value)
     push!(losses_initial, loss_value);
-    next!(init_bar);
+    next!(init_bar; showvalues = [(:loss, loss_value)]);
+    # init_bar.desc = "LOSS: $loss_value"
 end
 
 selected_initials = 2;
@@ -173,7 +172,7 @@ end
 models = models[param_indxs];
 
 @save "$(models_path)/out_paramsNSTEMI_$(experiment).jld2" out_params;
-@load "$(models_path)/out_paramsNSTEMI_$(experiment).jld2" out_params;
+# @load "$(models_path)/out_paramsNSTEMI_$(experiment).jld2" out_params;
 
 # for param_indx in partialsortperm(losses_initial, 1:25)
 #     println(initial_parameters[param_indx])
@@ -194,9 +193,9 @@ models = models[param_indxs];
 #     return false
 # end
 
-const STEP_LR   = 200          # ogni 200 iter dimezzo lr
-const PATIENCE  = 20           # early-stop se nessun miglioramento
-const MIN_DELTA = 1e-6         # quanto deve scendere la loss per "migliorare"
+# const STEP_LR   = 200          # ogni 200 iter dimezzo lr
+# const PATIENCE  = 20           # early-stop se nessun miglioramento
+# const MIN_DELTA = 1e-6         # quanto deve scendere la loss per "migliorare"
 
 # """
 #     make_callback(loss_vec, opt_state)
@@ -243,8 +242,8 @@ const MIN_DELTA = 1e-6         # quanto deve scendere la loss per "migliorare"
 #     return cb
 # end
 
-adam_maxiters = 500;
-lbfgs_maxiters = 500;
+adam_maxiters = 400;
+lbfgs_maxiters = 300;
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "adam_maxiters: ", adam_maxiters)
@@ -252,12 +251,12 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
 end
 
 optsols = OptimizationSolution[];
-optfunc = OptimizationFunction(training_loss, AutoForwardDiff());
+optfunc = OptimizationFunction(parallel_training_loss, AutoForwardDiff()); # ensamble_training_loss
 losses_per_model = Vector{Vector{Float64}}()
 adam_iters_per_model = Int[] 
 # lower_bound = log.([0.001, 0.001, 0.001, 0.001, 0.001])
 # upper_bound = log.([5, 5, 400, 400, 1])
-# prog = Progress(100; dt=0.5, desc="Single solution optimizing...", showspeed=true, color=:firebrick)
+# train_bar = Progress(100; dt=0.5, desc="Single solution optimizing...", showspeed=true, color=:firebrick)
 # global_prog = Progress(selected_initials; dt=1, desc="Global process optimizing...", showspeed=true, color=:blue);
 # η      = 0.01             # learning-rate che usavi già
 # betas  = (0.9, 0.999)     # default di Adam
@@ -267,13 +266,15 @@ adam_iters_per_model = Int[]
 #   oppure forma posizionale equivalente:
 # opt_adamw = AdamW(η, betas, λdecay)
 
-@showprogress for (i, θ_init) in enumerate(out_params)
-
+for (i, θ_init) in enumerate(out_params)
+    train_bar = Progress(adam_maxiters+lbfgs_maxiters; dt=0.5, desc="Training start ", showspeed=true, color=:firebrick);
+    train_bar.desc = "ADAM phase param set $(i)"
     losses_this = Float64[]
     # try
     println("ADAM for parameter set: $(i)")
 
     optprob = Optimization.OptimizationProblem(optfunc, θ_init, (models[i], training_dataset));
+    # optprob = Optimization.OptimizationProblem(optfunc, θ_init, training_dataset);
 
     # cb = make_callback(losses_this, state0)
 
@@ -282,9 +283,10 @@ adam_iters_per_model = Int[]
     opt_result1 = Optimization.solve(optprob, Optimisers.Adam(0.01), maxiters=adam_maxiters,
             callback = (state, l) -> begin
                             push!(losses_this, l)
-                                if length(losses_this) % 10 == 0
-                                    println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
-                                end
+                            next!(train_bar; showvalues = [(:iter, state.iter), (:loss, l)]);
+                            # if length(losses_this) % 10 == 0
+                            #     println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
+                            # end
                             return false
                         end); # Optimisers.Adam(0.01)
     println("LBFGS for parameter set: $(i)")
@@ -293,6 +295,7 @@ adam_iters_per_model = Int[]
     println("Adam iterations: $(length(losses_this))")
     push!(adam_iters_per_model, length(losses_this))
     
+    train_bar.desc = "LBFGS phase param set $(i)"
     optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u, (models[i], training_dataset));
     opt_result2 = Optimization.solve(
         optprob2,
@@ -300,9 +303,10 @@ adam_iters_per_model = Int[]
         maxiters=lbfgs_maxiters,
         callback = (state, l) -> begin
                         push!(losses_this, l)
-                            if length(losses_this) % 10 == 0
-                                println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
-                            end
+                        next!(train_bar; showvalues = [(:iter, state.iter), (:loss, l)]);
+                        # if length(losses_this) % 10 == 0
+                        #     println("Current loss after $(length(losses_this)) iterations: $(losses_this[end])")
+                        # end
                         return false
                     end
     );
@@ -327,7 +331,7 @@ adam_iters_per_model = Int[]
     # next!(global_prog)
 end
 
-@showprogress for (k, loss_vec) in enumerate(losses_per_model)
+@showprogress desc="Plottng loss" for (k, loss_vec) in enumerate(losses_per_model)
     n_adam = adam_iters_per_model[k]      # confine reale
 
     # Adam
@@ -346,9 +350,9 @@ end
 end
 
 @save "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses_per_model;
-@load "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses_per_model;
-@save "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
-@load "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
+# @load "$(models_path)/lossesNSTEMI_$(experiment).jld2" losses_per_model;
+# @save "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
+# @load "$(models_path)/optsolsNSTEMI_$(experiment).jld2" optsols;
 
 neural_network_parameters = [optsol.u.neural[:] for optsol in optsols]
 ode_params = [optsol.u.ode[:] for optsol in optsols]
@@ -362,7 +366,7 @@ ode_params = [optsol.u.ode[:] for optsol in optsols]
 opt_solutions = []
 model_objectives = []
 optimized_models = []
-@showprogress for (k, opt_sol) in enumerate(optsols)
+@showprogress desc="Evaluating" for (k, opt_sol) in enumerate(optsols)
     # try
         println("Optsolution n: $k")
         models_valid = [
@@ -466,10 +470,11 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
 end
 
 # best_model_index = argmin(sum(objectives, dims=2)[:])
-best_model = optsols[best_model_index];
+# best_model = optsols[best_model_index];
 
-best_nn = best_model.u.neural;
-# best_ode_beta = best_model.u.ode 
+# best_nn = best_model.u.neural;
+# best_ode_beta = best_model.u.ode
+best_nn = neural_network_parameters[best_model_index];
 
 # ode_betas_test = [optsol.u for optsol in opt_solutions]
 best_solution = opt_solutions[best_model_index];
@@ -482,7 +487,7 @@ best_models = new_models[best_model_index];
 @save "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
 # @save "$(models_path)/best_ode_beta_NSTEMI_$(experiment).jld2" best_ode_beta
 
-@load "$(models_path)/best_solutionNSTEMI_$(experiment).jld2" best_solution;
+# @load "$(models_path)/best_solutionNSTEMI_$(experiment).jld2" best_solution;
 
 a_dist = [exp(sol.u[1]) for sol in best_solution]
 b_dist = [exp(sol.u[2]) for sol in best_solution]

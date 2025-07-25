@@ -1,0 +1,12 @@
+Experiment NSTEMI_MIMIC_logSSE_ts300.0_28_inp2_multipl_softplus log file
+be = bounds edited
+Neural network settings:
+dept: 2; width: 8; inputs(2): t, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+Patient loaded: 1575
+Time: min = 0.05 h   max = 2116.5 h
+cTnT: min = 0.01 ng/mL   max = 24.8 ng/mL
+Training split: 1205
+Validation split: 301
+LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.010000000000000004, 0.010000000000000004, 0.0010000000000000002]
+UB exp: [4.999999999999999, 4.999999999999999, 499.99999999999983, 499.99999999999983, 1.0]
