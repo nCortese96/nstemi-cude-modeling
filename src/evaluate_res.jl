@@ -7,36 +7,36 @@ include("ctnt-ude-model.jl")
 
 ################################# DATASET LOAD ####################################
 
-file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
-sheet_ids = "IDs";
-sheet_times = "times";
-sheet_values = "values";
+# file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
+# sheet_ids = "IDs";
+# sheet_times = "times";
+# sheet_values = "values";
 
-xf = XLSX.readxlsx(file_path);
-# Caricamento dei fogli in DataFrame
-# ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
-timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
-troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
+# xf = XLSX.readxlsx(file_path);
+# # Caricamento dei fogli in DataFrame
+# # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
+# ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+# timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
+# troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
 
-patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
+# patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
 
-################################# DEFINED TEST SET LOAD ####################################
+# ################################# DEFINED TEST SET LOAD ####################################
 
-test_ids = ["n34","n100","n62","n16","n6",
-            "n91","n78","n87","n10","n53",
-            "n8","n95","n92","n45","n38",
-            "n63","n85","n46","n79","n61"]
+# test_ids = ["n34","n100","n62","n16","n6",
+#             "n91","n78","n87","n10","n53",
+#             "n8","n95","n92","n45","n38",
+#             "n63","n85","n46","n79","n61"]
 
 
-test_set = filter(p -> p.id in test_ids, patients)
+# test_set = filter(p -> p.id in test_ids, patients)
 
-lookup = Dict(p.id => p for p in patients)          # id → PatientData
-ordered_test_set = [lookup[id] for id in test_ids if haskey(lookup, id)]
+# lookup = Dict(p.id => p for p in patients)          # id → PatientData
+# ordered_test_set = [lookup[id] for id in test_ids if haskey(lookup, id)]
 
-for p in ordered_test_set
-    println(p.id)
-end
+# for p in ordered_test_set
+#     println(p.id)
+# end
 
 ################################# EXPERIMENT LOADING ####################################
 
@@ -52,16 +52,22 @@ end
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_logSSE_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
-println(experiment)
+experiment = "NSTEMI_partrvalMIMIC_logSSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 
+@load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
 @load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
 @load "$(models_path)/best_solutionNSTEMI_$(experiment).jld2" best_solution;
 
+open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+    println(io, "*********************************")
+    println(io, "Evaluating NN with sMAPE")
+end
+
 smape_values = [];
-for (i, patient) in enumerate(ordered_test_set)
+# for (i, patient) in enumerate(ordered_test_set)
+for (i, patient) in enumerate(test_dataset)
 # patient = ordered_test_set[i]
 
     p_opt = ComponentArray(ode = best_solution[i].u, neural = best_nn);
@@ -88,7 +94,7 @@ for (i, patient) in enumerate(ordered_test_set)
 
     println("sMAPE: $validation_metric")
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "Patient $(patient.id) sMAPE: $validation_metric")
+        println(io, "Patient $(patient.id) sMAPE NN validation: $validation_metric")
     end
     push!(smape_values, validation_metric)
 end
@@ -96,7 +102,7 @@ end
 println(median(smape_values))
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-    println(io, "Median in sMAPE validation: ", median(smape_values))
+    println(io, "Median in sMAPE NN validation: ", median(smape_values))
 end
 
 a_dist = [exp(sol.u[1]) for sol in best_solution]

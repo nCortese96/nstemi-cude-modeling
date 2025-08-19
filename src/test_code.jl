@@ -3,10 +3,11 @@ using Optimization, OptimizationOptimisers, LineSearches
 using Plots, JLD2
 using ProgressMeter
 using Statistics
+using Dates
 using Logging
 using Base.Threads: @threads, nthreads
 
-println("⚠️ Algorithm started")
+println("⚠️ Algorithm started $(now())")
 
 include("ctnt-ude-model.jl")
 
@@ -34,12 +35,13 @@ elseif input_dim == 7
     inputs_str = "u[1], t, a, b, Cs0, Cc0, β";
 end
 
+# USE_GPU = true;
 T_SCALE = 350.0;
 # dt = 0.1;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_UMG_logSSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+experiment = "NSTEMI_partrvalMIMIC_SSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 mkpath(fig_path)
@@ -55,7 +57,7 @@ end
 xf = XLSX.readxlsx(file_path);
 # Caricamento dei fogli in DataFrame
 # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "B:B", header=false, infer_eltypes=true));
 timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
 troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
 
@@ -97,6 +99,7 @@ shuffle!(cleaned_patients);
 n_train = Int(round(length(cleaned_patients) * 0.8));
 training_dataset = cleaned_patients[1:n_train];
 test_dataset = cleaned_patients[n_train+1:end];
+# n_patients = length(training_dataset);
 println("Training split: ", length(training_dataset))
 println("Validation split: ", length(test_dataset))
 
@@ -137,20 +140,39 @@ initial_parameters = [ComponentArray(
         ode = repeat(initial_ode[:,i], 1, n_conditional)
         ) for i in eachindex(initial_nn)];
 
-losses_initial = Float64[];
-models = [];
 init_bar = Progress(initial_guesses; dt=1, desc="Evaluating initial guesses... ", showspeed=true, color=:firebrick);
-# models = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (training_dataset[j].timepoints[1], training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
 
-for p in initial_parameters # p = initial_parameters[k]
-    models_array = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (0.0, training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
-    push!(models, models_array);
-    loss_value = parallel_training_loss(p, (models_array, training_dataset));
-    # loss_value = ensamble_training_loss(p, training_dataset);
-    # println(loss_value)
-    push!(losses_initial, loss_value);
-    next!(init_bar; showvalues = [(:loss, loss_value)]);
-    # init_bar.desc = "LOSS: $loss_value"
+# losses_initial = Float64[];
+# models = [];
+# # models = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (training_dataset[j].timepoints[1], training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
+# for p in initial_parameters # p = initial_parameters[k]
+#     models_array = [ctntCUDEModel(p.ode[5*(j-1) + 1:5*j], chain, (0.0, training_dataset[j].timepoints[end])) for j in eachindex(training_dataset)];
+#     push!(models, models_array);
+#     loss_value = training_loss(p, (models_array, training_dataset));
+#     # loss_value = training_loss(p, training_dataset);
+#     # println(loss_value)
+#     push!(losses_initial, loss_value);
+#     next!(init_bar; showvalues = [(:loss, loss_value)]);
+#     # init_bar.desc = "LOSS: $loss_value"
+# end
+
+losses_initial = Vector{Float64}(undef, initial_guesses)
+models        = Vector{Vector{ctntCUDEModel}}(undef, initial_guesses)
+
+@threads for k in eachindex(initial_parameters)
+    p = initial_parameters[k]
+
+    local_models = [
+        ctntCUDEModel(p.ode[5*(j-1)+1:5*j], chain,
+                      (0.0, training_dataset[j].timepoints[end]))
+        for j in eachindex(training_dataset)
+    ]
+
+    models[k] = local_models
+    losses_initial[k] =
+        training_loss(p, (local_models, training_dataset))
+
+    next!(init_bar)      # thread-safe
 end
 
 selected_initials = 2;
@@ -242,18 +264,24 @@ models = models[param_indxs];
 #     return cb
 # end
 
-adam_maxiters = 400;
-lbfgs_maxiters = 300;
+adam_maxiters = 500;
+lbfgs_maxiters = 400;
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "adam_maxiters: ", adam_maxiters)
     println(io, "lbfgs_maxiters: ", lbfgs_maxiters)
 end
 
-optsols = OptimizationSolution[];
-optfunc = OptimizationFunction(parallel_training_loss, AutoForwardDiff()); # ensamble_training_loss
-losses_per_model = Vector{Vector{Float64}}()
-adam_iters_per_model = Int[] 
+# optsols = OptimizationSolution[];
+optfunc = OptimizationFunction(training_loss, AutoForwardDiff()); # ensamble_training_loss
+# losses_per_model = Vector{Vector{Float64}}()
+
+n_start = length(out_params)            # = selected_initials
+
+optsols          = Vector{OptimizationSolution}(undef, n_start)
+losses_per_model = Vector{Vector{Float64}}(undef, n_start)
+
+# adam_iters_per_model = Int[] 
 # lower_bound = log.([0.001, 0.001, 0.001, 0.001, 0.001])
 # upper_bound = log.([5, 5, 400, 400, 1])
 # train_bar = Progress(100; dt=0.5, desc="Single solution optimizing...", showspeed=true, color=:firebrick)
@@ -266,15 +294,24 @@ adam_iters_per_model = Int[]
 #   oppure forma posizionale equivalente:
 # opt_adamw = AdamW(η, betas, λdecay)
 
-for (i, θ_init) in enumerate(out_params)
+# for (i, θ_init) in enumerate(out_params)
+@threads for i in eachindex(out_params)
+    θ_init = out_params[i]
     train_bar = Progress(adam_maxiters+lbfgs_maxiters; dt=0.5, desc="Training start ", showspeed=true, color=:firebrick);
-    train_bar.desc = "ADAM phase param set $(i)"
+    train_bar.desc = "ADAM phase param set θ$(i)"
     losses_this = Float64[]
     # try
-    println("ADAM for parameter set: $(i)")
+    println("ADAM for parameter set: θ$(i)")
 
-    optprob = Optimization.OptimizationProblem(optfunc, θ_init, (models[i], training_dataset));
-    # optprob = Optimization.OptimizationProblem(optfunc, θ_init, training_dataset);
+    local_models = [
+        ctntCUDEModel(
+            θ_init.ode[5*(j-1)+1:5*j], chain,
+            (0.0, training_dataset[j].timepoints[end])
+        ) for j in eachindex(training_dataset)
+    ]
+
+    optprob = Optimization.OptimizationProblem(optfunc, θ_init, (local_models, training_dataset)); # models[i]
+    # optprob = Optimization.OptimizationProblem(optfunc, θ_init, (training_dataset, USE_GPU));
 
     # cb = make_callback(losses_this, state0)
 
@@ -289,14 +326,15 @@ for (i, θ_init) in enumerate(out_params)
                             # end
                             return false
                         end); # Optimisers.Adam(0.01)
-    println("LBFGS for parameter set: $(i)")
+    println("LBFGS for parameter set: θ$(i)")
     println(opt_result1.retcode)
 
     println("Adam iterations: $(length(losses_this))")
-    push!(adam_iters_per_model, length(losses_this))
+    # push!(adam_iters_per_model, length(losses_this))
     
-    train_bar.desc = "LBFGS phase param set $(i)"
-    optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u, (models[i], training_dataset));
+    train_bar.desc = "LBFGS phase param set θ$(i)"
+    optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u, (local_models, training_dataset)); # models[i]
+    # optprob2 = Optimization.OptimizationProblem(optfunc, opt_result1.u, (training_dataset, USE_GPU));
     opt_result2 = Optimization.solve(
         optprob2,
         LBFGS(linesearch=LineSearches.BackTracking()),
@@ -311,7 +349,8 @@ for (i, θ_init) in enumerate(out_params)
                     end
     );
 
-    push!(optsols, opt_result2)
+    # push!(optsols, opt_result2)
+    optsols[i] = opt_result2;
     
     println("Solutions: $(length(optsols))/$selected_initials")
     println(opt_result2.retcode)
@@ -319,11 +358,14 @@ for (i, θ_init) in enumerate(out_params)
     println("LBFGS iterations: $(length(losses_this))")
 
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "Returncode model $(i): ", opt_result2.retcode)
-        println(io, "Final loss model $(i): ", opt_result2.objective)
+        println(io, "Returncode model θ$(i): ", opt_result2.retcode)
+        println(io, "Final loss model θ$(i): ", opt_result2.objective)
     end
 
-    push!(losses_per_model, losses_this)
+    finish!(train_bar)
+    
+    # push!(losses_per_model, losses_this)
+    losses_per_model[i] = losses_this;
 
     # catch
         # println("Optimization failed... Skipping")
@@ -331,8 +373,9 @@ for (i, θ_init) in enumerate(out_params)
     # next!(global_prog)
 end
 
+n_adam = adam_maxiters;
 @showprogress desc="Plottng loss" for (k, loss_vec) in enumerate(losses_per_model)
-    n_adam = adam_iters_per_model[k]      # confine reale
+    # n_adam = adam_iters_per_model[k]      # confine reale
 
     # Adam
     plot(1:n_adam, loss_vec[1:n_adam];
@@ -358,27 +401,43 @@ neural_network_parameters = [optsol.u.neural[:] for optsol in optsols]
 ode_params = [optsol.u.ode[:] for optsol in optsols]
 
 @save "$(models_path)/nnNSTEMI_$(experiment).jld2" neural_network_parameters;
+@load "$(models_path)/nnNSTEMI_$(experiment).jld2" neural_network_parameters;
 @save "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
+@load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
 
 # lb = log.([0.001, 0.001, 0.001, 0.01, 0.001]);
 # ub = log.([5.0, 5.0, 300.0, 400.0, 3]);
 
-opt_solutions = []
-model_objectives = []
-optimized_models = []
-@showprogress desc="Evaluating" for (k, opt_sol) in enumerate(optsols)
+# n_models = length(optsols)                      # = selected_initials
+n_optsol = length(neural_network_parameters)
+
+opt_solutions      = Vector{Vector{OptimizationSolution}}(undef, n_optsol)
+optimized_models   = Vector{Vector{ctntCUDEModel}}(undef, n_optsol)
+model_objectives   = Vector{Vector{Float64}}(undef, n_optsol)
+
+# opt_solutions = []
+# model_objectives = []
+# optimized_models = []
+ev_bar = Progress(n_optsol * length(test_dataset); desc = "Validating", color = :cyan, showspeed = true)
+# @showprogress desc="Evaluating" for (k, opt_sol) in enumerate(optsols)
+for k in 1:n_optsol
+    # opt_sol = optsols[k]
+    # nn_p = opt_sol.u.neural;
+    # ode_p = opt_sol.u.ode;
+    nn_p = neural_network_parameters[k];
+    ode_p = ode_params[k];
     # try
         println("Optsolution n: $k")
         models_valid = [
             ctntCUDEModel(
-                opt_sol.u.ode[5*(j-1) + 1 : 5*j], chain,
+                ode_p[5*(j-1) + 1 : 5*j], chain,
                 (0.0, test_dataset[j].timepoints[end])
             )
             for j in eachindex(test_dataset)];
 
         # println(models_valid)
 
-        initial = vec(mean(reshape(opt_sol.u.ode, :, 5), dims=1));
+        initial = vec(mean(reshape(ode_p, :, 5), dims=1));
         println("Initial: ", initial)
         opt_models = [];
         optsols_valid = OptimizationSolution[];
@@ -387,7 +446,7 @@ optimized_models = []
             patient = test_dataset[i]
             # mean_params = mean ode params and β
             optprob = OptimizationProblem(optfunc, initial,
-                (model, patient.timepoints, patient.ctnt_data, opt_sol.u.neural),
+                (model, patient.timepoints, patient.ctnt_data, nn_p),
                 lb = lhs_lb, ub = lhs_ub);
 
             optsol_lbfgs = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
@@ -411,7 +470,7 @@ optimized_models = []
             # Costruisci il modello per questo paziente:
             # opt_model = ctntCUDEModel(optsol_lbfgs.u, chain, tspan);
             # push!(opt_models, opt_model);
-            p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = opt_sol.u.neural);
+            p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = nn_p);
 
             u0_new = [exp(p_opt.ode[3]), exp(p_opt.ode[4]), 0.0]
             
@@ -439,19 +498,24 @@ optimized_models = []
             scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
 
             save("$(fig_path)/$(experiment)_model_$(k)_$(patient.id).svg", pl)
-
+            next!(ev_bar)
         end
-        push!(opt_solutions, optsols_valid);
-        push!(optimized_models, opt_models);
+
+        opt_solutions[k] = optsols_valid
+        optimized_models[k] = opt_models
+        # push!(opt_solutions, optsols_valid);
+        # push!(optimized_models, opt_models);
 
         objectives = [sol.objective for sol in optsols_valid];
         println("Median: ", median(objectives))
         println("Mean: ", mean(objectives))
-        push!(model_objectives, objectives)
+        # push!(model_objectives, objectives)
+        model_objectives[k] = objectives
     # catch
     #     push!(model_objectives, repeat([Inf], length(models)))
     # end
 end
+finish!(ev_bar)
 
 # model_objectives = model_objectives[2]
 # find the model that performs best on each individual
@@ -460,7 +524,10 @@ solutions = hcat(opt_solutions...);
 new_models = hcat(optimized_models...);
 @save "$(models_path)/objectivesNSTEMI_$(experiment).jld2" objectives;
 
+
 best_model_index = argmin(median(objectives, dims=1)[:]);
+println("Average in validation: ", mean(objectives, dims=1)[:])
+println("Median in validation: ", median(objectives, dims=1)[:])
 println("Best model id: $best_model_index")
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
@@ -498,40 +565,40 @@ Cc0_dist = [exp(sol.u[4]) for sol in best_solution]
 
 plt_a = histogram(a_dist;
                  bins = 5,
-                 xlabel = "Values",
+                 xlabel = "Value",
                  ylabel = "#",
-                 title = "Time-points distribution",
+                 title = "Params a",
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")
 
 plt_b = histogram(b_dist;
                  bins = 5,
-                 xlabel = "Time (h)",
+                 xlabel = "Value",
                  ylabel = "#",
-                 title = "Time-points distribution",
+                 title = "Params b",
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")
 
 plt_Cs0 = histogram(Cs0_dist;
                  bins = 5,
-                 xlabel = "Time (h)",
+                 xlabel = "Value",
                  ylabel = "#",
-                 title = "Time-points distribution",
+                 title = "Params Cs0",
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")
 
 plt_Cc0 = histogram(Cc0_dist;
                  bins = 5,
-                 xlabel = "Time (h)",
+                 xlabel = "Value",
                  ylabel = "#",
-                 title = "Time-points distribution",
+                 title = "Params Cc0",
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")
 
 plt_β = histogram(β_dist;
                  bins = 5,
-                 xlabel = "Time (h)",
+                 xlabel = "Value",
                  ylabel = "#",
-                 title = "Time-points distribution",
+                 title = "Params β",
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")

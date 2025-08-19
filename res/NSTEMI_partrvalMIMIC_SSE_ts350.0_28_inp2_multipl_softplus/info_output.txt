@@ -1,0 +1,17 @@
+Experiment NSTEMI_partrvalMIMIC_SSE_ts350.0_28_inp2_multipl_softplus log file
+be = bounds edited
+Neural network settings:
+dept: 2; width: 8; inputs(2): t, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+Patient loaded: 1575
+Time: min = 0.08 h   max = 349.75 h
+cTnT: min = 0.01 ng/mL   max = 23.43 ng/mL
+Training split: 522
+Validation split: 131
+LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.010000000000000004, 0.010000000000000004, 0.0010000000000000002]
+UB exp: [4.999999999999999, 4.999999999999999, 499.99999999999983, 499.99999999999983, 1.0]
+Starting points: 2
+Best starting points loss indexes: [856, 299]
+Best starting points losses: [2589.5400959783005, 2634.276599121708]
+adam_maxiters: 500
+lbfgs_maxiters: 400
