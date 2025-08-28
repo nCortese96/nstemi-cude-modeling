@@ -52,7 +52,7 @@ end
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_partrvalMIMIC_logSSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+experiment = "NSTEMI_partrvalMIMIC_SSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 
@@ -64,6 +64,8 @@ open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sov
     println(io, "*********************************")
     println(io, "Evaluating NN with sMAPE")
 end
+
+# mkpath("$fig_path/evaluation")
 
 smape_values = [];
 # for (i, patient) in enumerate(ordered_test_set)
@@ -102,7 +104,7 @@ end
 println(median(smape_values))
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-    println(io, "Median in sMAPE NN validation: ", median(smape_values))
+    println(io, "--> Median in sMAPE NN validation: ", median(smape_values))
 end
 
 a_dist = [exp(sol.u[1]) for sol in best_solution]

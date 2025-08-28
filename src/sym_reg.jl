@@ -182,7 +182,6 @@ println("Symbolic regression process terminated succesfully")
 open("res/$(experiment)/info_output.txt", "a") do io
     println(io, "********************************")
     println(io, "Symbolic regression process terminated succesfully")
-    println(io, "********************************")
 end
 
 # Pareto + migliore formula (di solito l’ultima)
