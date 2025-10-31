@@ -48,12 +48,12 @@ lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1]); # 5.0, 5.0, 300.0, 400.0, 3
 
 ode_p = best_solution;
 
-# const c1 = 0.13256218391741428;
-# const c2 = 13.260793182859695;
-# const c3 = 67.46423088085042;
-# corr(t, β) = c1 / (c2*t + c3*β + 1/(t + eps(Float64)))   # guardrail su t≈0
+const c1 = 0.13256218391741428;
+const c2 = 13.260793182859695;
+const c3 = 67.46423088085042;
+corr(t, β) = c1 / (c2*t + c3*β + 1/(t + eps(Float64)))   # guardrail su t≈0
 
-corr(t_norm, β) = ((((β * t_norm) * -111.57808469280414) * (inv(β + -2.282974072276526) + t_norm)) * (β + -0.40181845386338866)) * β
+# corr(t_norm, β) = ((((β * t_norm) * -111.57808469280414) * (inv(β + -2.282974072276526) + t_norm)) * (β + -0.40181845386338866)) * β
 
 function ctnt_ode!(du, u, p, t)
     Cs = u[1]
@@ -104,8 +104,8 @@ function patient_loss_formula(θ, (problem, timepoints, ctnt_data))
 
     plasm = sol[3,:];
 
-    return sum(abs2, plasm - ctnt_data)
-    # return sum(abs2, log.(plasm) .- log.(ctnt_data))
+    # return sum(abs2, plasm - ctnt_data)
+    return sum(abs2, log.(plasm) .- log.(ctnt_data))
     # return sum(((plasm - ctnt_data).^2).*ctnt_data)
     # return smape(plasm, ctnt_data)
 end

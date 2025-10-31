@@ -1339,3 +1339,433 @@ Patient n394 sMAPE Formula validation: 25.869964227079283
 Patient n142 sMAPE Formula validation: 11.166814205253406
 --> Median sMAPE with formula: 13.344895807447172
 --> Median logSSE with formula: 0.17567604684559546
+UMG - Test formula algorithm started 2025-09-08T19:52:01.586
+   Patient loaded: 99
+   Time: min = 0.02 h   max = 334.97 h
+   cTnT: min = 0.0057 ng/mL   max = 9.92 ng/mL
+*********************************
+UMG - Evaluating Formula from SymReg with sMAPE
+UMG - Patient n1 sMAPE Formula validation: 43.24231709002652
+UMG - Patient n2 sMAPE Formula validation: 7.2042792327077585
+UMG - Patient n3 sMAPE Formula validation: 11.190430381679562
+UMG - Patient n5 sMAPE Formula validation: 28.14029482282203
+UMG - Patient n6 sMAPE Formula validation: 14.651774500750548
+UMG - Patient n7 sMAPE Formula validation: 9.586039998709904
+UMG - Patient n9 sMAPE Formula validation: 12.820939983051035
+UMG - Patient n10 sMAPE Formula validation: 10.436463231113954
+UMG - Patient n13 sMAPE Formula validation: 40.490347658233524
+UMG - Patient n14 sMAPE Formula validation: 9.616328758351225
+UMG - Patient n15 sMAPE Formula validation: 38.66401527641161
+UMG - Patient n17 sMAPE Formula validation: 23.785442308864674
+UMG - Patient n19 sMAPE Formula validation: 6.844979554852415
+UMG - Patient n22 sMAPE Formula validation: 8.788205525852288
+UMG - Patient n26 sMAPE Formula validation: 16.05600418017066
+UMG - Patient n27 sMAPE Formula validation: 34.3537847030969
+UMG - Patient n28 sMAPE Formula validation: 10.915007465765964
+UMG - Patient n29 sMAPE Formula validation: 8.205399441352238
+UMG - Patient n31 sMAPE Formula validation: 17.149638274343047
+UMG - Patient n32 sMAPE Formula validation: 54.51616186440066
+UMG - Patient n34 sMAPE Formula validation: 12.981748338861399
+UMG - Patient n41 sMAPE Formula validation: 4.362251473173451
+UMG - Patient n44 sMAPE Formula validation: 10.303455161466255
+UMG - Patient n45 sMAPE Formula validation: 15.221210403145994
+UMG - Patient n46 sMAPE Formula validation: 8.370310317493516
+UMG - Patient n47 sMAPE Formula validation: 3.2878847617454334
+UMG - Patient n48 sMAPE Formula validation: 6.738534543645637
+UMG - Patient n50 sMAPE Formula validation: 10.803787752674358
+UMG - Patient n51 sMAPE Formula validation: 20.46273328638081
+UMG - Patient n53 sMAPE Formula validation: 12.957372826264525
+UMG - Patient n55 sMAPE Formula validation: 59.101357548052604
+UMG - Patient n56 sMAPE Formula validation: 13.497903832645756
+UMG - Patient n57 sMAPE Formula validation: 18.541794654856275
+UMG - Patient n59 sMAPE Formula validation: 15.16389812103624
+UMG - Patient n60 sMAPE Formula validation: 8.951206845743434
+UMG - Patient n61 sMAPE Formula validation: 6.02740428832798
+UMG - Patient n62 sMAPE Formula validation: 7.113342722983178
+UMG - Patient n63 sMAPE Formula validation: 27.618295223609007
+UMG - Patient n64 sMAPE Formula validation: 36.229524447636216
+UMG - Patient n65 sMAPE Formula validation: 6.188073249260021
+UMG - Patient n66 sMAPE Formula validation: 9.55799266796582
+UMG - Patient n67 sMAPE Formula validation: 12.624819663834908
+UMG - Patient n68 sMAPE Formula validation: 4.146912639893525
+UMG - Patient n69 sMAPE Formula validation: 13.721038026369161
+UMG - Patient n70 sMAPE Formula validation: 3.2101444949538545
+UMG - Patient n71 sMAPE Formula validation: 12.760315513204535
+UMG - Patient n72 sMAPE Formula validation: 8.84895240833827
+UMG - Patient n73 sMAPE Formula validation: 6.469619525199553
+UMG - Patient n75 sMAPE Formula validation: 11.73453571217237
+UMG - Patient n76 sMAPE Formula validation: 9.183165428477954
+UMG - Patient n77 sMAPE Formula validation: 8.852862956791647
+UMG - Patient n78 sMAPE Formula validation: 23.246452648045043
+UMG - Patient n81 sMAPE Formula validation: 7.870726059866105
+UMG - Patient n83 sMAPE Formula validation: 10.764954980787909
+UMG - Patient n84 sMAPE Formula validation: 44.94563595545811
+UMG - Patient n85 sMAPE Formula validation: 8.556967205309029
+UMG - Patient n87 sMAPE Formula validation: 37.1602389099931
+UMG - Patient n90 sMAPE Formula validation: 33.656991962200024
+UMG - Patient n91 sMAPE Formula validation: 8.80494756878831
+UMG - Patient n92 sMAPE Formula validation: 20.377812057856207
+UMG - Patient n93 sMAPE Formula validation: 36.23067038626574
+UMG - Patient n95 sMAPE Formula validation: 7.514256451833195
+UMG - Patient n96 sMAPE Formula validation: 6.04345491630286
+UMG - Patient n97 sMAPE Formula validation: 23.975451506533826
+UMG - Patient n99 sMAPE Formula validation: 14.77339925963701
+UMG - Patient n100 sMAPE Formula validation: 4.488548693968906
+UMG - Patient n101 sMAPE Formula validation: 9.158276184777932
+UMG - Patient n102 sMAPE Formula validation: 33.10499990766832
+UMG - Patient n105 sMAPE Formula validation: 10.699295603180719
+UMG - Patient n107 sMAPE Formula validation: 5.731764894247237
+UMG - Patient n109 sMAPE Formula validation: 13.585198461583142
+UMG - Patient n110 sMAPE Formula validation: 15.889853773277743
+--> UMG - Median sMAPE with formula: 11.462483046925966
+--> UMG - Median SSE with formula: 0.18629041971716126
+UMG - Test NN started 2025-10-09T18:07:54.190
+   Patient loaded: 99
+   Time: min = 0.02 h   max = 334.97 h
+   cTnT: min = 0.0057 ng/mL   max = 9.92 ng/mL
+*********************************
+Evaluating Formula from SymReg with sMAPE
+Patient n1 sMAPE Formula validation: 46.35112049145746
+Patient n2 sMAPE Formula validation: 9.740905011541107
+Patient n3 sMAPE Formula validation: 11.205328049944736
+Patient n5 sMAPE Formula validation: 28.671863383126006
+Patient n6 sMAPE Formula validation: 14.013680915138057
+Patient n7 sMAPE Formula validation: 9.561144082711818
+Patient n9 sMAPE Formula validation: 12.39550680924624
+Patient n10 sMAPE Formula validation: 9.814543241384508
+Patient n13 sMAPE Formula validation: 40.136749872707966
+Patient n14 sMAPE Formula validation: 8.605892400541805
+Patient n15 sMAPE Formula validation: 39.65923417834883
+Patient n17 sMAPE Formula validation: 28.050665217381376
+Patient n19 sMAPE Formula validation: 8.113254816799577
+Patient n22 sMAPE Formula validation: 8.375779628959304
+Patient n26 sMAPE Formula validation: 16.526801561917782
+Patient n27 sMAPE Formula validation: 36.89320267721112
+Patient n28 sMAPE Formula validation: 19.02533424408293
+Patient n29 sMAPE Formula validation: 7.36769483594473
+Patient n31 sMAPE Formula validation: 17.13638649522849
+Patient n32 sMAPE Formula validation: 49.10104443756838
+Patient n34 sMAPE Formula validation: 13.164245071752914
+Patient n41 sMAPE Formula validation: 4.258017089053998
+Patient n44 sMAPE Formula validation: 13.486654833782227
+Patient n45 sMAPE Formula validation: 14.909925372327077
+Patient n46 sMAPE Formula validation: 7.587897353664652
+Patient n47 sMAPE Formula validation: 3.3575013039418478
+Patient n48 sMAPE Formula validation: 7.202337849374989
+Patient n50 sMAPE Formula validation: 9.571762470308212
+Patient n51 sMAPE Formula validation: 16.28406292805397
+Patient n53 sMAPE Formula validation: 13.094390313138526
+Patient n55 sMAPE Formula validation: 59.2436615160786
+Patient n56 sMAPE Formula validation: 13.79675121523499
+Patient n57 sMAPE Formula validation: 18.390835461718513
+Patient n59 sMAPE Formula validation: 28.603277704553935
+Patient n60 sMAPE Formula validation: 8.903037374635378
+Patient n61 sMAPE Formula validation: 5.6772755323438195
+Patient n62 sMAPE Formula validation: 6.915083595852881
+Patient n63 sMAPE Formula validation: 33.659501436293056
+Patient n64 sMAPE Formula validation: 43.54367109310052
+Patient n65 sMAPE Formula validation: 7.946810928140868
+Patient n66 sMAPE Formula validation: 9.41970651839216
+Patient n67 sMAPE Formula validation: 13.885699549874102
+Patient n68 sMAPE Formula validation: 7.326126402166154
+Patient n69 sMAPE Formula validation: 35.67360056460094
+Patient n70 sMAPE Formula validation: 11.09797661566505
+Patient n71 sMAPE Formula validation: 11.843916760376931
+Patient n72 sMAPE Formula validation: 8.609074717037073
+Patient n73 sMAPE Formula validation: 10.700068077540857
+Patient n75 sMAPE Formula validation: 12.997306468194786
+Patient n76 sMAPE Formula validation: 8.505944147336884
+Patient n77 sMAPE Formula validation: 10.163545061269852
+Patient n78 sMAPE Formula validation: 24.361648208058845
+Patient n81 sMAPE Formula validation: 7.820751442266218
+Patient n83 sMAPE Formula validation: 10.358786426931985
+Patient n84 sMAPE Formula validation: 44.95458401506172
+Patient n85 sMAPE Formula validation: 9.064325745727803
+Patient n87 sMAPE Formula validation: 22.609720179707626
+Patient n90 sMAPE Formula validation: 39.12818850271726
+Patient n91 sMAPE Formula validation: 6.729471898890245
+Patient n92 sMAPE Formula validation: 20.254200929013717
+Patient n93 sMAPE Formula validation: 32.34772510550384
+Patient n95 sMAPE Formula validation: 9.412141078161477
+Patient n96 sMAPE Formula validation: 6.008460951922462
+Patient n97 sMAPE Formula validation: 18.32911766547605
+Patient n99 sMAPE Formula validation: 14.717071612623261
+Patient n100 sMAPE Formula validation: 5.027792385774064
+Patient n101 sMAPE Formula validation: 8.732652037335516
+Patient n102 sMAPE Formula validation: 33.453500116837255
+Patient n105 sMAPE Formula validation: 10.56718419050038
+Patient n107 sMAPE Formula validation: 5.056110502995713
+Patient n109 sMAPE Formula validation: 11.590910707597134
+Patient n110 sMAPE Formula validation: 28.911320662748857
+--> Median sMAPE with formula: 12.119711784811585
+--> Median SSE with formula: 0.20076053333604926
+*********************************
+Evaluating Formula from SymReg with sMAPE
+Patient n1566 sMAPE Formula validation: 14.881296036266598
+Patient n85 sMAPE Formula validation: 18.092030667165684
+Patient n1255 sMAPE Formula validation: 20.427598028941453
+Patient n299 sMAPE Formula validation: 4.229545755844372
+Patient n161 sMAPE Formula validation: 50.722512308019404
+Patient n1099 sMAPE Formula validation: 41.535303409080306
+Patient n835 sMAPE Formula validation: 27.13921863215189
+Patient n724 sMAPE Formula validation: 1.7251828746958286
+Patient n1383 sMAPE Formula validation: 89.35556041766786
+Patient n308 sMAPE Formula validation: 19.950277564330634
+Patient n1264 sMAPE Formula validation: 22.84681517421451
+Patient n71 sMAPE Formula validation: 5.948469777070942
+Patient n235 sMAPE Formula validation: 48.56915976984923
+Patient n581 sMAPE Formula validation: 14.138549173784174
+Patient n792 sMAPE Formula validation: 4.75806781352213
+Patient n1131 sMAPE Formula validation: 13.393365623287323
+Patient n1491 sMAPE Formula validation: 9.78269538913086
+Patient n900 sMAPE Formula validation: 25.110567673296362
+Patient n588 sMAPE Formula validation: 5.877023699242602
+Patient n1448 sMAPE Formula validation: 8.53721060814665
+Patient n1343 sMAPE Formula validation: 20.55751257749773
+Patient n828 sMAPE Formula validation: 26.354553863525897
+Patient n1518 sMAPE Formula validation: 5.354317099351698
+Patient n611 sMAPE Formula validation: 10.881931243091714
+Patient n861 sMAPE Formula validation: 7.502890975893083
+Patient n277 sMAPE Formula validation: 8.826061231235089
+Patient n925 sMAPE Formula validation: 43.45830457695812
+Patient n213 sMAPE Formula validation: 2.151238095564749
+Patient n558 sMAPE Formula validation: 6.097849861876638
+Patient n713 sMAPE Formula validation: 26.337957270766303
+Patient n207 sMAPE Formula validation: 15.419738517963907
+Patient n188 sMAPE Formula validation: 6.368267702876324
+Patient n1280 sMAPE Formula validation: 21.770627656797366
+Patient n1239 sMAPE Formula validation: 22.048400834659873
+Patient n1127 sMAPE Formula validation: 4.98230278113523
+Patient n1286 sMAPE Formula validation: 32.49063722047364
+Patient n1155 sMAPE Formula validation: 9.150047802908365
+Patient n863 sMAPE Formula validation: 5.469271226583978
+Patient n416 sMAPE Formula validation: 15.49681441951433
+Patient n1213 sMAPE Formula validation: 6.4102509174501066
+Patient n1320 sMAPE Formula validation: 4.308657923997308
+Patient n1572 sMAPE Formula validation: 12.930994618900074
+Patient n1169 sMAPE Formula validation: 3.3598641981710275
+Patient n968 sMAPE Formula validation: 17.331176999752117
+Patient n1303 sMAPE Formula validation: 7.214622227133146
+Patient n1263 sMAPE Formula validation: 37.43432645154419
+Patient n1569 sMAPE Formula validation: 35.10679906775023
+Patient n1494 sMAPE Formula validation: 32.089320526312235
+Patient n1305 sMAPE Formula validation: 45.24309400346602
+Patient n1030 sMAPE Formula validation: 34.41605555166433
+Patient n1490 sMAPE Formula validation: 23.507646014934622
+Patient n629 sMAPE Formula validation: 61.58956955707385
+Patient n270 sMAPE Formula validation: 5.66754675611537
+Patient n1318 sMAPE Formula validation: 14.187807504273387
+Patient n531 sMAPE Formula validation: 4.901982942664264
+Patient n928 sMAPE Formula validation: 7.379186858259324
+Patient n1041 sMAPE Formula validation: 4.566993296520727
+Patient n726 sMAPE Formula validation: 9.985865449934874
+Patient n478 sMAPE Formula validation: 5.222878625178687
+Patient n1230 sMAPE Formula validation: 53.994503612718916
+Patient n1043 sMAPE Formula validation: 12.727557566873497
+Patient n1371 sMAPE Formula validation: 11.310536400023942
+Patient n41 sMAPE Formula validation: 42.55690948164257
+Patient n1421 sMAPE Formula validation: 4.636177483161218
+Patient n1396 sMAPE Formula validation: 5.496845215806654
+Patient n1229 sMAPE Formula validation: 26.929751391699213
+Patient n527 sMAPE Formula validation: 13.158077885346167
+Patient n1402 sMAPE Formula validation: 6.895397122543424
+Patient n1269 sMAPE Formula validation: 14.378424964571018
+Patient n1159 sMAPE Formula validation: 14.25388233147737
+Patient n145 sMAPE Formula validation: 10.328631703847337
+Patient n435 sMAPE Formula validation: 9.30182057611569
+Patient n916 sMAPE Formula validation: 4.310941997304588
+Patient n281 sMAPE Formula validation: 9.12123465807582
+Patient n69 sMAPE Formula validation: 63.32617021238034
+Patient n677 sMAPE Formula validation: 28.614487839736015
+Patient n1034 sMAPE Formula validation: 18.266739784016973
+Patient n1096 sMAPE Formula validation: 3.7571666405178346
+Patient n20 sMAPE Formula validation: 38.07075733242831
+Patient n134 sMAPE Formula validation: 3.357194254756974
+Patient n947 sMAPE Formula validation: 38.50559305142844
+Patient n790 sMAPE Formula validation: 42.0750701936775
+Patient n391 sMAPE Formula validation: 26.133318830357293
+Patient n392 sMAPE Formula validation: 16.2655162052373
+Patient n537 sMAPE Formula validation: 5.766698091037981
+Patient n1545 sMAPE Formula validation: 7.124848923151466
+Patient n1573 sMAPE Formula validation: 7.019747300803424
+Patient n1399 sMAPE Formula validation: 28.907457082105882
+Patient n683 sMAPE Formula validation: 26.710714822371926
+Patient n428 sMAPE Formula validation: 64.08031696219284
+Patient n1166 sMAPE Formula validation: 5.17829718621698
+Patient n375 sMAPE Formula validation: 15.615042851314906
+Patient n154 sMAPE Formula validation: 3.507039703111957
+Patient n1210 sMAPE Formula validation: 65.6893152753873
+Patient n1282 sMAPE Formula validation: 7.631116174401161
+Patient n546 sMAPE Formula validation: 5.9858719030725736
+Patient n1296 sMAPE Formula validation: 11.152344852707872
+Patient n169 sMAPE Formula validation: 3.8068175682445387
+Patient n897 sMAPE Formula validation: 9.961803648893042
+Patient n203 sMAPE Formula validation: 10.15390974365404
+Patient n1366 sMAPE Formula validation: 7.838574623636265
+Patient n1425 sMAPE Formula validation: 4.633897555192772
+Patient n474 sMAPE Formula validation: 8.832373831312097
+Patient n830 sMAPE Formula validation: 4.747711725082318
+Patient n28 sMAPE Formula validation: 54.46068708589053
+Patient n1145 sMAPE Formula validation: 4.878434281848679
+Patient n836 sMAPE Formula validation: 12.78594718689265
+Patient n600 sMAPE Formula validation: 19.50764912656777
+Patient n155 sMAPE Formula validation: 3.5445370970465255
+Patient n1376 sMAPE Formula validation: 38.07507879119328
+Patient n318 sMAPE Formula validation: 8.751594596801707
+Patient n763 sMAPE Formula validation: 17.83117578000581
+Patient n1325 sMAPE Formula validation: 40.277211181147266
+Patient n602 sMAPE Formula validation: 93.54904329704578
+Patient n727 sMAPE Formula validation: 42.77142182413288
+Patient n1449 sMAPE Formula validation: 9.162504970350925
+Patient n1517 sMAPE Formula validation: 15.589671889270429
+Patient n1544 sMAPE Formula validation: 8.443442541985586
+Patient n14 sMAPE Formula validation: 4.0810747541848125
+Patient n1500 sMAPE Formula validation: 19.568630465197103
+Patient n568 sMAPE Formula validation: 38.08936547425108
+Patient n1018 sMAPE Formula validation: 8.745623068780576
+Patient n458 sMAPE Formula validation: 7.937300772345925
+Patient n179 sMAPE Formula validation: 29.34934414468155
+Patient n1190 sMAPE Formula validation: 5.291993832349251
+Patient n67 sMAPE Formula validation: 24.553357178241708
+Patient n768 sMAPE Formula validation: 29.135661527297923
+Patient n869 sMAPE Formula validation: 10.492650388121987
+Patient n1074 sMAPE Formula validation: 61.72863362252185
+Patient n394 sMAPE Formula validation: 20.587525798114388
+Patient n142 sMAPE Formula validation: 3.855362087337097
+--> Median sMAPE with formula: 12.930994618900074
+--> Median SSE with formula: 0.16274346544418256
+*********************************
+Evaluating Formula from SymReg with sMAPE
+Patient n1566 sMAPE Formula validation: 14.881296036266598
+Patient n85 sMAPE Formula validation: 18.092030667165684
+Patient n1255 sMAPE Formula validation: 20.427598028941453
+Patient n299 sMAPE Formula validation: 4.2303826335820185
+Patient n161 sMAPE Formula validation: 50.722512308019404
+Patient n1099 sMAPE Formula validation: 41.535303409080306
+Patient n835 sMAPE Formula validation: 27.13921863215189
+Patient n724 sMAPE Formula validation: 1.715843326726559
+Patient n1383 sMAPE Formula validation: 89.35556041766786
+Patient n308 sMAPE Formula validation: 19.950277564330634
+Patient n1264 sMAPE Formula validation: 22.84681517421451
+Patient n71 sMAPE Formula validation: 5.948917433553988
+Patient n235 sMAPE Formula validation: 48.56981833499986
+Patient n581 sMAPE Formula validation: 14.126752290817521
+Patient n792 sMAPE Formula validation: 4.671123882825077
+Patient n1131 sMAPE Formula validation: 13.393365623287323
+Patient n1491 sMAPE Formula validation: 9.78269538913086
+Patient n900 sMAPE Formula validation: 25.110567673296362
+Patient n588 sMAPE Formula validation: 5.877023699242602
+Patient n1448 sMAPE Formula validation: 8.53721060814665
+Patient n1343 sMAPE Formula validation: 20.556980125938733
+Patient n828 sMAPE Formula validation: 26.354553863525897
+Patient n1518 sMAPE Formula validation: 5.354317099351698
+Patient n611 sMAPE Formula validation: 10.882238514472778
+Patient n861 sMAPE Formula validation: 7.502890975893083
+Patient n277 sMAPE Formula validation: 8.8136967107594
+Patient n925 sMAPE Formula validation: 43.44742604364851
+Patient n213 sMAPE Formula validation: 2.151238095564749
+Patient n558 sMAPE Formula validation: 6.089667767682686
+Patient n713 sMAPE Formula validation: 26.337957270766303
+Patient n207 sMAPE Formula validation: 15.419738517963907
+Patient n188 sMAPE Formula validation: 6.368267702876324
+Patient n1280 sMAPE Formula validation: 21.770627656797366
+Patient n1239 sMAPE Formula validation: 22.048400834659873
+Patient n1127 sMAPE Formula validation: 4.977284790113104
+Patient n1286 sMAPE Formula validation: 32.49063722047364
+Patient n1155 sMAPE Formula validation: 9.150047802908365
+Patient n863 sMAPE Formula validation: 5.4545058743530195
+Patient n416 sMAPE Formula validation: 15.49681441951433
+Patient n1213 sMAPE Formula validation: 6.4102509174501066
+Patient n1320 sMAPE Formula validation: 4.308657923997308
+Patient n1572 sMAPE Formula validation: 12.930994618900074
+Patient n1169 sMAPE Formula validation: 3.3598641981710275
+Patient n968 sMAPE Formula validation: 17.32786284034374
+Patient n1303 sMAPE Formula validation: 7.203108356256995
+Patient n1263 sMAPE Formula validation: 37.43432645154419
+Patient n1569 sMAPE Formula validation: 35.10679906775023
+Patient n1494 sMAPE Formula validation: 32.089320526312235
+Patient n1305 sMAPE Formula validation: 45.24309400346602
+Patient n1030 sMAPE Formula validation: 34.41605555166433
+Patient n1490 sMAPE Formula validation: 23.507646014934622
+Patient n629 sMAPE Formula validation: 61.58956955707385
+Patient n270 sMAPE Formula validation: 5.6636094693880565
+Patient n1318 sMAPE Formula validation: 14.187807504273387
+Patient n531 sMAPE Formula validation: 4.888595639674815
+Patient n928 sMAPE Formula validation: 7.369688534771542
+Patient n1041 sMAPE Formula validation: 4.566993296520727
+Patient n726 sMAPE Formula validation: 9.963453029665798
+Patient n478 sMAPE Formula validation: 5.222878625178687
+Patient n1230 sMAPE Formula validation: 53.99321067769134
+Patient n1043 sMAPE Formula validation: 12.727557566873497
+Patient n1371 sMAPE Formula validation: 11.304567928173359
+Patient n41 sMAPE Formula validation: 42.55690948164257
+Patient n1421 sMAPE Formula validation: 4.636177483161218
+Patient n1396 sMAPE Formula validation: 5.496845215806654
+Patient n1229 sMAPE Formula validation: 26.929751391699213
+Patient n527 sMAPE Formula validation: 13.150775286940544
+Patient n1402 sMAPE Formula validation: 6.895397122543424
+Patient n1269 sMAPE Formula validation: 14.378424964571018
+Patient n1159 sMAPE Formula validation: 14.25388233147737
+Patient n145 sMAPE Formula validation: 10.328631703847337
+Patient n435 sMAPE Formula validation: 9.299435390811942
+Patient n916 sMAPE Formula validation: 4.310941997304588
+Patient n281 sMAPE Formula validation: 9.12123465807582
+Patient n69 sMAPE Formula validation: 63.32617021238034
+Patient n677 sMAPE Formula validation: 28.614487839736015
+Patient n1034 sMAPE Formula validation: 18.246417723514398
+Patient n1096 sMAPE Formula validation: 3.7571666405178346
+Patient n20 sMAPE Formula validation: 38.07715693378988
+Patient n134 sMAPE Formula validation: 3.357194254756974
+Patient n947 sMAPE Formula validation: 38.50559305142844
+Patient n790 sMAPE Formula validation: 42.07292698299522
+Patient n391 sMAPE Formula validation: 26.133318830357293
+Patient n392 sMAPE Formula validation: 16.250718067342653
+Patient n537 sMAPE Formula validation: 5.766698091037981
+Patient n1545 sMAPE Formula validation: 7.120380896088095
+Patient n1573 sMAPE Formula validation: 7.018705793392852
+Patient n1399 sMAPE Formula validation: 28.907457082105882
+Patient n683 sMAPE Formula validation: 26.710714822371926
+Patient n428 sMAPE Formula validation: 64.08031696219284
+Patient n1166 sMAPE Formula validation: 5.17829718621698
+Patient n375 sMAPE Formula validation: 15.615042851314906
+Patient n154 sMAPE Formula validation: 3.507039703111957
+Patient n1210 sMAPE Formula validation: 65.68515984381237
+Patient n1282 sMAPE Formula validation: 7.631116174401161
+Patient n546 sMAPE Formula validation: 5.9858719030725736
+Patient n1296 sMAPE Formula validation: 11.152344852707872
+Patient n169 sMAPE Formula validation: 3.8068175682445387
+Patient n897 sMAPE Formula validation: 9.961803648893042
+Patient n203 sMAPE Formula validation: 10.142213062678298
+Patient n1366 sMAPE Formula validation: 7.831548066634118
+Patient n1425 sMAPE Formula validation: 4.633897555192772
+Patient n474 sMAPE Formula validation: 8.832373831312097
+Patient n830 sMAPE Formula validation: 4.747711725082318
+Patient n28 sMAPE Formula validation: 54.46068708589053
+Patient n1145 sMAPE Formula validation: 4.859828179855745
+Patient n836 sMAPE Formula validation: 12.779958325732299
+Patient n600 sMAPE Formula validation: 19.50764912656777
+Patient n155 sMAPE Formula validation: 3.5445370970465255
+Patient n1376 sMAPE Formula validation: 38.07507879119328
+Patient n318 sMAPE Formula validation: 8.751594596801707
+Patient n763 sMAPE Formula validation: 17.83117578000581
+Patient n1325 sMAPE Formula validation: 40.277211181147266
+Patient n602 sMAPE Formula validation: 93.54904329704578
+Patient n727 sMAPE Formula validation: 42.772496603814375
+Patient n1449 sMAPE Formula validation: 9.169062074355063
+Patient n1517 sMAPE Formula validation: 15.589671889270429
+Patient n1544 sMAPE Formula validation: 8.447114902718983
+Patient n14 sMAPE Formula validation: 4.0810747541848125
+Patient n1500 sMAPE Formula validation: 19.568630465197103
+Patient n568 sMAPE Formula validation: 38.08936547425108
+Patient n1018 sMAPE Formula validation: 8.745623068780576
+Patient n458 sMAPE Formula validation: 7.916820511498314
+Patient n179 sMAPE Formula validation: 29.34934414468155
+Patient n1190 sMAPE Formula validation: 5.285795715601746
+Patient n67 sMAPE Formula validation: 24.553357178241708
+Patient n768 sMAPE Formula validation: 29.135661527297923
+Patient n869 sMAPE Formula validation: 10.492650388121987
+Patient n1074 sMAPE Formula validation: 61.72863362252185
+Patient n394 sMAPE Formula validation: 20.587525798114388
+Patient n142 sMAPE Formula validation: 3.8592561210520535
+--> Median sMAPE with formula: 12.930994618900074
+--> Median SSE with formula: 0.16274346544418256

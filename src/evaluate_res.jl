@@ -3,7 +3,10 @@ using Optimization, OptimizationOptimisers, LineSearches
 using Plots, JLD2
 using Statistics
 using StatsPlots
+using Dates
 include("ctnt-ude-model.jl")
+
+# This file is not for optimization, is only for recalculate curves
 
 ################################# DATASET LOAD ####################################
 
@@ -52,13 +55,76 @@ end
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_partrvalMIMIC_SSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+T_SCALE = 350.0;
+
+experiment = "NSTEMI_partrvalMIMIC_logSSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 
-@load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
-@load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
 @load "$(models_path)/best_solutionNSTEMI_$(experiment).jld2" best_solution;
+@load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+
+# ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
+# UMG_data = false;
+UMG = "";
+# ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
+
+# if UMG_data
+#     UMG = "UMG";
+#     figsave_path = "$(fig_path)/umg_test_nn";
+#     modelssave_path = "$(models_path)/umg_test_nn";   
+    
+#     mkpath(figsave_path)
+#     mkpath(modelssave_path)
+
+#     file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
+#     sheet_ids = "IDs";
+#     sheet_times = "times";
+#     sheet_values = "values";
+#     xf = XLSX.readxlsx(file_path);
+#     # Caricamento dei fogli in DataFrame
+#     # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
+#     ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+#     timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
+#     troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
+
+#     println("Patient loaded: ", nrow(ids))
+#     patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
+
+#     # Trimming to T_SCALE
+#     trimmed_p = trim_time(patients, T_SCALE);
+#     patient_dims(trimmed_p)
+
+#     # 0. Pre-processing
+#     meas_min_number = 5;
+#     anoms = find_anomalies(trimmed_p, meas_min_number);
+#     println("Removed: $(length(anoms))")
+
+#     cleaned_patients = filter(p -> !haskey(anoms, p.id), trimmed_p);
+#     patient_dims(cleaned_patients)
+#     println("Total sample: $(length(cleaned_patients))")
+
+#     all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(cleaned_patients);
+#     display(dist)
+#     savefig("$(figsave_path)/umg_distributions.svg")
+
+#     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+#         println(io, "UMG - Test NN started $(now())")
+#         println(io, "   Patient loaded: ", nrow(ids))
+#         println(io, "   Time: min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h")
+#         println(io, "   cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
+#     end
+
+#     plt = scutter_patients(cleaned_patients)
+#     # display(plt)
+#     savefig("$(figsave_path)/scatter_post.svg")
+
+#     test_dataset = cleaned_patients;
+
+# else
+#     @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
+# end
+
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "*********************************")
@@ -113,7 +179,9 @@ Cs0_dist = [exp(sol.u[3]) for sol in best_solution]
 Cc0_dist = [exp(sol.u[4]) for sol in best_solution]
 β_dist = [exp(sol.u[5]) for sol in best_solution]
 
-mkpath("$fig_path/distributions")
+dist_path = "distributions$(UMG)"
+
+mkpath("$fig_path/$dist_path")
 
 plt_a = histogram(a_dist;
                  bins = 10,
@@ -121,7 +189,7 @@ plt_a = histogram(a_dist;
                  ylabel = "#",
                  title = "Param a distribution",
                  legend = false)
-savefig("$(fig_path)/distributions/a_dist.svg")
+savefig("$(fig_path)/$dist_path/a_dist.svg")
 
 plt_b = histogram(b_dist;
                  bins = 10,
@@ -129,7 +197,7 @@ plt_b = histogram(b_dist;
                  ylabel = "#",
                  title = "Param b distribution",
                  legend = false)
-savefig("$(fig_path)/distributions/b_dist.svg")
+savefig("$(fig_path)/$dist_path/b_dist.svg")
 
 plt_Cs0 = histogram(Cs0_dist;
                  bins = 10,
@@ -137,7 +205,7 @@ plt_Cs0 = histogram(Cs0_dist;
                  ylabel = "#",
                  title = "Param Cs0 distribution",
                  legend = false)
-savefig("$(fig_path)/distributions/plt_Cs0_dist.svg")
+savefig("$(fig_path)/$dist_path/plt_Cs0_dist.svg")
 
 plt_Cc0 = histogram(Cc0_dist;
                  bins = 10,
@@ -145,7 +213,7 @@ plt_Cc0 = histogram(Cc0_dist;
                  ylabel = "#",
                  title = "Param Cc0 distribution",
                  legend = false)
-savefig("$(fig_path)/distributions/plt_Cc0_dist.svg")
+savefig("$(fig_path)/$dist_path/plt_Cc0_dist.svg")
 
 plt_β = histogram(β_dist;
                  bins = 10,
@@ -153,11 +221,11 @@ plt_β = histogram(β_dist;
                  ylabel = "#",
                  title = "Param β distribution",
                  legend = false)
-savefig("$(fig_path)/distributions/plt_β_dist.svg")
+savefig("$(fig_path)/$dist_path/plt_β_dist.svg")
 
 boxplot([a_dist, b_dist, Cs0_dist, Cc0_dist, β_dist];
         labels = ["a" "b" "Cs0" "Cc0" "β"],
-        title  = "Parameter distributions",
+        title  = "Parameter distribution",
         ylabel = "Values")
 
 p1 = boxplot([a_dist,b_dist,β_dist];
@@ -171,4 +239,4 @@ p2 = boxplot([Cs0_dist,Cc0_dist];
             whisker     = 1.5,
             fillalpha   = 0.6)
 plot(p1, p2; layout=(1,2), size=(800,400))
-savefig("$(fig_path)/distributions/distbox.svg")
+savefig("$(fig_path)/$dist_path/distbox.svg")

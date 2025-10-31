@@ -41,7 +41,7 @@ T_SCALE = 350.0;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_partrvalMIMIC_SSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+experiment = "NSTEMI_partrvalMIMIC_balancedf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 mkpath(fig_path)
@@ -156,8 +156,8 @@ init_bar = Progress(initial_guesses; dt=1, desc="Evaluating initial guesses... "
 #     # init_bar.desc = "LOSS: $loss_value"
 # end
 
-losses_initial = Vector{Float64}(undef, initial_guesses)
-models        = Vector{Vector{ctntCUDEModel}}(undef, initial_guesses)
+losses_initial = Vector{Float64}(undef, initial_guesses);
+models        = Vector{Vector{ctntCUDEModel}}(undef, initial_guesses);
 
 @threads for k in eachindex(initial_parameters)
     p = initial_parameters[k]
@@ -263,6 +263,8 @@ models = models[param_indxs];
 
 #     return cb
 # end
+
+#### TRAINING ####
 
 adam_maxiters = 500;
 lbfgs_maxiters = 400;
@@ -407,6 +409,8 @@ ode_params = [optsol.u.ode[:] for optsol in optsols]
 
 # lb = log.([0.001, 0.001, 0.001, 0.01, 0.001]);
 # ub = log.([5.0, 5.0, 300.0, 400.0, 3]);
+
+#### Evaluation ####
 
 # n_models = length(optsols)                      # = selected_initials
 n_optsol = length(neural_network_parameters)

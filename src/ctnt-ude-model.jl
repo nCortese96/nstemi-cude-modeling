@@ -132,7 +132,7 @@ end
 
 function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
     # solve the ODE problem
-        sol = solve(model.problem, AutoTsit5(Rosenbrock23()); p=θ, saveat=timepoints,
+        sol = solve(model.problem, Tsit5(); p=θ, saveat=timepoints,
                     # callback = POS_CB, isoutofdomain = NEG_TEST
                     )
 
@@ -152,11 +152,12 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
             println(ctnt_data)
         end
         # return sum(abs2, plasm - ctnt_data)
-        return sum(abs2, log.(plasm) .- log.(ctnt_data))
+        # return sum(abs2, log.(plasm) .- log.(ctnt_data))
         # return sum(((plasm - ctnt_data).^2).*ctnt_data)
         # return smape(plasm, ctnt_data)   # % su base 0–100
         # return 100 * mean(abs, (plasm .- ctnt_data) ./ (ctnt_data .+ DELTA))
         # return sqrt(mean((log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA)).^2))
+        return 0.2 * sum(abs2, (plasm - ctnt_data) ./ max(ctnt_data...)) + 0.8 * sum(abs2, log.(plasm) .- log.(ctnt_data))
 end
 
 ## Finito il train si estraggono i parametri della rete 
@@ -169,9 +170,11 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     # ODEProblem aggiornato
     prob = remake(model.problem; u0 = u0, p = p)
 
-    sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints,
+    # sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints,
     #callback = POS_CB, isoutofdomain = NEG_TEST
-    ) 
+    # ) 
+
+    sol = solve(prob, Tsit5(); p=p, saveat=timepoints);
 
     if !successful_retcode(sol)
         # If the solver fails, return infinity
@@ -183,9 +186,10 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     plasm = sol[3,:];
 
     # return sum(abs2, plasm - ctnt_data)
-    return sum(abs2, log.(plasm) .- log.(ctnt_data))
+    # return sum(abs2, log.(plasm) .- log.(ctnt_data))
     # return sum(((plasm - ctnt_data).^2).*ctnt_data)
     # return smape(plasm, ctnt_data)
+    return 0.2 * sum(abs2, (plasm - ctnt_data)/max(ctnt_data...)) + 0.8 * sum(abs2, log.(plasm) .- log.(ctnt_data))
 end
 # La differenza sta nel dove si crea il component array:
 # Se lo dai in pasto alla loss lo ottimizza tutto,
@@ -199,9 +203,11 @@ function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     # ODEProblem aggiornato
     prob = remake(model.problem; u0 = u0, p = p)
 
-    sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints,
+    # sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints,
     #callback = POS_CB, isoutofdomain = NEG_TEST
-    ) 
+    # )
+
+    sol = solve(prob, Tsit5(); p=p, saveat=timepoints);
 
     if !successful_retcode(sol)
         # If the solver fails, return infinity
@@ -275,6 +281,39 @@ function trim_time(patients::AbstractVector{PatientData}, time_val)
 end
 
 """
+    count_acq_in_window(timepoints, h)::Int
+Conteggia le acquisizioni con t ≤ h.
+"""
+@inline function count_acq_in_window(timepoints::AbstractVector{<:Real}, h::Real)
+    sum(t -> isfinite(t) && t ≤ h, timepoints)
+end
+
+"""
+    has_min_acq_in_window(p::PatientData; max_hour=12.0, min_acq=1)::Bool
+True se il paziente ha almeno `min_acq` acquisizioni entro `max_hour` ore.
+"""
+@inline function has_min_acq_in_window(p::PatientData; max_hour::Real=12.0, min_acq::Int=1)
+    count_acq_in_window(p.timepoints, max_hour) ≥ min_acq
+end
+
+"""
+    filter_patients_by_window(patients; max_hour=12.0, min_acq=1)
+Ritorna (keep, dropped_ids) dopo il filtro per finestra/numero minimo.
+"""
+function filter_patients_by_window(patients::Vector{PatientData}; max_hour::Real=12.0, min_acq::Int=1)
+    keep = Vector{PatientData}()
+    dropped_ids = String[]
+    for p in patients
+        if has_min_acq_in_window(p; max_hour=max_hour, min_acq=min_acq)
+            push!(keep, p)
+        else
+            push!(dropped_ids, p.id)
+        end
+    end
+    return keep, dropped_ids
+end
+
+"""
     find_anomalies(patients::Vector{PatientData})
 
 Restituisce un dizionario id → Lista di messaggi di errore:
@@ -282,7 +321,7 @@ Restituisce un dizionario id → Lista di messaggi di errore:
   • “negative ctnt”      → sono presenti valori di troponina < 0
   • “times not sorted”   → i timepoints non sono in ordine non decrescente
 """
-function find_anomalies(patients::Vector{PatientData}, n::Int64)
+function find_anomalies(patients::Vector{PatientData}, n::Int64, min_acq_time::Real=300.0, min_acq_n::Int=1)
     anomalies = Dict{String, Vector{String}}()
     for p in patients
         issues = String[]
@@ -316,6 +355,10 @@ function find_anomalies(patients::Vector{PatientData}, n::Int64)
         # ordinamento dei tempi
         if !issorted(p.timepoints; lt = ≤)  # lt=≤ permette anche tempo duplicato
             push!(issues, "times not sorted")
+        end
+
+        if count_acq_in_window(p.timepoints, min_acq_time) < min_acq_n
+            push!(issues, "less then $min_acq_n measurements in the first $(min_acq_time)h")
         end
 
         if !isempty(issues)
