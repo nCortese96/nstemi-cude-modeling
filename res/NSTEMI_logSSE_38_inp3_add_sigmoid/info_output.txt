@@ -1,9 +1,0 @@
-Experiment NSTEMI_logSSE_38_inp3_add_sigmoid log file
-Neural network settings:
-dept: 3; width: 8; inputs(3): u[1], t, β
-dataset: data/UMG_NSTEMI_Dataset.xlsx
-Patient loaded: 99
-Training split: 79
-Validation split: 20
-LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.010000000000000004, 0.010000000000000004, 0.0010000000000000002]
-UB exp: [4.999999999999999, 4.999999999999999, 299.99999999999994, 399.9999999999999, 3.0000000000000004]

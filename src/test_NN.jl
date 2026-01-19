@@ -25,7 +25,7 @@ T_SCALE = 350.0;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_partrvalMIMIC_logSSEf_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+experiment = "NSTEMI_partrvalMIMIC_balancedf18_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 
@@ -37,21 +37,24 @@ mkpath(modelssave_path)
 
 # open("res/$(experiment)/info_output.txt", "a") do io
 #     println(io, "********************************")
-#     println(io, "Test formula algorithm Started")
+#     println(io, "Test NN algorithm Started")
 #     println(io, "********************************")
 # end
 
 @load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+@load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
 # @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
-@load "$(models_path)/best_solutionNSTEMI_$(experiment).jld2" best_solution;
-
+best_ode_p = ode_params[1]; # log version where 1 is the index of the best model in info_output
+pguess = vec(mean(reshape(best_ode_p, :, length(best_ode_p)), dims=1));
+println("Initial: ", exp.(pguess))
 ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
 UMG_data = false;
-UMG = "";
 ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
 
+Dataset = "MIMIC-IV";
+
 if UMG_data
-    UMG = "UMG";
+    Dataset = "UMG";
     figsave_path = "$(fig_path)/umg_test_nn";
     modelssave_path = "$(models_path)/umg_test_nn";   
     
@@ -77,7 +80,7 @@ if UMG_data
     patient_dims(trimmed_p)
 
     # 0. Pre-processing
-    meas_min_number = 5;
+    meas_min_number = 6;
     anoms = find_anomalies(trimmed_p, meas_min_number);
     println("Removed: $(length(anoms))")
 
@@ -90,7 +93,7 @@ if UMG_data
     savefig("$(figsave_path)/umg_distributions.svg")
 
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "UMG - Test NN started $(now())")
+        println(io, "$Dataset - Test NN started $(now())")
         println(io, "   Patient loaded: ", nrow(ids))
         println(io, "   Time: min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h")
         println(io, "   cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
@@ -109,22 +112,22 @@ end
 lhs_lb = log.([0.001, 0.001, 0.01, 0.01, 0.001]); # 0.001, 0.001, 0.01, 0.01, 0.001
 lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1]); # 5.0, 5.0, 300.0, 400.0, 3
 
-ode_p = best_solution;
+# ode_p = best_solution;
 nn_p = best_nn;
 
-pguess = mean([optsol.u for optsol in ode_p]);
+# pguess = mean([optsol.u for optsol in ode_p]);
 
 optfunc = OptimizationFunction(patient_loss, AutoForwardDiff());
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "*********************************")
-    println(io, "Evaluating Formula from SymReg with sMAPE")
+    println(io, "$Dataset - Evaluating NN with sMAPE")
 end
 
 smape_values = [];
 loss_values = [];
 
-u0_init = [exp(pguess[3]), exp(pguess[4]), 0.0];
+u0_init = [exp(pguess[end-2]), exp(pguess[end-1]), 0.0];
 
 ev_bar = Progress(length(test_dataset); desc = "Validating", color = :cyan, showspeed = true)
 for (i, patient) in enumerate(test_dataset)
@@ -138,15 +141,15 @@ for (i, patient) in enumerate(test_dataset)
                 lb = lhs_lb, ub = lhs_ub);
 
     optsol_lbfgs = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
-                maxiters=2000);
+                maxiters=1000);
 
     p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = nn_p);
 
-    println("For $(patient.id), params: ", p_opt)
-    println("Params: ", exp.(p_opt))
+    println("For $(patient.id), params: ", p_opt.ode)
+    println("Params: ", exp.(p_opt.ode))
     # push!(optsols_valid, optsol_lbfgs);
 
-    u0_new = [exp(p_opt.ode[3]), exp(p_opt.ode[4]), 0.0]
+    u0_new = [exp(p_opt.ode[end-2]), exp(p_opt.ode[end-1]), 0.0]
     prob   = remake(model.problem; u0 = u0_new, p = p_opt)
 
     opt_model = ctntCUDEModel(prob, chain);
@@ -159,12 +162,12 @@ for (i, patient) in enumerate(test_dataset)
     validation_metric = smape_loss(p_opt.ode, (opt_model, patient.timepoints, patient.ctnt_data, p_opt.neural));
     println("sMAPE: ", validation_metric)
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "Patient $(patient.id) sMAPE Formula validation: $validation_metric")
+        println(io, "Patient $(patient.id) sMAPE NN validation: $validation_metric")
     end
     push!(smape_values, validation_metric)
     pred = sol[3,:];
 
-    pl = plot(pred; lw=2, label="Model with Formula Prediction", xlabel="Time", ylabel="Troponin", title="Patient $(patient.id)")
+    pl = plot(pred; lw=2, label="Model with NN Prediction", xlabel="Time", ylabel="Troponin", title="Patient $(patient.id)")
     scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
 
     display(pl)
@@ -177,7 +180,7 @@ println(median(smape_values))
 println(median(loss_values))
 
 open("res/$(experiment)/info_output.txt", "a") do io
-    println(io, "--> Median sMAPE with formula: $(median(smape_values))")
-    println(io, "--> Median SSE with formula: $(median(loss_values))")
+    println(io, "--> Median sMAPE: $(median(smape_values))")
+    println(io, "--> Median loss: $(median(loss_values))")
 end
 

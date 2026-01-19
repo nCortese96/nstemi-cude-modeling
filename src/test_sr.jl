@@ -19,15 +19,15 @@ end
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim)
 
 # --- Carico i file prodotti dal tuo training ---
-experiment = "NSTEMI_partrvalMIMIC_SSEf_ts350.0_28_inp2_multipl_softplus"  # <-- metti il tuo
+experiment = "NSTEMI_partrvalMIMIC_balancedTESTf_ts350.0_28_inp2_multipl_softplus"  # <-- metti il tuo
 resdir = "res/$(experiment)/models"
 
-@load "$(resdir)/best_nn_NSTEMI_$(experiment).jld2" best_nn
-@load "$(resdir)/testsetNSTEMI_$(experiment).jld2"  test_dataset
-@load "$(resdir)/best_solutionNSTEMI_$(experiment).jld2" best_solution  # vettore di OptimizationSolution
+@load "$(resdir)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+@load "$(resdir)/testsetNSTEMI_$(experiment).jld2"  test_dataset;
+@load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;  # vettore di OptimizationSolution
 
 # Estrai i β stimati per ciascun paziente di test (in log nello stato -> fai exp)
-β_vec = [exp(sol.u[5]) for sol in best_solution]   # coerente con il tuo codice
+β_vec = [exp(sol.u[end]) for sol in best_solution]   # coerente con il tuo codice
 # (se l’ordine dei best_solution corrisponde a test_dataset, si allineano 1:1 come in test_code.jl)
 
 # --- Costruisco (X, y) reali: punti tempo dei pazienti e β del paziente ---

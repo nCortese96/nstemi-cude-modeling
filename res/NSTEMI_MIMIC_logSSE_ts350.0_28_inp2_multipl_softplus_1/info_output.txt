@@ -1,5 +1,0 @@
-Experiment NSTEMI_MIMIC_logSSE_ts350.0_28_inp2_multipl_softplus_1 log file
-be = bounds edited
-Neural network settings:
-dept: 2; width: 8; inputs(2): t, β
-dataset: data/UMG_NSTEMI_Dataset.xlsx
