@@ -5,11 +5,17 @@ using ProgressMeter
 using Statistics
 using Dates
 using Logging
-using Base.Threads: @threads, nthreads
+# using Base.Threads: @threads, nthreads
 
-println("⚠️ Test NN algorithm started $(now())")
+@info "⚠️ Test NN algorithm started $(now())"
 
 include("ctnt-ude-model.jl")
+
+UDE = false; # false for cUDE
+
+N_params = UDE ? 4 : 5; # number of UDE parameters 5 for cUDE
+
+best_idx = 4; # index of the best model to test
 
 input_dim = 2;
 nn_depth = 2;
@@ -25,12 +31,16 @@ T_SCALE = 350.0;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_partrvalMIMIC_balancedf18_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+# Copy relative path of the experiment: e.g., "NSTEMI_partrval_UMG_MSE_ts350.0_28_inp2_multipl_softplus"
+# experiment = "NSTEMI_partrval_MIMIC-IV_MSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
+
+experiment = "NSTEMI_partrval_UMG_MSE_ts350.0_28_inp2_multipl_softplus";
+
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 
-figsave_path = "$(fig_path)/test_NN";
-modelssave_path = "$(models_path)/test_NN";
+figsave_path = "res/$(experiment)/figs/test_NN_$(best_idx)";
+modelssave_path = "res/$(experiment)/models/test_NN_$(best_idx)";
 
 mkpath(figsave_path)
 mkpath(modelssave_path)
@@ -44,16 +54,18 @@ mkpath(modelssave_path)
 @load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
 @load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
 # @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
-best_ode_p = ode_params[1]; # log version where 1 is the index of the best model in info_output
-pguess = vec(mean(reshape(best_ode_p, :, length(best_ode_p)), dims=1));
+
+best_ode_p = ode_params[best_idx]; # log version where 1 is the index of the best model in info_output
+pguess = vec(mean(reshape(best_ode_p, :, N_params), dims=1));
 println("Initial: ", exp.(pguess))
 ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
 UMG_data = false;
 ########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
 
-Dataset = "MIMIC-IV";
+Dataset = "UMG"; # "MIMIC-IV";
 
 if UMG_data
+    @info "Using UMG dataset for testing"
     Dataset = "UMG";
     figsave_path = "$(fig_path)/umg_test_nn";
     modelssave_path = "$(models_path)/umg_test_nn";   
@@ -107,10 +119,16 @@ if UMG_data
 
 else
     @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
+    @info "Using $dataset dataset for testing"
 end
 
-lhs_lb = log.([0.001, 0.001, 0.01, 0.01, 0.001]); # 0.001, 0.001, 0.01, 0.01, 0.001
-lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1]); # 5.0, 5.0, 300.0, 400.0, 3
+if N_params == 5
+    lhs_lb = log.([0.001, 0.001, 0.001, 0.001, 0.001]); # 0.001, 0.001, 0.01, 0.01, 0.001
+    lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1.0]); # 5.0, 5.0, 300.0, 400.0, 1
+else
+    lhs_lb = log.([0.001, 0.001, 0.001, 0.001]); # 0.001, 0.001, 0.01, 0.01
+    lhs_ub = log.([5.0, 5.0, 500.0, 500.0]); # 5.0, 5.0, 300.0, 400.0
+end
 
 # ode_p = best_solution;
 nn_p = best_nn;
@@ -121,20 +139,21 @@ optfunc = OptimizationFunction(patient_loss, AutoForwardDiff());
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "*********************************")
-    println(io, "$Dataset - Evaluating NN with sMAPE")
+    println(io, "$Dataset - Evaluating NN with sMAPE (idx:$(best_idx))")
 end
 
 smape_values = [];
 loss_values = [];
+validation_params = [];
 
-u0_init = [exp(pguess[end-2]), exp(pguess[end-1]), 0.0];
+u0_init = [exp(pguess[3]), exp(pguess[4]), 0.0]
 
-ev_bar = Progress(length(test_dataset); desc = "Validating", color = :cyan, showspeed = true)
+ev_bar = Progress(length(test_dataset); desc = "Validating", color = :cyan, showspeed = true);
 for (i, patient) in enumerate(test_dataset)
 
     tspan = (0.0, patient.timepoints[end] + 10.0);
 
-    model = ctntCUDEModel(pguess, chain, tspan);
+    model = UDE ? ctntUDEModel(pguess, chain, tspan) : ctntCUDEModel(pguess, chain, tspan); # check i cUDE or UDE
 
     optprob = OptimizationProblem(optfunc, pguess,
                 (model, patient.timepoints, patient.ctnt_data, nn_p),
@@ -147,14 +166,15 @@ for (i, patient) in enumerate(test_dataset)
 
     println("For $(patient.id), params: ", p_opt.ode)
     println("Params: ", exp.(p_opt.ode))
+    push!(validation_params, p_opt.ode)
     # push!(optsols_valid, optsol_lbfgs);
 
-    u0_new = [exp(p_opt.ode[end-2]), exp(p_opt.ode[end-1]), 0.0]
+    u0_new = [exp(p_opt.ode[3]), exp(p_opt.ode[4]), 0.0]
     prob   = remake(model.problem; u0 = u0_new, p = p_opt)
 
-    opt_model = ctntCUDEModel(prob, chain);
+    opt_model = ctntUDEModel(prob, chain);
 
-    sol = Array(solve(prob, AutoTsit5(Rosenbrock23()); p=p_opt, saveat=1));
+    sol = Array(solve(prob, Tsit5(); p=p_opt, saveat=1));
     println("Patient loss: ", patient_loss(p_opt.ode, (opt_model, patient.timepoints, patient.ctnt_data, p_opt.neural)))
     # println("Compute loss: ", compute_loss(p_opt, (opt_model, patient.timepoints, patient.ctnt_data)))
     push!(loss_values, optsol_lbfgs.objective)
@@ -167,14 +187,17 @@ for (i, patient) in enumerate(test_dataset)
     push!(smape_values, validation_metric)
     pred = sol[3,:];
 
-    pl = plot(pred; lw=2, label="Model with NN Prediction", xlabel="Time", ylabel="Troponin", title="Patient $(patient.id)")
-    scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
+    pl = Plots.plot(pred; lw=2, label="Model with NN Prediction", xlabel="Time", ylabel="Troponin", title="Patient $(patient.id)")
+    Plots.scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
 
     display(pl)
 
-    save("$(figsave_path)/patient_$(patient.id).svg", pl)
+    save("$(figsave_path)/patient_$(patient.id)_test.svg", pl)
     next!(ev_bar)
 end
+
+ode_params_val = vcat(validation_params...);
+@save "$(modelssave_path)/best_params_val_$(experiment).jld2" ode_params_val;
 
 println(median(smape_values))
 println(median(loss_values))

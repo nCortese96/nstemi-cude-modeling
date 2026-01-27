@@ -8,6 +8,7 @@ using StableRNGs, StatsBase
 using Optimization, OptimizationOptimisers, OptimizationOptimJL
 using SciMLSensitivity, LineSearches
 using OrdinaryDiffEq: AutoTsit5, Rosenbrock23, Tsit5
+using Plots, CairoMakie
 # using DiffEqCallbacks
 
 using ProgressMeter: Progress, next!
@@ -21,7 +22,14 @@ softplus(x) = log(1 + exp(x))
 
 sigmoid(x) = 1 / (1 + exp(-x))
 
-const DELTA = 1e-12; # 0.007 # con cutoff 0.014 ng/mL # 1e-3
+# Sensitivity algorithms
+# SENSE = InterpolatingAdjoint(autojacvec = ReverseDiffVJP(true))
+# SENSE = InterpolatingAdjoint(autojacvec = ZygoteVJP(), checkpointing=true) # No
+# SENSE = InterpolatingAdjoint(autojacvec = EnzymeVJP())
+# SENSE = GaussAdjoint(autojacvec = ZygoteVJP()) # No
+
+
+const DELTA = 1e-6; # 0.007 # con cutoff 0.014 ng/mL # 1e-3
 T_SCALE = 350.0;
 # const dt = 0.1
 # COMMON_TIME = 0.0:dt:T_SCALE;
@@ -30,6 +38,72 @@ T_SCALE = 350.0;
 # const NEG_TEST = (u, p, t) -> minimum(u) < 0
 
 smape(pred, obs) = 200 * mean(abs.(pred .- obs) ./ (abs.(pred) .+ abs.(obs)))
+
+function ctnt_ude!(du, u, p, t, chain::SimpleChain)
+    Cs = u[1]
+    Cc = u[2]
+    Cp = u[3]
+
+    a = exp(p.ode[1])
+    b = exp(p.ode[2])
+
+    Cs0 = exp(p.ode[3])
+    Cc0 = exp(p.ode[4])
+
+    # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
+
+    # correction = chain([u[1], t, a, b, Cs0, Cc0, β], p.neural)[1]
+
+    # correction = chain([u[1], t, β], p.neural)[1]
+
+    t_norm = t / T_SCALE
+
+    correction = chain([t_norm], p.neural)[1]
+    # correction = chain([t_norm, Cs0, Cc0], p.neural)[1]
+
+    # t_in, β_in = promote(t_norm, β)
+    # correction = chain([t_in, β_in], p.neural)[1]
+
+    du[1] = - (Cs - Cc) * correction
+    # du[1] = - correction
+    du[2] = (Cs - Cc) * correction - a*(Cc - Cp)
+    # du[2] = correction - a*(Cc - Cp)
+    du[3] = a*(Cc - Cp) - b*Cp
+
+end
+
+struct ctntUDEModel
+    problem::ODEProblem
+    chain::SimpleChain
+end
+
+function ctntUDEModel(
+    # ctnt_timepoints::AbstractVector{T},
+    θ,
+    chain::SimpleChain,
+    tspan::Tuple{T,T}
+    ) where T <: Real
+    
+    # println("In model: ", θ)
+    # construct the ude function
+    cude!(du, u, p, t) = ctnt_ude!(du, u, p, t, chain)
+
+    # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
+    
+    Cs0 = exp(θ[3]) # exp both if params in log
+    Cc0 = exp(θ[4])
+
+    u0 = [Cs0, Cc0, 0.0];
+    # u0 = SVector(Cs0, Cc0, 0.0);
+
+    # ode = ODEProblem(cude!, u0, tspan, θ)
+    # isoutofdomain = (u, p, t) -> any(<(0), u)
+    ode = ODEProblem(cude!, u0, tspan;
+        # isoutofdomain = isoutofdomain
+        )
+
+    return ctntUDEModel(ode, chain)
+end
 
 function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     Cs = u[1]
@@ -40,8 +114,8 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     a = exp(p.ode[1])
     b = exp(p.ode[2])
-    # Cs0 = exp(p.ode[3])
-    # Cc0 = exp(p.ode[4])
+    Cs0 = exp(p.ode[3])
+    Cc0 = exp(p.ode[4])
 
     # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
 
@@ -51,58 +125,18 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     t_norm = t / T_SCALE
 
-    # correction = chain([t_norm, β], p.neural)[1]
+    correction = chain([t_norm, β], p.neural)[1]
+    # correction = chain([t_norm, Cs0, Cc0, β], p.neural)[1]
     # t_in, β_in = promote(t_norm, β)
-    correction = chain(SVector(t_norm, promote(t_norm, β)), p.neural)[1]
+    # correction = chain([t_in, β_in], p.neural)[1]
+    # correction = chain(SVector(t_in, β_in), p.neural)[1]
 
     du[1] = - (Cs - Cc) * correction
+    # du[1] = - correction
     du[2] = (Cs - Cc) * correction - a*(Cc - Cp)
+    # du[2] = correction - a*(Cc - Cp)
     du[3] = a*(Cc - Cp) - b*Cp
 
-end
-
-function ctnt_sigmoid_cude!(du, u, p, t, chain::SimpleChain)
-    # States
-    Cs = u[1]
-    Cc = u[2]
-    Cp = u[3]
-
-    # ODE parameters (log-space)
-    a  = exp(p.ode[1])
-    b  = exp(p.ode[2])
-    Td = exp(p.ode[3])     # Procopio sigmoid parameter (3rd)
-
-    # Patient-specific conditional parameter
-    β = exp(p.ode[end])
-
-    # Procopio sigmoid (n=3)
-    n   = 3.0
-    τn  = t^n
-    TdN = Td^n
-    fτ  = τn / (τn + TdN)
-
-    # --- NN residual correction on the sigmoid ---
-    # Work in logit space so that δNN = 0 => f_corr == fτ exactly.
-    # Center softplus output near 0 by subtracting softplus(0)=log(2) so init ≈ no-correction.
-    t_norm = t / T_SCALE
-    correction = chain(SVector{2,Float64}(t_norm, β), p.neural)[1]
-
-    κ      = 1.0  # scaling of correction (tunable)
-
-    ϵ          = eps(typeof(fτ))
-    # fτc        = clamp(fτ, ϵ, one(fτ) - ϵ)
-    # logit_fτ   = log(fτc / (one(fτc) - fτc))
-    f_corr     = sigmoid(logit_fτ + κ * correction)
-
-    # ODE system
-    du[1] = - (Cs - Cc) * f_corr
-    du[2] =   (Cs - Cc) * f_corr - a*(Cc - Cp)
-    du[3] =   a*(Cc - Cp) - b*Cp
-end
-
-struct ctntCUDEModel
-    problem::ODEProblem
-    chain::SimpleChain
 end
 
 function ctntCUDEModel(
@@ -118,10 +152,11 @@ function ctntCUDEModel(
 
     # tspan = (ctnt_timepoints[1], ctnt_timepoints[end])
     
-    Cs0 = exp(θ[end-2]) # exp both if params in log
-    Cc0 = exp(θ[end-1])
+    Cs0 = exp(θ[3]) # exp both if params in log
+    Cc0 = exp(θ[4])
 
-    u0 = [Cs0, Cc0, 0];
+    u0 = [Cs0, Cc0, 0.0];
+    # u0 = SVector(Cs0, Cc0, 0.0);
 
     # ode = ODEProblem(cude!, u0, tspan, θ)
     # isoutofdomain = (u, p, t) -> any(<(0), u)
@@ -129,7 +164,7 @@ function ctntCUDEModel(
         # isoutofdomain = isoutofdomain
         )
 
-    return ctntCUDEModel(ode, chain)
+    return ctntUDEModel(ode, chain)
 end
 
 # Definizione della struttura per i dati del paziente
@@ -174,11 +209,12 @@ end
 
 ########################## LOSS FUNCTIONS ##########################################
 
-function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real where M <: ctntCUDEModel
+function compute_loss(θ, (model, timepoints, ctnt_data)) # ::Tuple{M, AbstractVector{T}, AbstractVector{T}}) where T <: Real # where M <: ctntUDEModel
     # solve the ODE problem
     sol = solve(
         model.problem, Tsit5(); p=θ, saveat=timepoints,
-        # abstol=1e-10, reltol=1e-8,
+        # sensealg = SENSE,
+        abstol=1e-8, reltol=1e-6
         # callback = POS_CB, isoutofdomain = NEG_TEST
         )
 
@@ -189,8 +225,8 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
 
     # plasm = max.(Array(sol[3,:]), DELTA);
     # sol = max.(Array(sol), DELTA)
-    # plasm = sol[3,:];
-    plasm = max.(sol[3, :], DELTA);
+    plasm = sol[3,:];
+    # plasm = max.(sol[3, :], DELTA);
 
     if length(plasm) != length(ctnt_data)
         @error "Error on data"
@@ -200,7 +236,7 @@ function compute_loss(θ, (model, timepoints, ctnt_data)::Tuple{M, AbstractVecto
     end
     # return sum(abs2, plasm - ctnt_data)
     # return sum(abs2, log.(plasm) .- log.(ctnt_data))
-    return mean(abs2, log.(plasm) .- log.(ctnt_data))
+    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA))
     # return sum(((plasm - ctnt_data).^2).*ctnt_data)
     # return smape(plasm, ctnt_data)   # % su base 0–100
     # return 100 * mean(abs, (plasm .- ctnt_data) ./ (ctnt_data .+ DELTA))
@@ -213,7 +249,8 @@ end
 function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     p = ComponentArray(ode = θ, neural = fixed_nn_params)
 
-    u0 = [exp(θ[end-2]), exp(θ[end-1]), 0.0]
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+    # u0 = SVector(exp(θ[3]), exp(θ[4]), 0.0)
 
     # ODEProblem aggiornato
     prob = remake(model.problem; u0 = u0, p = p)
@@ -224,7 +261,8 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
 
     sol = solve(
         prob, Tsit5(); p=p, saveat=timepoints,
-        # abstol=1e-10, reltol=1e-8
+        # sensealg = SENSE,
+        abstol=1e-8, reltol=1e-6
         )
     if !successful_retcode(sol)
         # If the solver fails, return infinity
@@ -234,11 +272,12 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     # plasm = max.(Array(sol[3,:]), DELTA);
 
     # sol = max.(Array(sol), DELTA)
-    plasm = max.(sol[3, :], DELTA);
+    # plasm = max.(sol[3, :], DELTA);
+    plasm = sol[3, :];
 
     # return sum(abs2, plasm - ctnt_data)
     # return sum(abs2, log.(plasm) .- log.(ctnt_data))
-    return mean(abs2, log.(plasm) .- log.(ctnt_data))
+    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA))
     # return sum(((plasm - ctnt_data).^2).*ctnt_data)
     # return smape(plasm, ctnt_data)
     # return 0.1 * sum(abs2, (plasm - ctnt_data) / maximum(ctnt_data)) + 0.8 * sum(abs2, log.(plasm) .- log.(ctnt_data))
@@ -250,7 +289,7 @@ end
 function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     p = ComponentArray(ode = θ, neural = fixed_nn_params)
 
-    u0 = [exp(θ[end-2]), exp(θ[end-1]), 0.0]
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
 
     # ODEProblem aggiornato
     prob = remake(model.problem; u0 = u0, p = p)
@@ -261,7 +300,7 @@ function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
 
     sol = solve(
         prob, Tsit5(); p=p, saveat=timepoints,
-        # abstol=1e-10, reltol=1e-8
+        abstol=1e-8, reltol=1e-6
         );
 
     if !successful_retcode(sol)
@@ -276,32 +315,31 @@ function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     return smape(plasm, ctnt_data)
 end
 
-function training_loss(p, (models, training_dataset))
+function training_loss(p, (models, training_dataset); n_params::Int = 5)
     loss_tot = 0.0
     for (i, model) in enumerate(models)
         patient = training_dataset[i];
-        idx_start = 5*(i-1) + 1
-        idx_end   = 5*i
+        idx_start = n_params*(i-1) + 1
+        idx_end   = n_params*i
         θ = ComponentArray(ode = p.ode[idx_start:idx_end], neural = p.neural)
-        u0_new = [exp(θ.ode[end-2]), exp(θ.ode[end-1]), 0.0]
+        u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
         prob = remake(model.problem; u0 = u0_new, p = θ)
-        new_model = ctntCUDEModel(prob, model.chain)
+        new_model = ctntUDEModel(prob, model.chain)
         loss_tot += compute_loss(θ, (new_model, patient.timepoints, patient.ctnt_data))
     end
     return loss_tot / length(training_dataset)
 end
 
-function serial_training_loss(p, (models, training_dataset))
+function serial_training_loss(p, (models, training_dataset); n_params::Int = 5)
     n = length(training_dataset)
     loss_tot = zero(eltype(p.ode))  # ok anche con Dual
-    # sense = GaussAdjoint(autojacvec=ZygoteVJP());
 
     @inbounds @views for i in 1:n
         patient = training_dataset[i]
         model   = models[i]
 
-        idx1 = 5*(i-1) + 1;
-        idx2 = 5*i;
+        idx1 = n_params*(i-1) + 1;
+        idx2 = n_params*i;
 
         # idx1 = length(p.ode)*(i-1) + 1
         # idx2 = length(p.ode)*i
@@ -309,15 +347,16 @@ function serial_training_loss(p, (models, training_dataset))
         ode_i = p.ode[idx1:idx2]  # no copy
         θ     = ComponentArray(ode = ode_i, neural = p.neural)
 
-        u0_new = (exp(θ.ode[end-2]), exp(θ.ode[end-1]), 0.0)
-        prob   = remake(model.problem; u0 = collect(u0_new))  # o SVector se vuoi dopo
+        u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
+        # u0_new = SVector(exp(θ.ode[3]), exp(θ.ode[4]), 0.0)
+        prob   = remake(model.problem; u0 = u0_new, p = θ) 
 
         # evita new_model: risolvi direttamente
         sol = solve(
             prob, Tsit5();
             p=θ, saveat=patient.timepoints,
-            # sensealg = sense,
-            # abstol=1e-12, reltol=1e-10
+            # sensealg = SENSE,
+            abstol=1e-8, reltol=1e-6
             );
 
         if !successful_retcode(sol)
@@ -326,21 +365,21 @@ function serial_training_loss(p, (models, training_dataset))
         end
 
         # evita Array(sol) 3xN: prendi solo Cp
-        plasm = max.(sol[3, :], DELTA);
+        # plasm = max.(sol[3, :], DELTA);
+        plasm = sol[3, :];
         # data-term identico al tuo (ma senza allocazioni globali)
-        loss_tot += mean(abs2, log.(plasm) .- log.(patient.ctnt_data))
+        loss_tot += mean(abs2, log.(plasm .+ DELTA) .- log.(patient.ctnt_data .+ DELTA))
     end
 
     return loss_tot / n
 end
 
-function par_training_loss(p, (models, training_dataset))
+function par_training_loss(p, (models, training_dataset); n_params::Int = 5)
     n = length(training_dataset)
     T = eltype(p.ode)
     partial = fill(zero(T), Threads.maxthreadid())
-    # sense = GaussAdjoint(autojacvec=ZygoteVJP());
 
-        # Se 1 thread, evita proprio l'overhead e i task
+    # Se 1 thread, evita proprio l'overhead e i task
     if Threads.nthreads() == 1
         loss_tot = zero(eltype(p.ode))
 
@@ -348,27 +387,29 @@ function par_training_loss(p, (models, training_dataset))
             patient = training_dataset[i]
             model   = models[i]
 
-            idx1 = 5*(i-1) + 1
-            idx2 = 5*i
+            idx1 = n_params*(i-1) + 1
+            idx2 = n_params*i
 
             ode_i = p.ode[idx1:idx2]   # con @views => view, no copy
             θ     = ComponentArray(ode=ode_i, neural=p.neural)
 
-            u0_new = [exp(θ.ode[end-2]), exp(θ.ode[end-1]), 0.0]   # Cs0, Cc0
+            u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]   # Cs0, Cc0
+            # u0_new = SVector(exp(θ.ode[3]), exp(θ.ode[4]), 0.0)
             prob   = remake(model.problem; u0=u0_new, p=θ)
 
             sol = solve(
                 prob, Tsit5();
                 saveat=patient.timepoints,
-                # sensealg = sense,
-                # abstol=1e-12, reltol=1e-10
+                # sensealg = SENSE,
+                abstol=1e-8, reltol=1e-6
                 )
 
             if !successful_retcode(sol)
                 return oftype(loss_tot, Inf)
             end
-            plasm = max.(sol[3, :], DELTA);
-            loss_tot += mean(abs2, log.(plasm) .- log.(patient.ctnt_data))
+            # plasm = max.(sol[3, :], DELTA);
+            plasm = sol[3, :];
+            loss_tot += mean(abs2, log.(plasm .+ DELTA) .- log.(patient.ctnt_data .+ DELTA))
         end
 
         return loss_tot / n
@@ -378,8 +419,8 @@ function par_training_loss(p, (models, training_dataset))
         patient = training_dataset[i]
         model   = models[i]
 
-        idx1 = 5*(i-1) + 1;
-        idx2 = 5*i;
+        idx1 = n_params*(i-1) + 1;
+        idx2 = n_params*i;
 
         # idx1 = length(p.ode)*(i-1) + 1
         # idx2 = length(p.ode)*i
@@ -387,20 +428,22 @@ function par_training_loss(p, (models, training_dataset))
         @views ode_i = p.ode[idx1:idx2]
         θ = ComponentArray(ode = ode_i, neural = p.neural)
 
-        u0_new = (exp(θ.ode[end-2]), exp(θ.ode[end-1]), 0.0)
-        prob   = remake(model.problem; u0 = collect(u0_new))
+        u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
+        # u0_new = SVector(exp(θ.ode[3]), exp(θ.ode[4]), 0.0)
+        prob   = remake(model.problem; u0 = u0_new, p = θ)
 
         sol = solve(
             prob, Tsit5();
             p=θ, saveat=patient.timepoints,
-            # sensealg = sense,
-            # abstol=1e-12, reltol=1e-10
+            # sensealg = SENSE,
+            abstol=1e-8, reltol=1e-6
             )
         loss_i = if !successful_retcode(sol)
             oftype(zero(T), Inf)
         else
-            plasm = max.(sol[3, :], DELTA);
-            mean(abs2, log.(plasm) .- log.(patient.ctnt_data))
+            # plasm = max.(sol[3, :], DELTA);
+            plasm = sol[3, :];
+            mean(abs2, log.(plasm .+ DELTA) .- log.(patient.ctnt_data .+ DELTA))
         end
 
         partial[Threads.threadid()] += loss_i
@@ -512,13 +555,13 @@ end
 
 function find_anomalies(
     patients::Vector{PatientData},
-    meas_min_number::Int=1,
-    min_acq_time_before::Real=300.0,
-    min_acq_n_before::Int=1,
-    min_acq_time_after::Real=0.0,
-    min_acq_n_after::Int=0,
-    min_time::Real=0.0;
-    max_gap_h::Union{Nothing,Real}=nothing,   # <-- nuovo, opzionale
+    meas_min_number::Int=1, # minimum number of measurements
+    min_acq_time_before::Real=300.0, # minimum time in hours 
+    min_acq_n_before::Int=1, # minimum number of acquisitions before min_acq_time_before
+    min_acq_time_after::Real=0.0, # minimum time in hours from the end
+    min_acq_n_after::Int=0, # minimum number of acquisitions after min_acq_time_after
+    min_time::Real=0.0; 
+    max_gap_h::Union{Nothing,Real}=nothing,
 )
     anomalies = Dict{String, Vector{String}}()
 
@@ -576,7 +619,7 @@ function find_anomalies(
                     push!(issues, "less then $min_acq_n_before measurements in the first $(min_acq_time_before)h")
                 end
 
-                n_after = count_acq_in_window_sorted(tp, min_acq_time_after)
+                n_after = length(tp) - count_acq_in_window_sorted(tp, min_acq_time_after)
                 if n_after < min_acq_n_after
                     push!(issues, "less then $min_acq_n_after measurements in the last $(min_acq_time_after)h")
                 end
@@ -610,70 +653,6 @@ function find_anomalies(
 
     return anomalies
 end
-
-# """
-#     find_anomalies(patients::Vector{PatientData})
-
-# Restituisce un dizionario id → Lista di messaggi di errore:
-#   • “negative time”      → sono presenti timepoints < 0
-#   • “negative ctnt”      → sono presenti valori di troponina < 0
-#   • “times not sorted”   → i timepoints non sono in ordine non decrescente
-# """
-# function find_anomalies(patients::Vector{PatientData}, n::Int64, min_acq_time::Real=300.0, min_acq_n::Int=1)
-#     anomalies = Dict{String, Vector{String}}()
-#     for p in patients
-#         issues = String[]
-
-#         if isempty(p.ctnt_data) || isempty(p.timepoints)
-#             push!(issues, "empty ctnt data")
-#         end
-
-#         if isempty(p.timepoints)
-#             push!(issues, "empty timepoints data")
-#         end
-
-#         if length(p.timepoints) != length(p.ctnt_data)
-#             push!(issues, "time ctnt mismatch")
-#         end
-
-#         # tempi negativi
-#         if any(t -> t < 0, p.timepoints)
-#             push!(issues, "negative time")
-#         end
-
-#         # ctnt negativi
-#         if any(c -> c < 0, p.ctnt_data)
-#             push!(issues, "negative ctnt")
-#         end
-
-#         if length(p.timepoints) <= n
-#             push!(issues, "n acquisizion < $n")
-#         end
-
-#         # ordinamento dei tempi
-#         if !issorted(p.timepoints; lt = ≤)  # lt=≤ permette anche tempo duplicato
-#             push!(issues, "times not sorted")
-#         end
-
-#         if count_acq_in_window(p.timepoints, min_acq_time) < min_acq_n
-#             push!(issues, "less then $min_acq_n measurements in the first $(min_acq_time)h")
-#         end
-
-#         if !isempty(issues)
-#             anomalies[p.id] = issues
-#         end
-
-#     end
-
-#     if isempty(anomalies)
-#         println("No anomalies found")
-#     else
-#         for (id, issues) in anomalies
-#             @warn "Patient ", id, ": ", join(issues, ", ")
-#         end
-#     end
-#     return anomalies
-# end
 
 function patient_dims(patients::AbstractVector{PatientData})
     # 1. Calcola il numero di acquisizioni per ciascun paziente
@@ -716,32 +695,270 @@ function plot_distribution(patients::AbstractVector{PatientData})
     # 3) GRAFICO DELLE DISTRIBUZIONI  (tempo & troponina)  --------------
     # ------------------------------------------------------------------
 
-    plt1 = histogram(all_times;
+    plt1 = Plots.histogram(all_times;
                     bins = 40,
                     xlabel = "Time (h)",
                     ylabel = "#",
                     title = "Time-points distribution",
                     legend = false)
 
-    plt2 = histogram(all_ctnt_log;
+    plt2 = Plots.histogram(all_ctnt_log;
                     bins = 40, # log-scale consigliata
                     xlabel = "CTnT (ng/mL)",
                     ylabel = "#",
                     title = "Troponin log distribution",
                     legend = false)
 
-    dist = plot(plt1, plt2; layout = (2,1), size = (900,600))
+    dist = Plots.plot(plt1, plt2; layout = (2,1), size = (900,600))
 
     return all_times, all_ctnt, t_min, t_max, c_min, c_max, dist 
 end
 
 function scutter_patients(patients::AbstractVector{PatientData})
-    plt = plot(; xlabel="Time (h)", ylabel="cTnT (ng/mL)",
+    plt = Plots.plot(; xlabel="Time (h)", ylabel="cTnT (ng/mL)",
            title="All patients: troponin vs time", legend=false)
 
     # Sovrapponi ogni paziente come una linea sottile
     for p in patients
-        scatter!(plt, p.timepoints, p.ctnt_data; lw=1, alpha=0.5)
+        Plots.scatter!(plt, p.timepoints, p.ctnt_data; lw=1, alpha=0.5)
     end
     return plt
 end
+
+function log_residuals(y, yhat; ϵ=DELTA)
+    return log.(y .+ ϵ) .- log.(yhat .+ ϵ)
+end
+
+function compute_residuals_patient(model::ctntUDEModel, patient::PatientData, p::ComponentArray;
+                                plotting::Bool=false,
+                                abstol=1e-8,
+                                reltol=1e-6)
+
+        pred = solve(model.problem, Tsit5(); p=p, saveat=patient.timepoints, abstol=abstol, reltol=reltol)
+
+        # if any(pred .< 0)
+        #     println("Warning: negative prediction for patient $(patient.id)")
+        #     println(pred[3,:])
+        # end
+
+        if plotting
+
+            sol = solve(model.problem, Tsit5(); p=p, abstol=abstol, reltol=reltol)
+
+            fig = CairoMakie.Figure(size = (800, 500))
+            ax  = CairoMakie.Axis(fig[1, 1],
+                    xlabel = "Time (h)",
+                    ylabel = "cTnT",
+                    title = "cTnT simulation patient $(patient.id)")
+
+            # curva continua del modello (variabile 3)
+            CairoMakie.lines!(ax, sol.t, sol[3, :], color = :blue,label = "cTnT simulation")
+
+            # dati sperimentali
+            CairoMakie.scatter!(ax, patient.timepoints, patient.ctnt_data,
+                    color = :red, label = "Data", markersize = 8)
+
+            axislegend(ax, position = :rt)
+
+            display(fig)
+        end
+
+        yhat = vec(pred[3, :])
+        y    = patient.ctnt_data
+        res  = log_residuals(y, yhat)
+
+        return y, yhat, res
+end
+
+function add_time_bins!(df::DataFrame, edges::Vector{Float64})
+    # bin index: 1..(length(edges)-1)
+    nb = length(edges) - 1
+    b = similar(df.t, Int)
+    for i in eachindex(df.t)
+        # searchsortedlast dà indice dell'edge <= t
+        k = searchsortedlast(edges, df.t[i])
+        # clamp a [1, nb]
+        b[i] = clamp(k, 1, nb)
+    end
+    df.bin = b
+    df.bin_center = [0.5*(edges[k] + edges[k+1]) for k in b]
+    return df
+end
+
+function bin_summary(df::DataFrame)
+    g = groupby(df, :bin)
+    centers = Float64[]
+    q1 = Float64[]
+    med = Float64[]
+    q3 = Float64[]
+    n = Int[]
+
+    for sub in g
+        push!(centers, first(sub.bin_center))
+        push!(q1, quantile(sub.res, 0.25))
+        push!(med, quantile(sub.res, 0.50))
+        push!(q3, quantile(sub.res, 0.75))
+        push!(n, nrow(sub))
+    end
+
+    # ordina per centro bin
+    ord = sortperm(centers)
+    return (centers=centers[ord], q1=q1[ord], med=med[ord], q3=q3[ord], n=n[ord])
+end
+
+function plot_residuals_vs_time(df::DataFrame, edges::Vector{Float64}; title="Residuals vs time", TMAX=350.0, nmin::Int=1)
+    s = bin_summary(df)
+    for i in eachindex(s.centers)
+        @info "bin_center=$(s.centers[i])  n=$(s.n[i])"
+    end
+
+    # maschera: metti NaN dove n è troppo basso
+    med_mask = Float64[]
+    q1_mask  = Float64[]
+    q3_mask  = Float64[]
+    for i in eachindex(s.n)
+        if s.n[i] ≥ nmin
+            push!(med_mask, s.med[i])
+            push!(q1_mask,  s.q1[i])
+            push!(q3_mask,  s.q3[i])
+        else
+            push!(med_mask, NaN)
+            push!(q1_mask,  NaN)
+            push!(q3_mask,  NaN)
+        end
+    end
+
+    fig = CairoMakie.Figure(size=(950, 450))
+    ax  = CairoMakie.Axis(fig[1, 1],
+            xlabel="Time (h)",
+            ylabel="log residual log(y) - log(ŷ)",
+            title=title)
+
+    # scatter di tutti i punti (leggero)
+    CairoMakie.scatter!(ax, df.t, df.res; markersize=4, color=(:black, 0.25))
+
+    # linea mediana per bin s.med
+    CairoMakie.lines!(ax, s.centers, q1_mask; linewidth=2, label="Median (per bin)", color=:blue)
+
+    # banda IQR s.q1, s.q3
+    CairoMakie.band!(ax, s.centers, q1_mask, q3_mask; color=(:gray, 0.2), label="IQR (Q1-Q3)")
+
+    CairoMakie.hlines!(ax, [0.0]; linestyle=:dash, color=(:black, 0.6), label="Zero line (vertical)")
+
+    CairoMakie.xlims!(ax, 0, TMAX)
+
+    CairoMakie.vlines!(ax, edges[2:end-1];
+        color=(:black, 0.35),
+        linewidth=1.5,
+        linestyle=:dash,
+        label="Bins (horizontal)");
+
+    for i in eachindex(s.centers)
+        x_rel = clamp(s.centers[i] / TMAX, 0.0, 1.0)
+        CairoMakie.text!(ax, x_rel, 0.96;  # 0.98 = in alto
+            text="n=$(s.n[i])",
+            space=:relative,
+            align=(:center, :top),
+            rotation=pi/4,
+            fontsize=12,
+            color=(:black, 0.8))
+
+        # xedge_rel = clamp(s.centers[i] / TMAX, 0.0, 1.0)
+        # lines!(ax, [xedge_rel, xedge_rel], [0.0, 0.90]; space=:relative,
+        #     color=(:black, 0.35), linewidth=1.5, linestyle = :dash)
+    end
+
+    CairoMakie.text!(ax, 0.99, 0.02;
+    #   text="Median/IQR shown only if n ≥ $nmin",
+    text="n = number of points in bin",
+    space=:relative, align=(:right, :bottom),
+    fontsize=12, color=(:black, 0.7))
+
+    CairoMakie.Legend(fig[1, 2], ax;)
+
+    fig
+end
+
+function plot_residuals_vs_fitted(df::DataFrame; title="Residuals vs fitted", ϵ=1e-10)
+    fig = CairoMakie.Figure(size=(550, 450))
+    ax  = CairoMakie.Axis(fig[1, 1],
+            xlabel="log predicted ŷ ",
+            ylabel="log residual log(y) - log(ŷ)",
+            title=title)
+
+    CairoMakie.scatter!(ax, log.(df.yhat .+ ϵ), df.res; markersize=5, color=(:black, 0.25), label="Residuals")
+    CairoMakie.hlines!(ax, [0.0]; linestyle=:dash, color=(:black, 0.6), label="Zero line")
+
+    # CairoMakie.Legend(fig[1, 2], ax;)
+
+    fig
+end
+
+# function compute_residuals_long(params::Vector{Float64},
+#                                 patients::Vector{DataUtils.PatientData},
+#                                 UDE::Bool=false,
+#                                 n_params::Int=5;
+#                                 chain::SimpleChain,
+#                                 fixed_nn_params = Vector{Float64},
+#                                 plotting::Bool=false,
+#                                 tpad::Real=10.0,
+#                                 abstol=1e-12,
+#                                 reltol=1e-10)
+
+#     out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[])
+
+#     for (i, patient) in enumerate(patients)
+#         # patient_params = filter(row -> row.patient == patient.id, params)
+#         # nrow(patient_params) == 0 && continue
+#         idx1 = n_params*(i-1) + 1;
+#         idx2 = n_params*i;
+#         p = ComponentArray(ode = params[idx1:idx2], neural = fixed_nn_params);
+
+#         # u0 = [p.ode[end], p.ode[end-1], 0.0]
+#         tspan = (0.0, patient.timepoints[end] + tpad);
+
+#         model = UDE ? ctntUDEModel(p, chain, tspan) : ctntCUDEModel(p, chain, tspan);
+
+#         # predizione ESATTAMENTE ai timepoints (coerente per residual)
+#         pred = solve(model.problem, Tsit5(); saveat=patient.timepoints, abstol=abstol, reltol=reltol)
+
+#         # if any(pred .< 0)
+#         #     println("Warning: negative prediction for patient $(patient.id)")
+#         #     println(pred[3,:])
+#         # end
+
+#         if plotting
+
+#             sol = solve(model.problem, Tsit5(); abstol=abstol, reltol=reltol)
+
+#             fig = CairoMakie.Figure(size = (800, 500))
+#             ax  = CairoMakie.Axis(fig[1, 1],
+#                     xlabel = "Time (h)",
+#                     ylabel = "cTnT",
+#                     title = "cTnT simulation patient $(patient.id)")
+
+#             # curva continua del modello (variabile 3)
+#             CairoMakie.lines!(ax, sol.t, sol[3, :], color = :blue,label = "cTnT simulation")
+
+#             # dati sperimentali
+#             CairoMakie.scatter!(ax, patient.timepoints, patient.ctnt_data,
+#                     color = :red, label = "Data", markersize = 8)
+
+#             axislegend(ax, position = :rt)
+
+#             display(fig)
+#         end
+
+#         yhat = vec(pred[3, :])
+#         y    = patient.ctnt_data
+#         res  = log_residuals(y, yhat)
+
+#         append!(out, DataFrame(id = fill(patient.id, length(y)),
+#                                t  = patient.timepoints,
+#                                y  = y,
+#                                yhat = yhat,
+#                                res  = res))
+#     end
+
+#     return out
+# end

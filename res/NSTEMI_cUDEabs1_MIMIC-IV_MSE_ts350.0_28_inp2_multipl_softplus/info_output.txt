@@ -1,0 +1,9 @@
+Experiment NSTEMI_cUDEabs1_MIMIC-IV_MSE_ts350.0_28_inp2_multipl_softplus log file
+Neural network settings:
+dept: 2; width: 8; inputs(2): τ, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+Patient loaded: 1575
+Time: min = 0.08 h   max = 349.75 h
+cTnT: min = 0.01 ng/mL   max = 23.43 ng/mL
+Training split: 522
+Validation split: 131
