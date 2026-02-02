@@ -184,7 +184,7 @@ models        = Vector{Vector{ctntUDEModel}}(undef, initial_guesses);
 
 θ_dummy = initial_parameters[1];
 local_models = [
-    ctntCUDEModel(θ_dummy.ode[5*(j-1)+1:5*j], chain,
+    ctntCUDEModel(θ_dummy.ode[N_params*(j-1)+1:N_params*j], chain,
                     (0.0, training_dataset[j].timepoints[end]))
     for j in eachindex(training_dataset)
 ];
@@ -343,8 +343,8 @@ optfunc = OptimizationFunction(
         LBFGS(linesearch=LineSearches.BackTracking()),
         maxiters=lbfgs_maxiters,
         g_abstol  = 1e-6,
-        # f_abstol = 1e-8,
-        # x_abstol = 1e-8,
+        f_abstol = 1e-6,
+        x_abstol = 1e-6,
         callback = cb_lbfgs
         # callback = (state, l) -> begin
         #                 push!(losses_this, l)
@@ -513,7 +513,7 @@ for k in 1:n_optsol
             # pred = [u[3] for u in sol.u]
 
             pl = Plots.plot(pred; lw=2, label="Model Prediction", xlabel="Time", ylabel="CTNT", title="Patient $(patient.id)")
-            scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
+            Plots.scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
 
             save("$(fig_path)/$(experiment)_model_$(k)_$(patient.id).svg", pl)
             next!(ev_bar)

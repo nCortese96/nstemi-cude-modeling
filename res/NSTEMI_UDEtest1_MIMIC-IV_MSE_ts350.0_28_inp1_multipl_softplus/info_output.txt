@@ -1,0 +1,20 @@
+Experiment NSTEMI_UDEtest1_MIMIC-IV_MSE_ts350.0_28_inp1_multipl_softplus log file
+Neural network settings:
+dept: 2; width: 8; inputs(1): τ
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+Patient loaded: 1575
+Time: min = 0.08 h   max = 349.75 h
+cTnT: min = 0.01 ng/mL   max = 23.43 ng/mL
+Training split: 522
+Validation split: 131
+LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.0010000000000000002, 0.0010000000000000002]
+UB exp: [4.999999999999999, 4.999999999999999, 499.99999999999983, 499.99999999999983]
+Starting points: 4
+Best starting points loss indexes: [5225, 11952, 3067, 10875]
+Best starting points losses: [20.154351400616346, 20.431776375981784, 20.504966116693875, 20.599603348968873]
+adam_maxiters: 500
+lbfgs_maxiters: 400
+Returncode model θ1: Failure
+Final loss model θ1: 0.19225675936321046
+Returncode model θ2: Failure
+Final loss model θ2: 0.20446896710246676

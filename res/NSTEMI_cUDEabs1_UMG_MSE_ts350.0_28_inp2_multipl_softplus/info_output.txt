@@ -2,15 +2,3 @@ Experiment NSTEMI_cUDEabs1_UMG_MSE_ts350.0_28_inp2_multipl_softplus log file
 Neural network settings:
 dept: 2; width: 8; inputs(2): τ, β
 dataset: data/UMG_NSTEMI_Dataset.xlsx
-Patient loaded: 99
-Time: min = 0.02 h   max = 334.97 h
-cTnT: min = 0.0057 ng/mL   max = 9.92 ng/mL
-Training split: 58
-Validation split: 14
-LB exp: [0.0010000000000000002, 0.0010000000000000002, 0.0010000000000000002, 0.0010000000000000002, 0.0010000000000000002]
-UB exp: [4.999999999999999, 4.999999999999999, 499.99999999999983, 499.99999999999983, 1.0]
-Starting points: 4
-Best starting points loss indexes: [427, 72, 821, 292]
-Best starting points losses: [13.820303912194822, 13.829912299202912, 14.331742209491487, 14.478562193868544]
-adam_maxiters: 500
-lbfgs_maxiters: 400

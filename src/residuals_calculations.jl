@@ -12,15 +12,28 @@ includet("ctnt-ude-model.jl")
 
 @info "Starting residual calculation script"
 
+UMG_data = true;
+
 UDE = false; # false for cUDE
 
-N_params = UDE ? 4 : 5; # number of UDE parameters 5 for cUDE
+best_idx = 4; # index of the best model to test 
 
-input_dim = 2;
-nn_depth = 2;
-nn_width = 8;
-inputs_str = "t, β";
-inputs_str = input_dim == 2 ? "τ, Cs0" : "τ";
+if UDE
+    @info "Using UDE model"
+    input_dim = 1;
+    nn_depth = 2;
+    nn_width = 8;
+    N_params = 4;
+    inputs_str = "τ";
+else
+    @info "Using cUDE model"
+    input_dim = 2;
+    nn_depth = 2;
+    nn_width = 8;
+    N_params = 5;
+    inputs_str = "τ, β";
+end 
+
 
 T_SCALE = 350.0;
 
@@ -36,107 +49,82 @@ fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 modelssave_path = "res/$(experiment)/models/test_NN";
 
-@load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
-@load "$(modelssave_path)/best_params_val_$(experiment).jld2" ode_params_val;
-@load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
+@info "Loading dataset"
+test_dataset = if UMG_data
+    dataset = "UMG";
+    
+    figsave_path = "$(fig_path)/umg_test_nn_$(best_idx)";
+    modelssave_path = "$(models_path)/umg_test_nn_$(best_idx)";   
+        
+    mkpath(figsave_path)
+    mkpath(modelssave_path)
 
-out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[]);
+    @load "$(modelssave_path)/UMG_testset.jld2" test_dataset;
+    @info "$dataset test dataset loaded from previous save"
+    test_dataset;
+else
+    dataset = "MIMIC-IV";
+
+    figsave_path = "res/$(experiment)/figs/test_NN_$(best_idx)";
+    modelssave_path = "res/$(experiment)/models/test_NN_$(best_idx)";
+
+    @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
+    @info "Using $dataset dataset for residuals"
+
+    test_dataset;
+end
+@info "Dataset $dataset loaded with $(length(test_dataset)) patients"
+
+@info "Loading best model and parameters"
+best_nn, ode_params_val = try
+    @load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+    @load "$(modelssave_path)/best_params_val_$(dataset).jld2" ode_params_val;
+    best_nn, ode_params_val;
+catch e
+
+    @warn "Error loading model: $e"
+
+    @info "Using best idx [$(best_idx)] for load model"
+    
+    @load "$(models_path)/nnNSTEMI_$(experiment).jld2" neural_network_parameters;
+    @load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
+
+    best_nn = neural_network_parameters[best_idx];
+    ode_params_val = ode_params[best_idx]; # log version where 1 is the index of the best model in info_output
+    best_nn, ode_params_val;
+end
+@info "Best model and parameters loaded successfully"
+@info "Loaded $(length(ode_params_val)) parameters"
+
+hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame);
+# high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
+high_information_idxs = findall(p -> p.id in hi_ids.patient, test_dataset);
+high_information = test_dataset[high_information_idxs];
+patient_dims(high_information)
+
+ode_params_val_hi = [ode_params_val[N_params * (i-1) + 1:N_params * i] for i in high_information_idxs];
+ode_params_val_hi = vcat(ode_params_val_hi...);
+
+@info "Total sample number for high information: $(length(high_information))"
 
 @info "Processing $(experiment) residuals data"
 
-a = []
-b = []
-Cs0 = []
-Cc0 = []
-β = []
-
-@showprogress desc="Computing residuals..." for (i, patient) in enumerate(test_dataset)
-
-    idx1 = N_params*(i-1) + 1;
-    idx2 = N_params*i;
-    ode_p = ode_params_val[idx1:idx2];
-    p = ComponentArray(ode = ode_p, neural = best_nn);
-
-    push!(a, exp(p.ode[1]))
-    push!(b, exp(p.ode[2]))
-    push!(Cs0, exp(p.ode[3]))
-    push!(Cc0, exp(p.ode[4]))
-    if N_params == 5
-        push!(β, exp(p.ode[5]))
-    end
-
-    # u0 = [p.ode[end], p.ode[end-1], 0.0]
-    tspan = (0.0, patient.timepoints[end] + 10.0);
-
-    model = UDE ? ctntUDEModel(p, chain, tspan) : ctntCUDEModel(p, chain, tspan);
-
-    y, yhat, res = compute_residuals_patient(model, patient, p;
-                                            plotting=true)
-
-    append!(out, DataFrame(id = fill(patient.id, length(y)),
-                               t  = patient.timepoints,
-                               y  = y,
-                               yhat = yhat,
-                               res  = res))
-end
-
-params = UDE ? [a, b, Cs0, Cc0] : [a, b, Cs0, Cc0, β];
-
-@info "Saving residuals data to CSV and plotting"
-
-CSV.write("res/$(experiment)/residuals.csv", out)
-
-add_time_bins!(out, EDGES)
-
-fig_vs_time = plot_residuals_vs_time(
-    out, 
-    EDGES; 
-    title="Residuals vs time - UMG", TMAX=350.0, nmin=1);
-display(fig_vs_time)
-CairoMakie.save("$(fig_path)/residuals_vs_time.png", fig_vs_time)
-
-fig_vs_fitted = plot_residuals_vs_fitted(out; title="Residuals vs fitted - UMG")
-display(fig_vs_fitted)
-CairoMakie.save("$(fig_path)/residuals_vs_fitted.png", fig_vs_fitted)
-
-@info "Boxplotting params"
-
-par_names = UDE ? ["a", "b", "Cs0", "Cc0"] : ["a", "b", "Cs0", "Cc0", "β"];
-
-x = vcat([fill(1,length(a))]...);
-
-f = Figure(
-    size = (1400, 700), # input
+residuals_ae, smape_ae = compute_plot_residuals(test_dataset, ode_params_val, best_nn, chain; 
+    EDGES = EDGES, N_params = N_params, UDE = UDE, hi = false, show_plots = true,
+    # figsave_path=figsave_path, modelssave_path=modelssave_path
     );
 
-Label(
-    f[0, 1:length(par_names)],
-    "Parameter distributions — UMG";
-    fontsize = 22,
-    tellwidth = false
-);
+@info "Computed residuals for AE test dataset. Median sMAPE: $(median(smape_ae.smape))"
 
-axes = [];
+residuals_hi, smape_hi = compute_plot_residuals(high_information, ode_params_val_hi, best_nn, chain; 
+    EDGES = EDGES, N_params = N_params, UDE = UDE, hi = true, show_plots = true,
+    # figsave_path=figsave_path, modelssave_path=modelssave_path
+    );
 
-@showprogress desc="Generating axes..." for (i, p) in enumerate(par_names)
-    push!(axes, (Axis(f[1, i], title = p)))
-end
+@info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
 
-@showprogress desc="Generating boxplots..." for (ax, p) in zip(axes, params)
-    i = (i-1)+1;
-    CairoMakie.boxplot!(
-        ax, x, p;
-        color = x, 
-        # width = 0.5,
-        # mediancolor = :red,
-        # whiskercolor = :gray,
-        # outliercolor = :green,
-        # show_notch = true
-        );
-    # ax.xticks = (1:length(exps), exps_names);
-    # ax.xticklabelrotation = pi/3;
-end
-display(f)
-save("$(fig_path)/boxplots.png", f)
+# open("res/$(experiment)/info_output.txt", "a") do io
+#     println(io, "--> Median sMAPE with NN on HI dataset: $(median(smape_hi.smape))")
+# end
 
 @info "Residual calculation script completed"

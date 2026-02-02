@@ -11,21 +11,31 @@ using Logging
 
 include("ctnt-ude-model.jl")
 
+########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
+UMG_data = true;
+########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
+
 UDE = false; # false for cUDE
 
-N_params = UDE ? 4 : 5; # number of UDE parameters 5 for cUDE
+best_idx = 4; # index of the best model to test 
 
-best_idx = 4; # index of the best model to test
+dataset = "MIMIC-IV"; # "MIMIC-IV"; # "UMG" # used only for logging
 
-input_dim = 2;
-nn_depth = 2;
-nn_width = 8;
-inputs_str = "t, β";
-if input_dim == 3
-    inputs_str = "u[1], t, β";
-elseif input_dim == 7
-    inputs_str = "u[1], t, a, b, Cs0, Cc0, β";
-end
+if UDE
+    @info "Using UDE model"
+    input_dim = 1;
+    nn_depth = 2;
+    nn_width = 8;
+    N_params = 4;
+    inputs_str = "τ";
+else
+    @info "Using cUDE model"
+    input_dim = 2;
+    nn_depth = 2;
+    nn_width = 8;
+    N_params = 5;
+    inputs_str = "τ, β";
+end 
 
 T_SCALE = 350.0;
 
@@ -34,7 +44,9 @@ chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 # Copy relative path of the experiment: e.g., "NSTEMI_partrval_UMG_MSE_ts350.0_28_inp2_multipl_softplus"
 # experiment = "NSTEMI_partrval_MIMIC-IV_MSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus";
 
-experiment = "NSTEMI_partrval_UMG_MSE_ts350.0_28_inp2_multipl_softplus";
+# experiment = "NSTEMI_partrval_UMG_MSE_ts350.0_28_inp2_multipl_softplus";
+# experiment = "NSTEMI_cUDEabs1_UMG_MSE_ts350.0_28_inp2_multipl_softplus"
+experiment = "NSTEMI_partrval_MIMIC-IV_MSE_ts350.0_28_inp2_multipl_softplus"
 
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
@@ -51,75 +63,86 @@ mkpath(modelssave_path)
 #     println(io, "********************************")
 # end
 
-@load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+# @load "$(models_path)/best_nn_NSTEMI_$(experiment).jld2" best_nn;
+@load "$(models_path)/nnNSTEMI_$(experiment).jld2" neural_network_parameters;
 @load "$(models_path)/odebetasNSTEMI_$(experiment).jld2" ode_params;
 # @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
 
+best_nn = neural_network_parameters[best_idx];
 best_ode_p = ode_params[best_idx]; # log version where 1 is the index of the best model in info_output
 pguess = vec(mean(reshape(best_ode_p, :, N_params), dims=1));
 println("Initial: ", exp.(pguess))
-########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
-UMG_data = false;
-########### SET THIS PARAMETER FOR VALIDATION/TEST as FALSE/TRUE ###############################################
 
-Dataset = "UMG"; # "MIMIC-IV";
-
-if UMG_data
+test_dataset = if UMG_data
     @info "Using UMG dataset for testing"
-    Dataset = "UMG";
-    figsave_path = "$(fig_path)/umg_test_nn";
-    modelssave_path = "$(models_path)/umg_test_nn";   
+    dataset = "UMG";
     
+    figsave_path = "$(fig_path)/umg_test_nn_$(best_idx)";
+    modelssave_path = "$(models_path)/umg_test_nn_$(best_idx)";   
+        
     mkpath(figsave_path)
     mkpath(modelssave_path)
+    try
+        @info "Try to load UMG test"
 
-    file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
-    sheet_ids = "IDs";
-    sheet_times = "times";
-    sheet_values = "values";
-    xf = XLSX.readxlsx(file_path);
-    # Caricamento dei fogli in DataFrame
-    # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
-    ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
-    timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
-    troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
+        @load "$(modelssave_path)/UMG_testset.jld2" test_dataset;
+        @info "UMG test dataset loaded from previous save"
+        test_dataset
+    catch 
+        @warn "UMG test dataset not found, loading from Excel file"
 
-    println("Patient loaded: ", nrow(ids))
-    patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
+        file_path = "data/UMG_NSTEMI_Dataset.xlsx"; # UMG_NSTEMI_Dataset MIMIC-IV/NSTEMI_reorganized_skipped
+        sheet_ids = "IDs";
+        sheet_times = "times";
+        sheet_values = "values";
+        xf = XLSX.readxlsx(file_path);
+        # Caricamento dei fogli in DataFrame
+        # ids = DataFrame(XLSX.readtable(file_path, sheet_times, "A:A", header=false, infer_eltypes=true));
+        ids = DataFrame(XLSX.readtable(file_path, sheet_ids, "A:A", header=false, infer_eltypes=true));
+        timepoints_df = DataFrame(XLSX.readtable(file_path, sheet_times, "A:Z", header=false, infer_eltypes=true));
+        troponin_df  = DataFrame(XLSX.readtable(file_path, sheet_values, "A:Z", header=false, infer_eltypes=true));
 
-    # Trimming to T_SCALE
-    trimmed_p = trim_time(patients, T_SCALE);
-    patient_dims(trimmed_p)
+        println("Patient loaded: ", nrow(ids))
+        patients = [row2Patient(ids[i,:], timepoints_df[i,:], troponin_df[i,:]) for i in 1:nrow(ids)];
 
-    # 0. Pre-processing
-    meas_min_number = 6;
-    anoms = find_anomalies(trimmed_p, meas_min_number);
-    println("Removed: $(length(anoms))")
+        # Trimming to T_SCALE
+        trimmed_p = trim_time(patients, T_SCALE);
+        patient_dims(trimmed_p)
 
-    cleaned_patients = filter(p -> !haskey(anoms, p.id), trimmed_p);
-    patient_dims(cleaned_patients)
-    println("Total sample: $(length(cleaned_patients))")
+        # 0. Pre-processing
+        meas_min_number = 6;
+        anoms = find_anomalies(trimmed_p, meas_min_number);
+        println("Removed: $(length(anoms))")
 
-    all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(cleaned_patients);
-    display(dist)
-    savefig("$(figsave_path)/umg_distributions.svg")
+        cleaned_patients = filter(p -> !haskey(anoms, p.id), trimmed_p);
+        patient_dims(cleaned_patients)
+        println("Total sample: $(length(cleaned_patients))")
 
-    open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "$Dataset - Test NN started $(now())")
-        println(io, "   Patient loaded: ", nrow(ids))
-        println(io, "   Time: min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h")
-        println(io, "   cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
+        all_times, all_ctnt, t_min, t_max, c_min, c_max, dist = plot_distribution(cleaned_patients);
+        display(dist)
+        savefig("$(figsave_path)/umg_distributions.svg")
+
+        open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+            println(io, "$dataset - Test NN started $(now())")
+            println(io, "   Patient loaded: ", nrow(ids))
+            println(io, "   Time: min = $(round(t_min, digits=2)) h   max = $(round(t_max, digits=2)) h")
+            println(io, "   cTnT: min = $(round(c_min, digits=4)) ng/mL   max = $(round(c_max, digits=2)) ng/mL")
+        end
+
+        plt = scutter_patients(cleaned_patients)
+        # display(plt)
+        savefig("$(figsave_path)/scatter_post.svg")
+
+        test_dataset = cleaned_patients;
+        @save "$(modelssave_path)/UMG_testset.jld2" test_dataset;
+        @info "UMG test dataset saved"
+        test_dataset
     end
-
-    plt = scutter_patients(cleaned_patients)
-    # display(plt)
-    savefig("$(figsave_path)/scatter_post.svg")
-
-    test_dataset = cleaned_patients;
 
 else
     @load "$(models_path)/testsetNSTEMI_$(experiment).jld2" test_dataset;
     @info "Using $dataset dataset for testing"
+    test_dataset
 end
 
 if N_params == 5
@@ -131,15 +154,16 @@ else
 end
 
 # ode_p = best_solution;
-nn_p = best_nn;
-
 # pguess = mean([optsol.u for optsol in ode_p]);
 
 optfunc = OptimizationFunction(patient_loss, AutoForwardDiff());
 
+println("*********************************")
+println("$dataset - Evaluating NN with sMAPE (idx:$(best_idx))")
+
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "*********************************")
-    println(io, "$Dataset - Evaluating NN with sMAPE (idx:$(best_idx))")
+    println(io, "$dataset - Evaluating NN with sMAPE (idx:$(best_idx))")
 end
 
 smape_values = [];
@@ -156,13 +180,13 @@ for (i, patient) in enumerate(test_dataset)
     model = UDE ? ctntUDEModel(pguess, chain, tspan) : ctntCUDEModel(pguess, chain, tspan); # check i cUDE or UDE
 
     optprob = OptimizationProblem(optfunc, pguess,
-                (model, patient.timepoints, patient.ctnt_data, nn_p),
+                (model, patient.timepoints, patient.ctnt_data, best_nn),
                 lb = lhs_lb, ub = lhs_ub);
 
     optsol_lbfgs = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
                 maxiters=1000);
 
-    p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = nn_p);
+    p_opt = ComponentArray(ode = optsol_lbfgs.u, neural = best_nn);
 
     println("For $(patient.id), params: ", p_opt.ode)
     println("Params: ", exp.(p_opt.ode))
@@ -197,10 +221,10 @@ for (i, patient) in enumerate(test_dataset)
 end
 
 ode_params_val = vcat(validation_params...);
-@save "$(modelssave_path)/best_params_val_$(experiment).jld2" ode_params_val;
+@save "$(modelssave_path)/best_params_val_$(dataset).jld2" ode_params_val;
 
-println(median(smape_values))
-println(median(loss_values))
+println("--> Median sMAPE: $(median(smape_values))")
+println("--> Median loss: $(median(loss_values))")
 
 open("res/$(experiment)/info_output.txt", "a") do io
     println(io, "--> Median sMAPE: $(median(smape_values))")

@@ -7,3 +7,8 @@ Time: min = 0.08 h   max = 349.75 h
 cTnT: min = 0.01 ng/mL   max = 23.43 ng/mL
 Training split: 522
 Validation split: 131
+Starting points: 4
+Best starting points loss indexes: [18515, 20243, 3643, 6752]
+Best starting points losses: [19.82072072003738, 20.167689844294866, 20.269654543956804, 20.29000532763138]
+adam_maxiters: 500
+lbfgs_maxiters: 400

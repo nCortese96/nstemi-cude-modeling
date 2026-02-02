@@ -66,7 +66,7 @@ N_params = 4;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
-experiment = "NSTEMI_UDEabs1_$(dataset_name)_MSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus"
+experiment = "NSTEMI_UDEtest1_$(dataset_name)_MSE_ts$(T_SCALE)_$(nn_depth)$(nn_width)_inp$(input_dim)_multipl_softplus"
 fig_path = "res/$(experiment)/figs";
 models_path = "res/$(experiment)/models";
 mkpath(fig_path)
@@ -149,7 +149,8 @@ n_conditional = 1;
 lhs_lb = log.([0.001, 0.001, 0.001, 0.001]); # 0.001, 0.001, 0.01, 0.01
 lhs_ub = log.([5.0, 5.0, 500.0, 500.0]); # 5.0, 5.0, 200.0, 400.0
 # [a, b, Cs0, Cc0 ... no conditional parameter]
-initial_guesses = dataset_id == 0 ? 25000 : 1000; # number of initial guesses to sample 1000
+initial_guesses = dataset_id == 0 ? 25000 : 1000; # number of initial guesses
+@info "Sampling $initial_guesses initial guesses for training"
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "LB exp: ", exp.(lhs_lb))
@@ -190,8 +191,8 @@ local_models = [
     for j in eachindex(training_dataset)
 ];
 
-@threads for k in eachindex(initial_parameters)
-# for k in eachindex(initial_parameters)
+# @threads for k in eachindex(initial_parameters)
+for k in eachindex(initial_parameters)
     p = initial_parameters[k]
     # local_models = [
     #     ctntUDEModel(p.ode[5*(j-1)+1:5*j], chain,
@@ -200,13 +201,14 @@ local_models = [
     # ]
     # models[k] = local_models
     losses_initial[k] =
-        serial_training_loss(p, (local_models, training_dataset); n_params=N_params)
-        # par_training_loss(p, (local_models, training_dataset); n_params=N_params)
+        # serial_training_loss(p, (local_models, training_dataset); n_params=N_params)
+        par_training_loss(p, (local_models, training_dataset); n_params=N_params)
 
     next!(init_bar)      # thread-safe
 end
 
-selected_initials = Threads.nthreads(); # 2 number of best initializations to select
+# selected_initials = Threads.nthreads(); # 2 number of best initializations to select
+selected_initials = 4;
 @info "Selecting $selected_initials best initializations out of $initial_guesses"
 
 param_indxs = partialsortperm(losses_initial, 1:selected_initials);
@@ -271,13 +273,13 @@ function make_progress_cb!(pbar, losses; offset=0, every_iters=10, every_secs=1.
 end
 
 optfunc = OptimizationFunction(
-    # (p, data) -> par_training_loss(p, data; n_params=N_params), 
-    (p, data) -> serial_training_loss(p, data; n_params=N_params),
+    (p, data) -> par_training_loss(p, data; n_params=N_params), 
+    # (p, data) -> serial_training_loss(p, data; n_params=N_params),
     AutoForwardDiff()
     ); # training_loss AutoForwardDiff() AutoZygote()
 
-# for (i, θ_init) in enumerate(out_params)
-@threads for i in eachindex(out_params)
+for (i, θ_init) in enumerate(out_params)
+# @threads for i in eachindex(out_params)
     θ_init = out_params[i]
     train_bar = Progress(adam_maxiters; dt=1, desc="ADAM phase param set θ$(i)", showspeed=true, color=:firebrick);
     # train_bar.desc = "ADAM phase param set θ$(i)"
@@ -344,8 +346,8 @@ optfunc = OptimizationFunction(
         LBFGS(linesearch=LineSearches.BackTracking()),
         maxiters=lbfgs_maxiters,
         g_abstol  = 1e-6,
-        # f_abstol = 1e-8,
-        # x_abstol = 1e-8,
+        f_abstol = 1e-6,
+        x_abstol = 1e-6,
         callback = cb_lbfgs
         # callback = (state, l) -> begin
         #                 push!(losses_this, l)
@@ -514,7 +516,7 @@ for k in 1:n_optsol
             # pred = [u[3] for u in sol.u]
 
             pl = Plots.plot(pred; lw=2, label="Model Prediction", xlabel="Time", ylabel="CTNT", title="Patient $(patient.id)")
-            scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
+            Plots.scatter!(patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
 
             save("$(fig_path)/$(experiment)_model_$(k)_$(patient.id).svg", pl)
             next!(ev_bar)
@@ -527,8 +529,10 @@ for k in 1:n_optsol
         # push!(optimized_models, opt_models);
 
         objectives = [sol.objective for sol in optsols_valid];
-        println("Median: ", median(objectives))
-        println("Mean: ", mean(objectives))
+        println("Median obj: ", median(objectives))
+        println("Mean obj: ", mean(objectives))
+        println("Median sMAPE: ", median(model_smapes))
+        println("Mean sMAPE: ", mean(model_smapes))
         # push!(model_objectives, objectives)
         model_objectives[k] = objectives
     # catch
@@ -619,12 +623,12 @@ plt_Cc0 = histogram(Cc0_dist;
                  legend = false)
 savefig("$(fig_path)/a_dist.svg")
 
-plt_β = histogram(β_dist;
-                 bins = 5,
-                 xlabel = "Value",
-                 ylabel = "#",
-                 title = "Params β",
-                 legend = false)
-savefig("$(fig_path)/a_dist.svg")
+# plt_β = histogram(β_dist;
+#                  bins = 5,
+#                  xlabel = "Value",
+#                  ylabel = "#",
+#                  title = "Params β",
+#                  legend = false)
+# savefig("$(fig_path)/a_dist.svg")
 
 @info "⚠️ Algorithm ended $(now())"

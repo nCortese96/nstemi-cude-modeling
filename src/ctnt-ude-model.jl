@@ -31,6 +31,7 @@ sigmoid(x) = 1 / (1 + exp(-x))
 
 const DELTA = 1e-6; # 0.007 # con cutoff 0.014 ng/mL # 1e-3
 T_SCALE = 350.0;
+const EDGES = [0.0, 12.0, 24.0, 48.0, 72.0, 120.0, 200.0, 350.0];
 # const dt = 0.1
 # COMMON_TIME = 0.0:dt:T_SCALE;
 
@@ -47,8 +48,8 @@ function ctnt_ude!(du, u, p, t, chain::SimpleChain)
     a = exp(p.ode[1])
     b = exp(p.ode[2])
 
-    Cs0 = exp(p.ode[3])
-    Cc0 = exp(p.ode[4])
+    # Cs0 = exp(p.ode[3])
+    # Cc0 = exp(p.ode[4])
 
     # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
 
@@ -114,8 +115,8 @@ function ctnt_cude!(du, u, p, t, chain::SimpleChain)
 
     a = exp(p.ode[1])
     b = exp(p.ode[2])
-    Cs0 = exp(p.ode[3])
-    Cc0 = exp(p.ode[4])
+    # Cs0 = exp(p.ode[3])
+    # Cc0 = exp(p.ode[4])
 
     # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
 
@@ -311,6 +312,57 @@ function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
     # sol = max.(Array(sol), DELTA)
 
     plasm = max.(sol[3, :], DELTA);
+
+    return smape(plasm, ctnt_data)
+end
+
+function patient_loss_formula(θ, (problem, timepoints, ctnt_data))
+    # println("loss")
+    # println(θ)
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+
+    # ODEProblem aggiornato
+    prob = remake(problem; u0 = u0, p = θ)
+
+    sol = solve(prob, Tsit5(); p=θ, saveat=timepoints,
+    #callback = POS_CB, isoutofdomain = NEG_TEST
+    ) 
+
+    if !successful_retcode(sol)
+        # If the solver fails, return infinity
+        return Inf
+    end
+
+    # sol = max.(Array(sol), DELTA)
+
+    plasm = sol[3,:];
+
+    # return sum(abs2, plasm - ctnt_data)
+    # return sum(abs2, log.(plasm) .- log.(ctnt_data))
+    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    # return sum(((plasm - ctnt_data).^2).*ctnt_data)
+    # return smape(plasm, ctnt_data)
+end
+
+function smape_loss_formula(θ, (problem, timepoints, ctnt_data))
+
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+
+    # ODEProblem aggiornato
+    prob = remake(problem; u0 = u0, p = θ)
+
+    sol = solve(prob, Tsit5(); p=θ, saveat=timepoints,
+    #callback = POS_CB, isoutofdomain = NEG_TEST
+    ) 
+
+    if !successful_retcode(sol)
+        # If the solver fails, return infinity
+        return Inf
+    end
+
+    # sol = max.(Array(sol), DELTA)
+
+    plasm = sol[3,:];
 
     return smape(plasm, ctnt_data)
 end
@@ -770,6 +822,47 @@ function compute_residuals_patient(model::ctntUDEModel, patient::PatientData, p:
         return y, yhat, res
 end
 
+function compute_residuals_patient(problem::ODEProblem, patient::PatientData, p::Vector{Float64};
+                                plotting::Bool=false,
+                                abstol=1e-8,
+                                reltol=1e-6)
+
+        pred = solve(problem, Tsit5(); p=p, saveat=patient.timepoints, abstol=abstol, reltol=reltol)
+
+        # if any(pred .< 0)
+        #     println("Warning: negative prediction for patient $(patient.id)")
+        #     println(pred[3,:])
+        # end
+
+        if plotting
+
+            sol = solve(problem, Tsit5(); p=p, abstol=abstol, reltol=reltol)
+
+            fig = CairoMakie.Figure(size = (800, 500))
+            ax  = CairoMakie.Axis(fig[1, 1],
+                    xlabel = "Time (h)",
+                    ylabel = "cTnT",
+                    title = "cTnT simulation patient $(patient.id)")
+
+            # curva continua del modello (variabile 3)
+            CairoMakie.lines!(ax, sol.t, sol[3, :], color = :blue,label = "cTnT simulation")
+
+            # dati sperimentali
+            CairoMakie.scatter!(ax, patient.timepoints, patient.ctnt_data,
+                    color = :red, label = "Data", markersize = 8)
+
+            axislegend(ax, position = :rt)
+
+            display(fig)
+        end
+
+        yhat = vec(pred[3, :])
+        y    = patient.ctnt_data
+        res  = log_residuals(y, yhat)
+
+        return y, yhat, res
+end
+
 function add_time_bins!(df::DataFrame, edges::Vector{Float64})
     # bin index: 1..(length(edges)-1)
     nb = length(edges) - 1
@@ -892,6 +985,238 @@ function plot_residuals_vs_fitted(df::DataFrame; title="Residuals vs fitted", ϵ
     # CairoMakie.Legend(fig[1, 2], ax;)
 
     fig
+end
+
+function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::Vector{Float64}, best_nn::Vector{Float64},
+                                chain::SimpleChain; EDGES::Vector{Float64}=EDGES, N_params::Int = 5, UDE::Bool = false,
+                                hi::Bool = false, show_plots::Bool = false,figsave_path::String = "./", modelssave_path::String = "./")
+
+    out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[]);
+    smape_out = DataFrame(id=String[], smape=Float64[]);
+
+    a = []
+    b = []
+    Cs0 = []
+    Cc0 = []
+    β = []
+
+    @showprogress desc="Computing residuals..." for (i, patient) in enumerate(patients)
+
+        idx1 = N_params*(i-1) + 1;
+        idx2 = N_params*i;
+        ode_p = ode_params_val[idx1:idx2];
+        p = ComponentArray(ode = ode_p, neural = best_nn);
+
+        push!(a, exp(p.ode[1]))
+        push!(b, exp(p.ode[2]))
+        push!(Cs0, exp(p.ode[3]))
+        push!(Cc0, exp(p.ode[4]))
+        if N_params == 5
+            push!(β, exp(p.ode[5]))
+        end
+
+        # u0 = [p.ode[end], p.ode[end-1], 0.0]
+        tspan = (0.0, patient.timepoints[end] + 10.0);
+
+        model = UDE ? ctntUDEModel(p, chain, tspan) : ctntCUDEModel(p, chain, tspan);
+
+        y, yhat, res = compute_residuals_patient(model, patient, p; plotting=show_plots)
+
+        append!(out, DataFrame(id = fill(patient.id, length(y)),
+                                t  = patient.timepoints,
+                                y  = y,
+                                yhat = yhat,
+                                res  = res))
+                                
+        smape_val = smape(yhat, y);
+        append!(smape_out, DataFrame(id = patient.id, smape = smape_val))
+    end
+
+    params = UDE ? [a, b, Cs0, Cc0] : [a, b, Cs0, Cc0, β];
+
+    @info "Saving residuals data to CSV and plotting"
+
+    add_time_bins!(out, EDGES)
+
+    fig_vs_time = plot_residuals_vs_time(
+        out, 
+        EDGES; 
+        title="Residuals vs time - UMG", TMAX=350.0, nmin=1);
+
+    fig_vs_fitted = plot_residuals_vs_fitted(out; title="Residuals vs fitted - UMG")
+
+    @info "Boxplotting params"
+
+    par_names = UDE ? ["a", "b", "Cs0", "Cc0"] : ["a", "b", "Cs0", "Cc0", "β"];
+
+    x = vcat([fill(1,length(a))]...);
+
+    f = Figure(
+        size = (1400, 700), # input
+        );
+
+    Label(
+        f[0, 1:length(par_names)],
+        "Parameter distributions — UMG";
+        fontsize = 22,
+        tellwidth = false
+    );
+
+    axes = [];
+
+    @showprogress desc="Generating axes..." for (i, p) in enumerate(par_names)
+        push!(axes, (Axis(f[1, i], title = p)))
+    end
+
+    @showprogress desc="Generating boxplots..." for (ax, p) in zip(axes, params)
+        # i = (i-1)+1;
+        CairoMakie.boxplot!(
+            ax, x, p;
+            color = x, 
+            # width = 0.5,
+            # mediancolor = :red,
+            # whiskercolor = :gray,
+            # outliercolor = :green,
+            # show_notch = true
+            );
+        # ax.xticks = (1:length(exps), exps_names);
+        # ax.xticklabelrotation = pi/3;
+    end
+    
+    if hi
+        CSV.write("$(modelssave_path)/residuals_hi.csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time_hi.png", fig_vs_time)
+        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted_hi.png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots_hi.png", f)
+    else
+        CSV.write("$(modelssave_path)/residuals.csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time.png", fig_vs_time)
+        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted.png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots.png", f)
+    end
+
+    if show_plots
+        display(fig_vs_time)
+        display(fig_vs_fitted)
+        display(f)
+    end
+
+    return out, smape_out
+end
+
+function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val, ode_func::Function;
+                                EDGES::Vector{Float64}=EDGES, N_params::Int = 5, UDE::Bool = false,
+                                hi::Bool = false, show_plots::Bool = false,figsave_path::String = "./", modelssave_path::String = "./")
+
+    out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[]);
+    smape_out = DataFrame(id=String[], smape=Float64[]);
+
+    a = []
+    b = []
+    Cs0 = []
+    Cc0 = []
+    β = []
+
+    @showprogress desc="Computing residuals..." for (i, patient) in enumerate(patients)
+
+        p = vcat(ode_params_val[i]...);
+
+        push!(a, exp(p[1]))
+        push!(b, exp(p[2]))
+        push!(Cs0, exp(p[3]))
+        push!(Cc0, exp(p[4]))
+        if N_params == 5
+            push!(β, exp(p[5]))
+        end
+
+        u0_init = [exp(p[3]), exp(p[4]), 0.0];
+
+        tspan = (0.0, patient.timepoints[end] + 10.0);
+
+        problem = ODEProblem(ode_func, u0_init, tspan);
+
+        y, yhat, res = compute_residuals_patient(problem, patient, p; plotting=show_plots)
+
+        append!(out, DataFrame(id = fill(patient.id, length(y)),
+                                t  = patient.timepoints,
+                                y  = y,
+                                yhat = yhat,
+                                res  = res))
+                                
+        smape_val = smape(yhat, y);
+        append!(smape_out, DataFrame(id = patient.id, smape = smape_val))
+    end
+
+    params = UDE ? [a, b, Cs0, Cc0] : [a, b, Cs0, Cc0, β];
+
+    @info "Saving residuals data to CSV and plotting"
+
+    add_time_bins!(out, EDGES)
+
+    fig_vs_time = plot_residuals_vs_time(
+        out, 
+        EDGES; 
+        title="Residuals vs time - UMG", TMAX=350.0, nmin=1);
+
+    fig_vs_fitted = plot_residuals_vs_fitted(out; title="Residuals vs fitted - UMG")
+
+    @info "Boxplotting params"
+
+    par_names = UDE ? ["a", "b", "Cs0", "Cc0"] : ["a", "b", "Cs0", "Cc0", "β"];
+
+    x = vcat([fill(1,length(a))]...);
+
+    f = Figure(
+        size = (1400, 700), # input
+        );
+
+    Label(
+        f[0, 1:length(par_names)],
+        "Parameter distributions — UMG";
+        fontsize = 22,
+        tellwidth = false
+    );
+
+    axes = [];
+
+    @showprogress desc="Generating axes..." for (i, p) in enumerate(par_names)
+        push!(axes, (Axis(f[1, i], title = p)))
+    end
+
+    @showprogress desc="Generating boxplots..." for (ax, p) in zip(axes, params)
+        # i = (i-1)+1;
+        CairoMakie.boxplot!(
+            ax, x, p;
+            color = x, 
+            # width = 0.5,
+            # mediancolor = :red,
+            # whiskercolor = :gray,
+            # outliercolor = :green,
+            # show_notch = true
+            );
+        # ax.xticks = (1:length(exps), exps_names);
+        # ax.xticklabelrotation = pi/3;
+    end
+    
+    if hi
+        CSV.write("$(modelssave_path)/residuals_hi.csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time_hi.png", fig_vs_time)
+        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted_hi.png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots_hi.png", f)
+    else
+        CSV.write("$(modelssave_path)/residuals.csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time.png", fig_vs_time)
+        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted.png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots.png", f)
+    end
+
+    if show_plots
+        display(fig_vs_time)
+        display(fig_vs_fitted)
+        display(f)
+    end
+
+    return out, smape_out
 end
 
 # function compute_residuals_long(params::Vector{Float64},
