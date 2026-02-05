@@ -34,7 +34,6 @@ else
     inputs_str = "τ, β";
 end 
 
-
 T_SCALE = 350.0;
 
 const EDGES = [0.0, 12.0, 24.0, 48.0, 72.0, 120.0, 200.0, 350.0];
@@ -96,32 +95,33 @@ end
 @info "Best model and parameters loaded successfully"
 @info "Loaded $(length(ode_params_val)) parameters"
 
-hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame);
-# high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
-high_information_idxs = findall(p -> p.id in hi_ids.patient, test_dataset);
-high_information = test_dataset[high_information_idxs];
-patient_dims(high_information)
-
-ode_params_val_hi = [ode_params_val[N_params * (i-1) + 1:N_params * i] for i in high_information_idxs];
-ode_params_val_hi = vcat(ode_params_val_hi...);
-
-@info "Total sample number for high information: $(length(high_information))"
-
 @info "Processing $(experiment) residuals data"
 
 residuals_ae, smape_ae = compute_plot_residuals(test_dataset, ode_params_val, best_nn, chain; 
     EDGES = EDGES, N_params = N_params, UDE = UDE, hi = false, show_plots = true,
-    # figsave_path=figsave_path, modelssave_path=modelssave_path
+    figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label=dataset
     );
 
 @info "Computed residuals for AE test dataset. Median sMAPE: $(median(smape_ae.smape))"
+if UMG_data
 
-residuals_hi, smape_hi = compute_plot_residuals(high_information, ode_params_val_hi, best_nn, chain; 
+    hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame);
+    # high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
+    high_information_idxs = findall(p -> p.id in hi_ids.patient, test_dataset);
+    high_information = test_dataset[high_information_idxs];
+    patient_dims(high_information)
+
+    ode_params_val_hi = [ode_params_val[N_params * (i-1) + 1:N_params * i] for i in high_information_idxs];
+    ode_params_val_hi = vcat(ode_params_val_hi...);
+
+    @info "Total sample number for high information: $(length(high_information))"
+
+    residuals_hi, smape_hi = compute_plot_residuals(high_information, ode_params_val_hi, best_nn, chain; 
     EDGES = EDGES, N_params = N_params, UDE = UDE, hi = true, show_plots = true,
-    # figsave_path=figsave_path, modelssave_path=modelssave_path
+    figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label="$(dataset)_HI"
     );
-
-@info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
+    @info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
+end
 
 # open("res/$(experiment)/info_output.txt", "a") do io
 #     println(io, "--> Median sMAPE with NN on HI dataset: $(median(smape_hi.smape))")

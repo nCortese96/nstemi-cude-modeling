@@ -554,13 +554,13 @@ smapes = hcat(opt_smapes...);
 best_model_index = argmin(median(objectives, dims=1)[:]);
 println("Average in validation: ", mean(objectives, dims=1)[:])
 println("Median in validation: ", median(objectives, dims=1)[:])
-println("Median sMAPE in validation: ", median(smapes... , dims=1)[:])
+# println("Median sMAPE in validation: ", median(smapes... , dims=1)[:])
 println("Best model id: $best_model_index")
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "Average in validation: ", mean(objectives, dims=1)[:])
     println(io, "Median in validation: ", median(objectives, dims=1)[:])
-    println(io, "Median sMAPE in validation: ", median(hcat(smapes...) , dims=1)[:])
+    # println(io, "Median sMAPE in validation: ", median(hcat(smapes...) , dims=1)[:])
     println(io, "Best model id: $best_model_index")
 end
 

@@ -229,12 +229,16 @@ if UMG_data
     @info "Processing $(experiment) residuals data"
 
     residuals_ae, smape_ae = compute_plot_residuals(test_dataset, params_list, ctnt_ode!;
-        N_params = N_params, UDE = UDE, hi = false, show_plots = true, figsave_path=figsave_path, modelssave_path=modelssave_path);
+        N_params = N_params, UDE = UDE, hi = false, show_plots = true,
+        figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label=dataset
+        );
 
     @info "Computed residuals for AE test dataset. Median sMAPE: $(median(smape_ae.smape))"
 
     residuals_hi, smape_hi = compute_plot_residuals(high_information, params_list_hi, ctnt_ode!;
-        N_params = N_params, UDE = UDE, hi = true, show_plots = true, figsave_path=figsave_path, modelssave_path=modelssave_path);
+        N_params = N_params, UDE = UDE, hi = true, show_plots = true,
+        figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label="$(dataset)_HI"
+        );
 
     @info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
 

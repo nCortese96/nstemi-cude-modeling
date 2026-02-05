@@ -11,7 +11,7 @@ using OrdinaryDiffEq: AutoTsit5, Rosenbrock23, Tsit5
 using Plots, CairoMakie
 # using DiffEqCallbacks
 
-using ProgressMeter: Progress, next!
+using ProgressMeter
 using DifferentialEquations
 using DiffEqBase
 using Base.Threads
@@ -931,12 +931,12 @@ function plot_residuals_vs_time(df::DataFrame, edges::Vector{Float64}; title="Re
     CairoMakie.scatter!(ax, df.t, df.res; markersize=4, color=(:black, 0.25))
 
     # linea mediana per bin s.med
-    CairoMakie.lines!(ax, s.centers, q1_mask; linewidth=2, label="Median (per bin)", color=:blue)
+    CairoMakie.lines!(ax, s.centers, med_mask; linewidth=2, label="Median (per bin)", color=:blue)
 
     # banda IQR s.q1, s.q3
     CairoMakie.band!(ax, s.centers, q1_mask, q3_mask; color=(:gray, 0.2), label="IQR (Q1-Q3)")
 
-    CairoMakie.hlines!(ax, [0.0]; linestyle=:dash, color=(:black, 0.6), label="Zero line (vertical)")
+    CairoMakie.hlines!(ax, [0.0]; linestyle=:dash, color=(:black, 0.6), label="Zero line (horizontal)")
 
     CairoMakie.xlims!(ax, 0, TMAX)
 
@@ -944,7 +944,7 @@ function plot_residuals_vs_time(df::DataFrame, edges::Vector{Float64}; title="Re
         color=(:black, 0.35),
         linewidth=1.5,
         linestyle=:dash,
-        label="Bins (horizontal)");
+        label="Bins (vertical)");
 
     for i in eachindex(s.centers)
         x_rel = clamp(s.centers[i] / TMAX, 0.0, 1.0)
@@ -989,7 +989,8 @@ end
 
 function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::Vector{Float64}, best_nn::Vector{Float64},
                                 chain::SimpleChain; EDGES::Vector{Float64}=EDGES, N_params::Int = 5, UDE::Bool = false,
-                                hi::Bool = false, show_plots::Bool = false,figsave_path::String = "./", modelssave_path::String = "./")
+                                hi::Bool = false, show_plots::Bool = false,figsave_path::String = "./", modelssave_path::String = "./",
+                                dataset_label::String = "")
 
     out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[]);
     smape_out = DataFrame(id=String[], smape=Float64[]);
@@ -1041,9 +1042,11 @@ function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::V
     fig_vs_time = plot_residuals_vs_time(
         out, 
         EDGES; 
-        title="Residuals vs time - UMG", TMAX=350.0, nmin=1);
+        title="Residuals vs time - $dataset_label", TMAX=350.0, nmin=1);
 
-    fig_vs_fitted = plot_residuals_vs_fitted(out; title="Residuals vs fitted - UMG")
+    fig_vs_fitted = plot_residuals_vs_fitted(
+        out; 
+        title="Residuals vs fitted - $dataset_label");
 
     @info "Boxplotting params"
 
@@ -1057,7 +1060,7 @@ function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::V
 
     Label(
         f[0, 1:length(par_names)],
-        "Parameter distributions — UMG";
+        "Parameter distributions — $dataset_label";
         fontsize = 22,
         tellwidth = false
     );
@@ -1084,15 +1087,15 @@ function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::V
     end
     
     if hi
-        CSV.write("$(modelssave_path)/residuals_hi.csv", out)
-        CairoMakie.save("$(figsave_path)/residuals_vs_time_hi.png", fig_vs_time)
-        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted_hi.png", fig_vs_fitted)
-        save("$(figsave_path)/boxplots_hi.png", f)
+        CSV.write("$(modelssave_path)/residuals_$(dataset_label)_hi.csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time_$(dataset_label)_hi.png", fig_vs_time)
+        CairoMakie.save("$(figsave_path)/residuals_vs_fitted_$(dataset_label)_hi.png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots_$(dataset_label)_hi.png", f)
     else
-        CSV.write("$(modelssave_path)/residuals.csv", out)
-        CairoMakie.save("$(figsave_path)/residuals_vs_time.png", fig_vs_time)
-        CairoMakie.save("$(modelssave_path)/residuals_vs_fitted.png", fig_vs_fitted)
-        save("$(figsave_path)/boxplots.png", f)
+        CSV.write("$(modelssave_path)/residuals_$(dataset_label).csv", out)
+        CairoMakie.save("$(figsave_path)/residuals_vs_time_$(dataset_label).png", fig_vs_time)
+        CairoMakie.save("$(figsave_path)/residuals_vs_fitted_$(dataset_label).png", fig_vs_fitted)
+        save("$(figsave_path)/boxplots_$(dataset_label).png", f)
     end
 
     if show_plots

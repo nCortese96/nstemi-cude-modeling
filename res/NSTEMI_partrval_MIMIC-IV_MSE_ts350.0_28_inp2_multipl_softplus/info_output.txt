@@ -2880,86 +2880,6 @@ Patient n109 sMAPE NN validation: 30.421807423302518
 Patient n110 sMAPE NN validation: 9.887502151286823
 --> Median sMAPE: 13.906305583134593
 --> Median loss: 0.03359045494622516
-UMG - Test NN started 2026-01-30T14:35:30.458
-   Patient loaded: 99
-   Time: min = 0.02 h   max = 334.97 h
-   cTnT: min = 0.0057 ng/mL   max = 9.92 ng/mL
-*********************************
-UMG - Evaluating NN with sMAPE (idx:4)
-Patient n1 sMAPE NN validation: 47.397351474408154
-Patient n2 sMAPE NN validation: 6.9071572984278715
-Patient n3 sMAPE NN validation: 10.113037508549107
-Patient n5 sMAPE NN validation: 34.95264126009745
-Patient n6 sMAPE NN validation: 18.575062212739414
-Patient n7 sMAPE NN validation: 2.907984698690855
-Patient n9 sMAPE NN validation: 13.557068262744219
-Patient n10 sMAPE NN validation: 11.001310190009663
-Patient n13 sMAPE NN validation: 45.016633656551505
-Patient n14 sMAPE NN validation: 6.0502109527396435
-Patient n15 sMAPE NN validation: 34.67694718824684
-Patient n17 sMAPE NN validation: 26.806313710333278
-Patient n19 sMAPE NN validation: 12.382104774299982
-Patient n22 sMAPE NN validation: 6.5229367660986695
-Patient n26 sMAPE NN validation: 13.840972391226364
-Patient n27 sMAPE NN validation: 36.333255857806144
-Patient n28 sMAPE NN validation: 24.705749032850314
-Patient n29 sMAPE NN validation: 6.935582634754256
-Patient n31 sMAPE NN validation: 11.513347172362291
-Patient n32 sMAPE NN validation: 63.60743263987375
-Patient n34 sMAPE NN validation: 13.020540979126515
-Patient n41 sMAPE NN validation: 4.291083529065501
-Patient n44 sMAPE NN validation: 15.352410246354554
-Patient n45 sMAPE NN validation: 15.546509347974371
-Patient n46 sMAPE NN validation: 9.77708680960046
-Patient n47 sMAPE NN validation: 3.2888845061085936
-Patient n48 sMAPE NN validation: 17.92096877061569
-Patient n50 sMAPE NN validation: 11.87468535975242
-Patient n51 sMAPE NN validation: 20.04868555425588
-Patient n53 sMAPE NN validation: 12.614789554623023
-Patient n55 sMAPE NN validation: 58.985848865421154
-Patient n56 sMAPE NN validation: 14.632464457817854
-Patient n57 sMAPE NN validation: 17.766797305576443
-Patient n59 sMAPE NN validation: 25.98178310063165
-Patient n60 sMAPE NN validation: 7.968169216180384
-Patient n61 sMAPE NN validation: 6.509016715058218
-Patient n62 sMAPE NN validation: 13.456617761235831
-Patient n63 sMAPE NN validation: 32.20451846256765
-Patient n64 sMAPE NN validation: 14.79311005884745
-Patient n65 sMAPE NN validation: 10.177083963799486
-Patient n66 sMAPE NN validation: 2.982551144350759
-Patient n67 sMAPE NN validation: 13.434617415340334
-Patient n68 sMAPE NN validation: 9.605179836238715
-Patient n69 sMAPE NN validation: 35.8257048294978
-Patient n70 sMAPE NN validation: 25.782569995699973
-Patient n71 sMAPE NN validation: 13.97163877504282
-Patient n72 sMAPE NN validation: 7.984388078593588
-Patient n73 sMAPE NN validation: 26.404788743333164
-Patient n75 sMAPE NN validation: 12.967483968317199
-Patient n76 sMAPE NN validation: 27.479570413320566
-Patient n77 sMAPE NN validation: 8.773877237622152
-Patient n78 sMAPE NN validation: 28.855771158658506
-Patient n81 sMAPE NN validation: 7.8807777911166665
-Patient n83 sMAPE NN validation: 10.307250515058717
-Patient n84 sMAPE NN validation: 43.586500504203244
-Patient n85 sMAPE NN validation: 11.82245308325663
-Patient n87 sMAPE NN validation: 17.367921703796853
-Patient n90 sMAPE NN validation: 24.660808776772623
-Patient n91 sMAPE NN validation: 11.185129064218087
-Patient n92 sMAPE NN validation: 16.715110424627827
-Patient n93 sMAPE NN validation: 35.670588915563975
-Patient n95 sMAPE NN validation: 16.448659576213874
-Patient n96 sMAPE NN validation: 10.541250284512607
-Patient n97 sMAPE NN validation: 15.630452468235125
-Patient n99 sMAPE NN validation: 14.78719647040607
-Patient n100 sMAPE NN validation: 9.921609504657484
-Patient n101 sMAPE NN validation: 9.293028564358439
-Patient n102 sMAPE NN validation: 21.626412862593273
-Patient n105 sMAPE NN validation: 5.688650409879489
-Patient n107 sMAPE NN validation: 19.218048749163184
-Patient n109 sMAPE NN validation: 30.421807423302518
-Patient n110 sMAPE NN validation: 9.887502151286823
---> Median sMAPE: 13.906305583134593
---> Median loss: 0.03359045494622516
 ********************************
 Symbolic regression process terminated succesfully
 ********************************
@@ -3389,3 +3309,8 @@ Patient n110 sMAPE Formula validation: 18.0028281931736
 --> Median sMAPE with formula: 16.526480508987845
 --> Median SSE with formula: 0.03928445559532537
 --> Median sMAPE with formula on HI dataset: 16.543138914504617
+********************************
+Symbolic regression process terminated succesfully
+********************************
+("TEST correction(t_norm, β) ≈ ", "inv(((β + t_norm) * (t_norm + (β * ((β + 0.02200621783432539) * 95.09068845305097)))) + 0.006256113162946203) * 0.03343066219001947")
+********************************
