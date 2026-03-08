@@ -1517,6 +1517,121 @@ function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val, o
     return out, smape_out
 end
 
+function params_extraction(
+    patients::Vector{PatientData},
+    ode_params_val::Vector{Float64},
+    best_nn::Vector{Float64};
+    N_params::Int=5,
+    data_label::String="", # "training" / "validation"
+    dataset::String="",
+    figsave_path::String="",
+    show_outliers::Bool=false,
+    savefigure::Bool=false
+)
+
+    a = []
+    b = []
+    Cs0 = []
+    Cc0 = []
+    β = []
+
+    @showprogress desc = "$(data_label) prams extraction..." for (i, patient) in enumerate(patients)
+
+        idx1 = N_params * (i - 1) + 1
+        idx2 = N_params * i
+        local ode_p = ode_params_val[idx1:idx2]
+        local p = ComponentArray(ode=ode_p, neural=best_nn)
+
+        push!(a, exp(p.ode[1]))
+        push!(b, exp(p.ode[2]))
+        push!(Cs0, exp(p.ode[3]))
+        push!(Cc0, exp(p.ode[4]))
+        if N_params == 5
+            push!(β, exp(p.ode[5]))
+        end
+
+    end
+
+    @info "Average, STD in $data_label param a: $(mean(a)) std: $(std(a))"
+    @info "Average, STD in $data_label param b: $(mean(b)) std: $(std(b))"
+    @info "Average, STD in $data_label param Cs0: $(mean(Cs0)) std: $(std(Cs0))"
+    @info "Average, STD in $data_label param Cc0: $(mean(Cc0)) std: $(std(Cc0))"
+    if N_params == 5
+        @info "Average, STD in $data_label param β: $(mean(β)) std: $(std(β))"
+    end
+
+    @info "Median [Q1-Q3] in $data_label param a: $(median(a)) [$(quantile(a, 0.25)) - $(quantile(a, 0.75))]"
+    @info "Median [Q1-Q3] in $data_label param b: $(median(b)) [$(quantile(b, 0.25)) - $(quantile(b, 0.75))]"
+    @info "Median [Q1-Q3] in $data_label param Cs0: $(median(Cs0)) [$(quantile(Cs0, 0.25)) - $(quantile(Cs0, 0.75))]"
+    @info "Median [Q1-Q3] in $data_label param Cc0: $(median(Cc0)) [$(quantile(Cc0, 0.25)) - $(quantile(Cc0, 0.75))]"
+    if N_params == 5
+        @info "Median [Q1-Q3] in $data_label param β: $(median(β)) [$(quantile(β, 0.25)) - $(quantile(β, 0.75))]"
+    end
+
+    params = UDE ? [a, b, Cs0, Cc0] : [a, b, Cs0, Cc0, β]
+
+    @info "Boxplotting params"
+
+    par_names = UDE ? ["a", "b", "Cs0", "Cc0"] : ["a", "b", "Cs0", "Cc0", "β"]
+
+    x = vcat([fill(1, length(a))]...)
+
+    f = Figure(
+        size=(1400, 700), # input
+    )
+
+    Label(
+        f[0, 1:length(par_names)],
+        "Parameter distributions $data_label — $dataset dataset", ;
+        fontsize=22,
+        tellwidth=false
+    )
+
+    axes = []
+
+    # max_y_values = [15, 5, 200.0, 200.0, 3.0];
+
+    @showprogress desc = "Generating axes..." for (i, p) in enumerate(par_names)
+        ax = Axis(f[1, i],
+            title=p,
+            xticklabelsvisible=false, # Nasconde i numeri (1, 2...)
+            xticksvisible=false,      # Nasconde le tacchette
+            # limits=(nothing, nothing, nothing, max_y_values[i])
+        )
+        push!(axes, ax)
+        # push!(axes, (Axis(f[1, i], title = p)))
+    end
+
+    my_colors = [:skyblue, :orange, :lightgreen, :pink, :violet]
+    @showprogress desc = "Generating boxplots..." for (i, (ax, p)) in enumerate(zip(axes, params))
+        current_color = my_colors[mod1(i, length(my_colors))]
+        # i = (i-1)+1;
+        CairoMakie.boxplot!(
+            ax, x, p;
+            # color = x, 
+            # width = 0.5,
+            # mediancolor = :red,
+            # whiskercolor = :gray,
+            # outliercolor = :green,
+            # show_notch = true
+            # color = :skyblue,
+            color=current_color,
+            whiskerwidth=0.3,
+            strokewidth=0.3,
+            show_outliers=show_outliers
+        )
+        # ax.xticks = (1:length(exps), exps_names);
+        # ax.xticklabelrotation = pi/3;
+        # autolimits!(ax)
+    end
+
+    if savefigure
+        save("$(figsave_path)/$(data_label)_params_distribution_$(dataset).svg", f)
+        @info "Figure saved at: $(figsave_path)/$(data_label)_params_distribution_$(dataset).svg"
+    end
+    return a, b, Cs0, Cc0, β, f
+end
+
 # function compute_residuals_long(params::Vector{Float64},
 #                                 patients::Vector{DataUtils.PatientData},
 #                                 UDE::Bool=false,
