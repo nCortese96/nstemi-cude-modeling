@@ -1,0 +1,15 @@
+Experiment res/NSTEMI_partrval_MIMIC-IV_MSE_ts350.0_28_inp2_multipl_softplus/RetrospectiveSubsamplingValidation/s42n1545 log file
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+UB: [10.000000000000002, 10.000000000000002, 499.99999999999983, 499.99999999999983, 1.0]
+Selected patient for sampling: n1545
+Gold standard characteristics:
+        meas_min_number = 8;
+        min_acq_time_before = 12.0;
+        min_acq_n_before = 2;
+        min_acq_time_after = 2;
+        min_acq_n_after = 1;
+        min_time = 12.0;
+        max_gap = 24.0
+Patient s42n1545_1 sMAPE NN validation: 26.959565554411704
+Patient s42n1545_2 sMAPE NN validation: 15.693187520367458
+Patient s42n1545_3 sMAPE NN validation: 27.189317283151105

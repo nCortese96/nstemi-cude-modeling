@@ -18,7 +18,9 @@ best_idx = 4; # index of the best model to test
 
 UDE = false; # false for cUDE
 
-complexity = 14; # complexity of the formula to test
+complexity = 18; # complexity of the formula to test
+
+norm_type = 1;
 
 if UDE
     @info "Using UDE model"
@@ -60,8 +62,8 @@ models_path = "res/$(experiment)/models";
 test_dataset = if UMG_data
     dataset = "UMG";
     
-    figsave_path = "$(fig_path)/umg_test_formula_$(best_idx)_compl$(complexity)";
-    modelssave_path = "$(models_path)/umg_test_formula_$(best_idx)_compl$(complexity)"; 
+    figsave_path = "$(fig_path)/umg_test_formula_$(best_idx)_compl$(complexity)_test";
+    modelssave_path = "$(models_path)/umg_test_formula_$(best_idx)_compl$(complexity)_test"; 
 
     mkpath(figsave_path)
     mkpath(modelssave_path)
@@ -74,8 +76,8 @@ test_dataset = if UMG_data
 else
     dataset = "MIMIC-IV";
 
-    figsave_path = "res/$(experiment)/figs/test_formula_$(best_idx)";
-    modelssave_path = "res/$(experiment)/models/test_formula_$(best_idx)";
+    figsave_path = "res/$(experiment)/figs/test_formula_$(best_idx)_test";
+    modelssave_path = "res/$(experiment)/models/test_formula_$(best_idx)_test";
 
     mkpath(figsave_path)
     mkpath(modelssave_path)
@@ -105,13 +107,17 @@ lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1]); # 5.0, 5.0, 300.0, 400.0, 3
 
 #complexity 18
 
-corr(t_norm, β) = complexity == 18 ?
- inv((t_norm * ((t_norm * (t_norm + 0.1944756325708591)) + ((β * β) * 96.22897420906513))) + 0.002123782221456696) * 0.010301680893026832 :
- inv(((((β * 281.86) * β) + t_norm) * t_norm) + 0.0057263) * 0.030174
+# corr(t_norm, β) = complexity == 18 ?
+#  inv((t_norm * ((t_norm * (t_norm + 0.1944756325708591)) + ((β * β) * 96.22897420906513))) + 0.002123782221456696) * 0.010301680893026832 :
+#  inv(((((β * 281.86) * β) + t_norm) * t_norm) + 0.0057263) * 0.030174
 #complexity 14
 # corr(t_norm, β) = inv(((((β * 281.86) * β) + t_norm) * t_norm) + 0.0057263) * 0.030174
 
-function ctnt_ode!(du, u, p, t)
+corr(t_norm, β) = complexity == 18 ?
+    inv(((β + t_norm) * (t_norm + (β * ((β + 0.02200621783432539) * 95.09068845305097)))) + 0.006256113162946203) * 0.03343066219001947 :
+    inv(((β + t_norm) * (t_norm + (β * 5.685981994293155))) + 0.00652034389898237) * 0.03614780597923617
+
+function ctnt_ode!(du, u, p, t; norm_type = 0, pat_times = Float64[])
     Cs = u[1]
     Cc = u[2]
     Cp = u[3]
@@ -130,7 +136,17 @@ function ctnt_ode!(du, u, p, t)
 
     # correction = chain([u[1], t, β], p.neural)[1]
 
-    t_norm   = t / T_SCALE
+    # t_norm   = t / T_SCALE
+
+    if norm_type == 0
+        t_norm = t / T_SCALE #NORMALIZZAZIONE
+    elseif norm_type == 1
+        t_min, t_max = minimum(pat_times), maximum(pat_times)
+        # println("Using min-max normalization with patient times: $t_min, $t_max")
+        t_norm = (t - t_min) / (t_max - t_min) # Min-max normalization
+    elseif norm_type == 2
+        t_norm = log(t + DELTA) # Log normalization
+    end
 
     correction = corr(t_norm, β)
 
@@ -150,7 +166,7 @@ optfunc = OptimizationFunction(patient_loss_formula, AutoForwardDiff());
 
 open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
     println(io, "*********************************")
-    println(io, "Evaluating $(dataset) Formula from SymReg with sMAPE - complexity $(complexity)")
+    println(io, "Evaluating $(dataset) Formula from SymReg with sMAPE - complexity $(complexity) - test")
 end
 
 smape_values = [];
@@ -160,11 +176,13 @@ params_list = [];
 ev_bar = Progress(length(test_dataset); desc = "Validating", color = :cyan, showspeed = true);
 for (i, patient) in enumerate(test_dataset)
 
+    sy_ode!(du, u, p, t) = ctnt_ode!(du, u, p, t; norm_type = norm_type, pat_times = patient.timepoints)
+
     u0_init = [exp(pguess[3]), exp(pguess[4]), 0.0];
 
     tspan = (0.0, patient.timepoints[end] + 10.0);
 
-    problem = ODEProblem(ctnt_ode!, u0_init, tspan);
+    problem = ODEProblem(sy_ode!, u0_init, tspan);
 
     optprob = OptimizationProblem(optfunc, pguess, (problem, patient.timepoints, patient.ctnt_data), lb = lhs_lb, ub = lhs_ub);
 
@@ -189,7 +207,7 @@ for (i, patient) in enumerate(test_dataset)
     validation_metric = smape_loss_formula(p_opt, (prob, patient.timepoints, patient.ctnt_data));
     println("sMAPE: ", validation_metric)
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
-        println(io, "Patient $(patient.id) sMAPE Formula validation: $validation_metric")
+        println(io, "Patient $(patient.id) sMAPE Formula validation - test: $validation_metric")
     end
     push!(smape_values, validation_metric)
     pred = sol[3,:];
@@ -199,52 +217,100 @@ for (i, patient) in enumerate(test_dataset)
 
     display(pl)
 
-    save("$(figsave_path)/patient_$(patient.id)_compl$(complexity).svg", pl)
+    save("$(figsave_path)/patient_$(patient.id)_compl$(complexity)_test.svg", pl)
     next!(ev_bar)
 end
 
+println(mean(smape_values))
 println(median(smape_values))
 println(median(loss_values))
 
 open("res/$(experiment)/info_output.txt", "a") do io
-    println(io, "--> Median sMAPE with formula: $(median(smape_values))")
-    println(io, "--> Median SSE with formula: $(median(loss_values))")
+    println(io, "--> Average sMAPE with formula - test: $(mean(smape_values)) - $(std(smape_values))")
+    println(io, "--> Median sMAPE with formula - test: $(median(smape_values)) [$(quantile(smape_values, 0.25)) - $(quantile(smape_values, 0.75))]")
+    println(io, "--> Median SSE with formula - test: $(median(loss_values))")
 end
 
-if UMG_data
-    @info "Best model and parameters loaded successfully"
-    @info "Loaded $(length(params_list)) parameters"
+hi_ids = if !UMG_data
 
-    hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame);
-    # high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
-    high_information_idxs = findall(p -> p.id in hi_ids.patient, test_dataset);
-    high_information = test_dataset[high_information_idxs];
-    patient_dims(high_information)
+    hi_ids = try
+        CSV.read("res/ids_high_information_$(dataset)_val.csv", DataFrame);
+    catch e
+        @warn "Error loading high information ids: $e"
+        @info "Calculating high information ids from dataset"
 
-    params_list_hi = [params_list[i] for i in high_information_idxs];
-    # ode_params_val_hi = vcat(ode_params_val_hi...);
+        meas_min_number = 8;
+        min_acq_time_before=24.0;
+        min_acq_n_before=2;
+        min_acq_time_after=36.0;
+        min_acq_n_after=1;
+        min_time=12.0;
+        max_gap=36.0;
 
-    @info "Total sample number for high information: $(length(high_information))"
+        anoms = find_anomalies(
+            test_dataset, 
+            meas_min_number, 
+            min_acq_time_before, min_acq_n_before, 
+            min_acq_time_after, min_acq_n_after, 
+            min_time; 
+            max_gap_h=max_gap
+            );
+            
+        @info "Removed sample number for high information: $(length(anoms))"
+        high_information_val = filter(p -> !haskey(anoms, p.id), test_dataset);
+        patient_dims(high_information_val)
+        @info "Total sample number for high information: $(length(high_information_val))"
 
-    @info "Processing $(experiment) residuals data"
-
-    residuals_ae, smape_ae = compute_plot_residuals(test_dataset, params_list, ctnt_ode!;
-        N_params = N_params, UDE = UDE, hi = false, show_plots = true,
-        figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label=dataset
-        );
-
-    @info "Computed residuals for AE test dataset. Median sMAPE: $(median(smape_ae.smape))"
-
-    residuals_hi, smape_hi = compute_plot_residuals(high_information, params_list_hi, ctnt_ode!;
-        N_params = N_params, UDE = UDE, hi = true, show_plots = true,
-        figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label="$(dataset)_HI"
-        );
-
-    @info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
-
-    open("res/$(experiment)/info_output.txt", "a") do io
-        println(io, "--> Median sMAPE with formula on HI dataset: $(median(smape_hi.smape))")
+        hi_ids = DataFrame(patient = [p.id for p in high_information_val]);
+        CSV.write(joinpath("./res", "ids_high_information_$(dataset)_val.csv"), hi_ids)
+        hi_ids;
     end
 
-    @info "Residual calculation script completed"
+    hi_ids;
+
+else
+
+    hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame); # calcuated in TroponinReleaseDiffEqs.jl
+    # high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
+    hi_ids;
+
 end
+
+# if UMG_data
+@info "Best model and parameters loaded successfully"
+@info "Loaded $(length(params_list)) parameters"
+
+# hi_ids = CSV.read("res/ids_high_information_$(dataset)_minafter.csv", DataFrame);
+# high_information = filter(p -> p.id in hi_ids.patient, test_dataset);
+high_information_idxs = findall(p -> p.id in hi_ids.patient, test_dataset);
+high_information = test_dataset[high_information_idxs];
+patient_dims(high_information)
+
+params_list_hi = [params_list[i] for i in high_information_idxs];
+# ode_params_val_hi = vcat(ode_params_val_hi...);
+
+@info "Total sample number for high information: $(length(high_information))"
+
+@info "Processing $(experiment) residuals data"
+
+residuals_ae, smape_ae = compute_plot_residuals(test_dataset, params_list, ctnt_ode!;
+    N_params = N_params, UDE = UDE, hi = false, show_plots = true,
+    figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label=dataset
+    );
+
+@info "Computed residuals for AE test dataset. Median sMAPE: $(median(smape_ae.smape))"
+
+residuals_hi, smape_hi = compute_plot_residuals(high_information, params_list_hi, ctnt_ode!;
+    N_params = N_params, UDE = UDE, hi = true, show_plots = true,
+    figsave_path=figsave_path, modelssave_path=modelssave_path, dataset_label="$(dataset)_HI"
+    );
+
+@info "Computed residuals for HI test dataset. Median sMAPE: $(median(smape_hi.smape))"
+
+open("res/$(experiment)/info_output.txt", "a") do io
+    println(io, "--> Average sMAPE with formula on HI dataset - test: $(mean(smape_hi.smape)) - $(std(smape_hi.smape))")
+    println(io, "--> Median sMAPE with formula on HI dataset - test: $(median(smape_hi.smape)) [$(quantile(smape_hi.smape, 0.25)) - $(quantile(smape_hi.smape, 0.75))]")
+end
+
+@info "Test formula calculation script completed"
+# end

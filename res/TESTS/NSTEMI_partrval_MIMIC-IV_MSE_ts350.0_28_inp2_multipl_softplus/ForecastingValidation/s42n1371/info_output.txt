@@ -1,0 +1,15 @@
+Experiment res/NSTEMI_partrval_MIMIC-IV_MSE_ts350.0_28_inp2_multipl_softplus/ForecastingValidation/s42n1371 log file
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+UB: [10.000000000000002, 10.000000000000002, 499.99999999999983, 499.99999999999983, 1.0]
+Selected patient for sampling: n1371
+Gold standard characteristics:
+        meas_min_number = 8;
+        min_acq_time_before = 12.0;
+        min_acq_n_before = 2;
+        min_acq_time_after = 2;
+        min_acq_n_after = 1;
+        min_time = 12.0;
+        max_gap = 24.0
+Patient s42n1371_1 sMAPE NN validation: 19.983678394132674
+Patient s42n1371_2 sMAPE NN validation: 20.350344717896945
+Patient s42n1371_3 sMAPE NN validation: 20.86359361258843

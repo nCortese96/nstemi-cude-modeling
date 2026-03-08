@@ -1,0 +1,4 @@
+Experiment NSTEMI_cUDE_hi_MIMIC-IV_MSE_ts250.0_28 log file
+Neural network settings:
+dept: 2; width: 8; inputs(2): τ, β
+dataset: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx

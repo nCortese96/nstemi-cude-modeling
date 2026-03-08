@@ -230,7 +230,8 @@ function compute_training_smape_from_jld2(experiment_dir::String, experiment::St
     for (j, pat) in enumerate(training_dataset)
         θ = best_ode[N_params*(j-1)+1 : N_params*j]  # log-params
 
-        model = ctntCUDEModel(θ, chain, (0.0, pat.timepoints[end]))
+        # model = ctntCUDEModel(θ, chain, (0.0, pat.timepoints[end]))
+        model = ctntCUDEModel(θ, chain, pat.timepoints)
 
         # loss (log-MSE) e sMAPE (come da funzioni nel tuo ctnt-ude-model.jl)
         l = patient_loss(θ, (model, pat.timepoints, pat.ctnt_data, best_nn))
