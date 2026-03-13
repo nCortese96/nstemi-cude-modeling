@@ -5,17 +5,37 @@ using Plots, CairoMakie, ProgressMeter, Logging
 using Statistics, StatsBase
 # using Base.Threads: @threads, nthreads
 
+using Revise
+includet("ctnt-ude-model.jl")
+includet("MultiStartOptimizer.jl")
+using .MultiStartOptimizer
+
+# CLI:
+# julia src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]
+length(ARGS) >= 2 || error(
+    "Usage: julia src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]"
+)
+
+nn_width = parse(Int, ARGS[1])
+dataset_id = parse(Int, ARGS[2])
+
+bounds = length(ARGS) >= 3 ? parse(Bool, lowercase(ARGS[3])) : true
+λ_back = length(ARGS) >= 4 ? parse(Float64, ARGS[4]) : 1.0
+T_SCALE = length(ARGS) >= 5 ? parse(Float64, ARGS[5]) : 240.0
+N_multistart = length(ARGS) >= 6 ? parse(Int, ARGS[6]) : 40
+N_multistart >= 0 || error("N_multistart must be >= 0")
+
 @info "⚠️ Test NN algorithm started $(now())"
 
-include("ctnt-ude-model.jl")
-
-dataset_id = 1; # change here for different datasets
+# dataset_id = 0; # change here for different datasets
 if dataset_id == 0
     dataset_name = "MIMIC-IV"
     UMG_data = false
 elseif dataset_id == 1
     dataset_name = "UMG"
     UMG_data = true
+else
+    error("dataset_id must be 0 (MIMIC-IV) or 1 (UMG)")
 end
 
 UDE = false; # false for cUDE
@@ -23,21 +43,26 @@ if UDE
     @info "Using UDE model"
     input_dim = 1
     nn_depth = 2
-    nn_width = 8
+    # nn_width = 8
     N_params = 4
     inputs_str = "τ"
 else
     @info "Using cUDE model"
     input_dim = 2
     nn_depth = 2
-    nn_width = 8
+    # nn_width = 6
     N_params = 5
     inputs_str = "τ, β"
 end
 
-bounds = true;
-λ_back = 1.0;
-T_SCALE = 240.0;
+# bounds = true;
+# λ_back = 1.0;
+# T_SCALE = 240.0;
+use_multistart = N_multistart > 0
+# N_multistart = 40
+multistart_maxiters = 1000
+multistart_maxtime = 80.0
+multistart_rng = StableRNG(1234)
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
@@ -145,16 +170,51 @@ test_ids = [patient.id for patient in test_dataset]
 
 open("res/$(experiment)/info_output.txt", "a") do io
     println(io, "********************************")
+    println(io, "********************************")
+    println(io, "********************************")
+    println(io, "********************************")
+    println(io, "*************MULTISTART***********")
     println(io, "$dataset_name - Test NN started $(now())")
     println(io, "   Training set: $(length(training_dataset))")
     println(io, "   Test set: $(length(test_dataset))")
     println(io, "********************************")
 end
 
+models_summary = DataFrame(
+    model_id = String[],
+    model_idx = Int[],
+    nn_depth = Int[],
+    nn_width = Int[],
+    n_patients = Int[],
+
+    loss_mean = Float64[],
+    loss_std = Float64[],
+    loss_median = Float64[],
+    loss_q1 = Float64[],
+    loss_q3 = Float64[],
+    loss_iqr = Float64[],
+
+    smape_mean = Float64[],
+    smape_std = Float64[],
+    smape_median = Float64[],
+    smape_q1 = Float64[],
+    smape_q3 = Float64[],
+    smape_iqr = Float64[],
+
+    rmsle_mean = Float64[],
+    rmsle_std = Float64[],
+    rmsle_median = Float64[],
+    rmsle_q1 = Float64[],
+    rmsle_q3 = Float64[],
+    rmsle_iqr = Float64[]
+)
+
 for best_idx in eachindex(neural_network_parameters)
 
-    figsave_path = "$(fig_path)/$(dataset_name)_test_NN_$(best_idx)"
-    modelssave_path = "$(models_path)/$(dataset_name)_test_NN_$(best_idx)"
+    model_id = "cfg$(nn_depth)$(nn_width)_$(best_idx)"
+
+    figsave_path = "$(fig_path)/$(dataset_name)_test_NN_$(best_idx)$(use_multistart ? "_ms_test" : "")"
+    modelssave_path = "$(models_path)/$(dataset_name)_test_NN_$(best_idx)$(use_multistart ? "_ms_test" : "")"
 
     mkpath(figsave_path)
     mkpath(modelssave_path)
@@ -184,7 +244,8 @@ for best_idx in eachindex(neural_network_parameters)
         Plots.plot!(p, t_span_grid, y, label="β = $β", linewidth=2)
     end
     Plots.plot!(p, xlabel="Time (h)", ylabel="rupture f(t_norm,β)", title="Learned sarcomere rupture function")
-    save("$(figsave_path)/correction_function.png", p)
+    # save("$(figsave_path)/correction_function.png", p)
+    savefig(p, "$(figsave_path)/correction_function.png")
     # Plots.plot!(p, legend=false)
     display(p)
 
@@ -207,7 +268,7 @@ for best_idx in eachindex(neural_network_parameters)
     if N_params == 5
         lhs_lb = log.([0.001, 0.001, 0.001, 0.001, 0.001]) # 0.001, 0.001, 0.01, 0.01, 0.001
         # lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1.0]); # 5.0, 5.0, 300.0, 400.0, 1
-        lhs_ub = log.([10.0, 10.0, 500.0, 500.0, 1.0]) # 5.0, 5.0, 300.0, 400.0, 1
+        lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1.0]) # 5.0, 5.0, 300.0, 400.0, 1
     else
         lhs_lb = log.([0.001, 0.001, 0.001, 0.001]) # 0.001, 0.001, 0.01, 0.01
         lhs_ub = log.([5.0, 5.0, 500.0, 500.0]) # 5.0, 5.0, 300.0, 400.0
@@ -217,11 +278,11 @@ for best_idx in eachindex(neural_network_parameters)
     # pguess = mean([optsol.u for optsol in ode_p]);
 
     # optfunc = OptimizationFunction(patient_loss, AutoForwardDiff());
-    optfunc = OptimizationFunction(
-        (p, data) -> patient_loss(p, data; λ_back=λ_back),
-        # (p, data) -> serial_training_loss(p, data; n_params=N_params),
-        AutoForwardDiff()
-    ) # training_loss AutoForwardDiff() AutoZygote()
+    # optfunc = OptimizationFunction(
+    #     (p, data) -> patient_loss(p, data; λ_back=λ_back),
+    #     # (p, data) -> serial_training_loss(p, data; n_params=N_params),
+    #     AutoForwardDiff()
+    # ) # training_loss AutoForwardDiff() AutoZygote()
 
     println("*********************************")
     println("$dataset_name - Evaluating NN with sMAPE (idx:$(best_idx))")
@@ -231,10 +292,16 @@ for best_idx in eachindex(neural_network_parameters)
         println(io, "$dataset_name - Evaluating NN with sMAPE (idx:$(best_idx))$(bounds ? " larger bounds" : " no bounds")")
     end
 
-    smape_values = []
-    rmsle_values = []
-    loss_values = []
-    validation_params = []
+    # smape_values = []
+    # rmsle_values = []
+    # loss_values = []
+    # validation_params = []
+
+    successful_idx = Int[]
+    smape_values = Float64[]
+    rmsle_values = Float64[]
+    loss_values = Float64[]
+    validation_params = Vector{typeof(pguess)}()
 
     # u0_init = [exp(pguess[3]), exp(pguess[4]), 0.0];
 
@@ -246,31 +313,92 @@ for best_idx in eachindex(neural_network_parameters)
 
         @info "Patient $(patient.id)"
 
-        model = ctntCUDEModel(
-            pguess,
-            chain,
-            patient.timepoints;
-            # norm_type = 0
-        ) # check i cUDE or UDE
+        model = UDE ? ctntUDEModel(pguess, chain, patient.timepoints) :
+                      ctntCUDEModel(pguess, chain, patient.timepoints)
 
-        if bounds
-            optprob = OptimizationProblem(optfunc, pguess,
-                (model, patient.timepoints, patient.ctnt_data, best_nn),
-                lb=lhs_lb, ub=lhs_ub
+        # if bounds
+        #     optprob = OptimizationProblem(optfunc, pguess,
+        #         (model, patient.timepoints, patient.ctnt_data, best_nn),
+        #         lb=lhs_lb, ub=lhs_ub
+        #     )
+        # else
+        #     optprob = OptimizationProblem(optfunc, pguess,
+        #         (model, patient.timepoints, patient.ctnt_data, best_nn)
+        #     )
+        # end
+        # optsol_lbfgs = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
+        #     maxiters=1000)
+        # p_opt = ComponentArray(ode=optsol_lbfgs.u, neural=best_nn)
+
+        patient_data = (model, patient.timepoints, patient.ctnt_data, best_nn)
+
+        loss_fun = θ -> patient_loss(θ, patient_data; λ_back=λ_back)
+
+        if use_multistart
+            if !bounds
+                error("MultiStart in test_NN currently requires bounds=true, because run_multistart samples starts within [lower, upper].")
+            end
+
+            best_result, all_results = MultiStartOptimizer.run_multistart(
+                loss_fun,
+                N_multistart;
+                lower = lhs_lb,
+                upper = lhs_ub,
+                rng = multistart_rng,
+                verbose = false,
+                maxiters = multistart_maxiters,
+                maxtime = multistart_maxtime,
+                prescreen = true,
+                topk = 8
             )
+
+            if best_result === nothing
+                @warn "No multistart solution found for patient $(patient.id)"
+                next!(ev_bar)
+                continue
+            end
+
+            best_ode_params = best_result.u
+            best_objective = best_result.minimum
         else
-            optprob = OptimizationProblem(optfunc, pguess,
-                (model, patient.timepoints, patient.ctnt_data, best_nn)
+            optfunc = OptimizationFunction(
+                (p, data) -> patient_loss(p, data; λ_back=λ_back),
+                # (p, data) -> serial_training_loss(p, data; n_params=N_params),
+                AutoForwardDiff()
             )
-        end
-        optsol_lbfgs = Optimization.solve(optprob, LBFGS(linesearch=LineSearches.BackTracking()),
-            maxiters=1000)
 
-        p_opt = ComponentArray(ode=optsol_lbfgs.u, neural=best_nn)
+            if bounds
+                optprob = OptimizationProblem(
+                    optfunc,
+                    pguess,
+                    patient_data;
+                    lb = lhs_lb,
+                    ub = lhs_ub
+                )
+            else
+                optprob = OptimizationProblem(
+                    optfunc,
+                    pguess,
+                    patient_data
+                )
+            end
+
+            optsol_lbfgs = Optimization.solve(
+                optprob,
+                LBFGS(linesearch = LineSearches.BackTracking());
+                maxiters = 1000
+            )
+
+            best_ode_params = optsol_lbfgs.u
+            best_objective = optsol_lbfgs.objective
+        end
+
+        p_opt = ComponentArray(ode = best_ode_params, neural = best_nn)
 
         println("For $(patient.id), params: ", p_opt.ode)
         println("Params: ", exp.(p_opt.ode))
         push!(validation_params, p_opt.ode)
+        push!(successful_idx, i)
         # push!(optsols_valid, optsol_lbfgs);
 
         u0_new = [exp(p_opt.ode[3]), exp(p_opt.ode[4]), 0.0]
@@ -278,14 +406,41 @@ for best_idx in eachindex(neural_network_parameters)
 
         opt_model = ctntUDEModel(prob, chain)
 
-        pred = solve(prob, Tsit5(); p=p_opt, saveat=patient.timepoints)
+        # pred = solve(prob, Tsit5(); p=p_opt, saveat=patient.timepoints)
+        pred = try
+            solve(prob, Tsit5(); p = p_opt, saveat = patient.timepoints)
+        catch
+            @warn "Prediction solve failed for patient $(patient.id)"
+            open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+                println(io, "WARN: Prediction solve failed for patient $(patient.id)")
+            end
+            pop!(validation_params)
+            pop!(successful_idx)
+            next!(ev_bar)
+            continue
+        end
         println(pred.retcode)
-        sol = solve(prob, Tsit5(); p=p_opt, saveat=1)
+        # sol = solve(prob, Tsit5(); p=p_opt, saveat=1)
+        sol = try
+            solve(prob, Tsit5(); p = p_opt, saveat = 1)
+        catch
+            @warn "Full trajectory solve failed for patient $(patient.id)"
+            open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+                println(io, "WARN: Full trajectory solve failed for patient $(patient.id)")
+            end
+            pop!(validation_params)
+            pop!(successful_idx)
+            next!(ev_bar)
+            continue
+        end
 
         println("Patient loss: ", patient_loss(p_opt.ode, (opt_model, patient.timepoints, patient.ctnt_data, p_opt.neural)))
         # println("Compute loss: ", compute_loss(p_opt, (opt_model, patient.timepoints, patient.ctnt_data)))
-        push!(loss_values, optsol_lbfgs.objective)
-        println("Objective:    ", optsol_lbfgs.objective)
+        
+        # push!(loss_values, optsol_lbfgs.objective) # after multistart
+        # println("Objective:    ", optsol_lbfgs.objective) # after multistart
+        push!(loss_values, best_objective)
+        println("Objective:    ", best_objective)
         # validation_metric = smape_loss(p_opt.ode, (opt_model, patient.timepoints, patient.ctnt_data, p_opt.neural));
 
         smape_val = smape(pred[3, :], patient.ctnt_data)
@@ -305,23 +460,47 @@ for best_idx in eachindex(neural_network_parameters)
         pl = Plots.plot(sol[1, :]; lw=2, label="Sarcomere", xlabel="Time", ylabel="CTNT", title="cUDE NN Patient $(patient.id)")
         Plots.plot!(pl, sol[2, :]; lw=2, label="Cytosol")
         Plots.plot!(pl, sol[3, :]; lw=2, label="Blood")
-        Plots.scatter!(pl, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
+        Plots.scatter!(pl, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data", legend=:best)
 
         pl_plasm = Plots.plot(sol[3, :]; lw=2, label="Blood", xlabel="Time", ylabel="cTnT [ng/mL]", title="Patient $(patient.id)")
-        Plots.scatter!(pl_plasm, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data")
+        Plots.scatter!(pl_plasm, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data", legend=:best)
 
         display(pl)
         display(pl_plasm)
 
-        save("$(figsave_path)/patient_$(patient.id)$(dataset_name).svg", pl)
-        save("$(figsave_path)/patient_$(patient.id)$(dataset_name)_plasm.svg", pl_plasm)
+        # save("$(figsave_path)/patient_$(patient.id)$(dataset_name).svg", pl)
+        # save("$(figsave_path)/patient_$(patient.id)$(dataset_name)_plasm.svg", pl_plasm)
+        savefig(pl, "$(figsave_path)/patient_$(patient.id)$(dataset_name).svg")
+        savefig(pl_plasm, "$(figsave_path)/patient_$(patient.id)$(dataset_name)_plasm.svg")
+
         next!(ev_bar)
     end
+
+    if isempty(successful_idx)
+        @warn "No successful patients for model $(model_id). Skipping summary and CSV export."
+        open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
+            println(io, "WARN: No successful patients for model $(model_id). Skipping summary and CSV export.")
+        end
+        continue
+    end
+
+    used_test_dataset = test_dataset[successful_idx]
+    used_test_ids = test_ids[successful_idx]
 
     ode_params_val = vcat(validation_params...)
     @save "$(modelssave_path)/best_params_val_$(dataset_name).jld2" ode_params_val
 
-    a, b, Cs0, Cc0, β, fig = params_extraction(test_dataset, ode_params_val, best_nn; N_params=N_params, data_label="validation", dataset=dataset_name, figsave_path=figsave_path, show_outliers=true, savefigure=true)
+    a, b, Cs0, Cc0, β, fig = params_extraction(
+        used_test_dataset,
+        ode_params_val,
+        best_nn;
+        N_params = N_params,
+        data_label = "validation",
+        dataset = dataset_name,
+        figsave_path = figsave_path,
+        show_outliers = true,
+        savefigure = true
+    )
     display(fig)
 
     CSV.write("$(modelssave_path)/patients_params_val.csv", DataFrame(
@@ -331,6 +510,42 @@ for best_idx in eachindex(neural_network_parameters)
         Cs0=Cs0,
         Cc0=Cc0,
         beta=β
+    ))
+
+    loss_q1  = quantile(loss_values, 0.25)
+    loss_q3  = quantile(loss_values, 0.75)
+    smape_q1 = quantile(smape_values, 0.25)
+    smape_q3 = quantile(smape_values, 0.75)
+    rmsle_q1 = quantile(rmsle_values, 0.25)
+    rmsle_q3 = quantile(rmsle_values, 0.75)
+
+    push!(models_summary, (
+        model_id = model_id,
+        model_idx = best_idx,
+        nn_depth = nn_depth,
+        nn_width = nn_width,
+        n_patients = length(test_dataset),
+
+        loss_mean = mean(loss_values),
+        loss_std = std(loss_values),
+        loss_median = median(loss_values),
+        loss_q1 = loss_q1,
+        loss_q3 = loss_q3,
+        loss_iqr = loss_q3 - loss_q1,
+
+        smape_mean = mean(smape_values),
+        smape_std = std(smape_values),
+        smape_median = median(smape_values),
+        smape_q1 = smape_q1,
+        smape_q3 = smape_q3,
+        smape_iqr = smape_q3 - smape_q1,
+
+        rmsle_mean = mean(rmsle_values),
+        rmsle_std = std(rmsle_values),
+        rmsle_median = median(rmsle_values),
+        rmsle_q1 = rmsle_q1,
+        rmsle_q3 = rmsle_q3,
+        rmsle_iqr = rmsle_q3 - rmsle_q1
     ))
 
     println("--> Average - STD loss: $(mean(loss_values)) - $(std(loss_values))")
@@ -356,3 +571,6 @@ for best_idx in eachindex(neural_network_parameters)
         loss=loss_values
     ))
 end
+
+sort!(models_summary, :smape_median)
+CSV.write("$(models_path)/models_summary_$(dataset_name).csv", models_summary)

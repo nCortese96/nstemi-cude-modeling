@@ -1,0 +1,25 @@
+Validation model selection report
+================================
+Candidates read: 16
+Common patients used for fair comparison: 56
+Tie handling mode: split
+sMAPE tie tolerance: 0.0
+
+Primary rule: wins_smape (desc) -> median_smape (asc) -> median_rmsle (asc) -> median_loss (asc)
+
+Top-ranked candidate:
+1×19 DataFrame
+ Row │ candidate_id  config_code  width_label  model_index  wins_smape  mean_smape  median_smape  q1_smape  q3_smape  mean_rmsle  median_rmsle  mean_loss  median_loss  q1_loss     q3_loss   rank_smape_rule  rank_median_loss  rank_mean_loss  rank_median_smape
+     │ String        String       String       Int64        Float64     Float64     Float64       Float64   Float64   Float64     Float64       Float64    Float64      Float64     Float64   Int64            Int64             Int64           Int64
+─────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │ cfg24_m4      24           4                      4         9.0     11.9641       7.63148   4.40767    14.332    0.057134     0.0295252  0.0499899   0.00835117  0.00337892  0.032913                1                 4               1                  4
+
+Best configuration-level summary:
+4×13 DataFrame
+ Row │ config_code  width_label  best_candidate_id  best_model_index  best_rank_smape_rule  best_wins_smape  best_median_smape  best_median_rmsle  best_median_loss  mean_rank_within_config  median_rank_within_config  mean_wins_within_config  n_models_in_config
+     │ String       String       String             Int64             Int64                 Float64          Float64            Float64            Float64           Float64                  Float64                    Float64                  Int64
+─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │ 24           4            cfg24_m4                          4                     1              9.0            7.63148          0.0295252        0.00835117                     6.75                        5.0                     4.75                   4
+   2 │ 28           8            cfg28_m1                          1                     2              7.0            7.69706          0.028326         0.00904881                     7.5                         7.5                     3.75                   4
+   3 │ 216          16           cfg216_m4                         4                     4              7.0           10.0037           0.0403801        0.0126115                      9.75                       10.0                     3.0                    4
+   4 │ 26           6            cfg26_m1                          1                     5              5.0            6.49187          0.0267241        0.0065642                     10.0                        10.5                     2.5                    4

@@ -28,12 +28,12 @@ else
     @info "Using cUDE model"
     input_dim = 2
     nn_depth = 2
-    nn_width = 8
+    nn_width = 4
     N_params = 5
     inputs_str = "τ, β"
 end
 
-best_idx = 1; # index of the best model to test
+best_idx = 4; # index of the best model to test
 T_SCALE = 240.0;
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
@@ -111,7 +111,7 @@ end
 # β_all = vcat(β_all...)
 β_all = [exp(dev_params[N_params*(i-1)+N_params]) for i in 1:(length(dev_params)÷N_params)]
 
-q = (0.05, 0.95)
+q = (0.10, 0.90)
 # t_lo_q, t_hi_q = quantile(times_all, q)
 t_lo, t_hi = quantile(times_norm_all, q)
 
@@ -139,7 +139,7 @@ for (iβ, βi) in enumerate(β_grid)
 end
 
 # M = 500              # n. pazienti sintetici
-# # Kmin, Kmax = 5, 15   # n. misure per paziente (intero casuale)
+# Kmin, Kmax = 5, 15   # n. misure per paziente (intero casuale)
 # Random.seed!(42)
 
 # for i in 1:M
@@ -165,6 +165,31 @@ y_syn = similar(t_norm)
 for j in eachindex(t_norm)
     y_syn[j] = chain((@view X_syn[:, j]), best_nn)[1]
 end
+
+y_mat = reshape(y_syn, length(t_grid), length(β_grid))
+t_hours_grid = t_grid .* T_SCALE
+
+# Plot only a few representative beta values to keep the figure readable
+n_beta_plot = min(10, length(β_grid))
+beta_idx_plot = unique(round.(Int, range(1, length(β_grid), length=n_beta_plot)))
+
+p_teacher = Plots.plot(
+    xlabel = "Time (h)",
+    ylabel = "rupture f(t_norm, β)",
+    title  = "Synthetic NN target shown to symbolic regression",
+    linewidth = 2
+)
+
+for idx in beta_idx_plot
+    Plots.plot!(
+        p_teacher,
+        t_hours_grid,
+        y_mat[:, idx],
+        label = "β = $(round(β_grid[idx], digits=3))"
+    )
+end
+
+display(p_teacher)
 
 # patient_id :: Vector{Int}
 # t_norm     :: Vector{Float32}
@@ -292,10 +317,40 @@ open("res/$(experiment)/info_output.txt", "a") do io
 end
 
 front_df = DataFrame(
-    complexity=[x.complexity for x in frontier],
+    complexity=[compute_complexity(x, opts) for x in frontier],
     loss=[x.loss for x in frontier],
-    equation=[string_tree(x.tree; variable_names=["t_norm", "β"]) for x in frontier]
+    equation=[string_tree(x.tree; variable_names=["t_norm", "β"]) for x in frontier],
 )
+
+hof_csv_path = "res/NSTEMI_cUDE_MIMIC-IV_MSE_24_sigmoid_regback/models/sr_outputs/20260310_185802_P4AYzT/hall_of_fame.csv";
+
+front_df = CSV.read(hof_csv_path, DataFrame)
+
+sort!(front_df, :Complexity)
+
+best_equation = front_df.Equation[end]
+println("Best equation: ", best_equation)
+
+f_best = eval(Meta.parse("(t_norm, β) -> " * best_equation))
+y_hat = [f_best(t_norm[j], beta[j]) for j in eachindex(t_norm)]
+
+f(t_norm, β) = (((t_norm * t_norm) + 0.08175202019861415) * inv(((β * inv(t_norm)) * β) + 0.011951064539169024)) * 0.003636576314763551
+
+t_span_grid = 0.1:0.1:T_SCALE  # alcuni valori tipici del tuo β
+β_vals = 0.1:0.1:1.0
+p = Plots.plot()
+for β in β_vals
+    y = [f(t / T_SCALE, log(β)) for t in t_span_grid]
+    Plots.plot!(p, t_span_grid, y, label="β = $β", linewidth=2)
+end
+Plots.plot!(p, xlabel="Time (h)", ylabel="rupture f(t_norm,β)", title="Learned sarcomere rupture function")
+# save("$(figsave_path)/correction_function.png", p)
+# Plots.plot!(p, legend=false)
+display(p)
+
+mse_sr = mean((y_syn .- y_hat) .^ 2)
+mae_sr = mean(abs.(y_syn .- y_hat))
+r2_sr = 1 - sum((y_syn .- y_hat) .^ 2) / sum((y_syn .- mean(y_syn)) .^ 2)
 
 CSV.write("$(models_path)/sr_pareto_frontier.csv", front_df)
 
@@ -344,3 +399,80 @@ CSV.write("$(models_path)/sr_pareto_frontier.csv", front_df)
 #     ode_params_val = ode_params[best_idx] # log version where 1 is the index of the best model in info_output
 #     best_nn, ode_params_val
 # end
+
+# df_syn = DataFrame(
+#     patient_id = patient_id,
+#     t_norm = t_norm,
+#     t_h = t_norm .* T_SCALE,
+#     beta = beta,
+#     y = y_syn
+# )
+
+# # 1) Sampling design in (time, beta)
+# p_design = Plots.scatter(
+#     df_syn.t_h, df_syn.beta;
+#     xlabel = "Time (h)",
+#     ylabel = "β",
+#     title = "Synthetic design points passed to SR",
+#     label = false,
+#     ms = 2,
+#     alpha = 0.6,
+#     markerstrokewidth = 0
+# )
+
+# # 2) Same points colored by NN output
+# p_target = Plots.scatter(
+#     df_syn.t_h, df_syn.beta;
+#     zcolor = df_syn.y,
+#     xlabel = "Time (h)",
+#     ylabel = "β",
+#     title = "NN output used as SR target",
+#     label = false,
+#     ms = 3,
+#     alpha = 0.8,
+#     markerstrokewidth = 0,
+#     colorbar_title = "y_syn"
+# )
+
+# # 3) Curves y_syn(t | β) for representative β values
+# n_show = min(8, length(β_grid))
+# show_idx = unique(round.(Int, range(1, length(β_grid), length = n_show)))
+# β_show = β_grid[show_idx]
+
+# p_curves = Plots.plot(
+#     xlabel = "Time (h)",
+#     ylabel = "y_syn",
+#     title = "Representative NN curves given to SR",
+#     legend = :right
+# )
+
+# for βi in β_show
+#     mask = beta .== βi
+#     ord = sortperm(t_norm[mask])
+
+#     Plots.plot!(
+#         p_curves,
+#         (t_norm[mask][ord]) .* T_SCALE,
+#         y_syn[mask][ord];
+#         lw = 2,
+#         label = "β = $(round(βi; digits=3))"
+#     )
+# end
+
+# # 4) Heatmap of the target surface
+# Y_grid = reshape(y_syn, length(t_grid), length(β_grid))  # rows=t, cols=β
+
+# p_heat = Plots.heatmap(
+#     t_grid .* T_SCALE,
+#     β_grid,
+#     Y_grid';
+#     xlabel = "Time (h)",
+#     ylabel = "β",
+#     title = "Target surface shown to SR",
+#     colorbar_title = "y_syn"
+# )
+
+# # Combined panel
+# p_sr_diag = Plots.plot(p_design, p_target, p_curves, p_heat; layout = (2, 2), size = (1400, 900))
+# display(p_sr_diag)
+# savefig(p_sr_diag, "$(sr_diag_path)/sr_teacher_dataset_overview.png")

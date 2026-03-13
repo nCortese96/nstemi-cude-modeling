@@ -29,3 +29,5 @@ Manifest.toml
 
 .vscode/
 res/TESTS/
+resources/
+*.pdf
