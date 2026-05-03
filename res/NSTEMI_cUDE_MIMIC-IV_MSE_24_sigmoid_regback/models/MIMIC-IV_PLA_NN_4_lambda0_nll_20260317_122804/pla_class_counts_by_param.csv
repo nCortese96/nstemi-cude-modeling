@@ -1,0 +1,16 @@
+param,class,count
+a,practically_identifiable,30
+b,practically_identifiable,18
+Cs0,identifiable,21
+Cc0,identifiable,31
+beta,identifiable,33
+a,identifiable,16
+b,identifiable,32
+Cs0,practically_identifiable,28
+beta,practically_identifiable,15
+Cs0,unidentifiable,7
+a,unidentifiable,10
+Cc0,practically_identifiable,15
+Cc0,unidentifiable,10
+beta,unidentifiable,8
+b,unidentifiable,6

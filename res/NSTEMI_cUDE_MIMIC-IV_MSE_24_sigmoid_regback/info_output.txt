@@ -2890,3 +2890,370 @@ Patient n110 sMAPE NN validation: 5.190530352080045
 --> Median [Q1-Q3] RMSLE: 0.028909129163405618 [0.013505429864598066 - 0.06680084633843664]
 --> Average MIMIC-IV sMAPE AE : 9.932492426806997 - 11.993270502757772
 --> Median MIMIC-IV sMAPE AE : 6.083103543201485 [3.1886530644269566 - 11.02301117384759]
+*********************************
+Evaluating MIMIC-IV Formula from SymReg with sMAPE
+Patient n1067 sMAPE Formula validation: 33.98840219842512
+Patient n488 sMAPE Formula validation: 59.82077306069219
+Patient n713 sMAPE Formula validation: 53.2091711380337
+Patient n1286 sMAPE Formula validation: 80.09404151581481
+Patient n750 sMAPE Formula validation: 51.298736238642505
+Patient n1001 sMAPE Formula validation: 61.242317952612126
+Patient n1043 sMAPE Formula validation: 51.86350340453691
+Patient n1471 sMAPE Formula validation: 60.30370530959248
+Patient n736 sMAPE Formula validation: 68.54192979427962
+Patient n977 sMAPE Formula validation: 29.386830199902985
+Patient n1437 sMAPE Formula validation: 64.87855918987324
+Patient n768 sMAPE Formula validation: 102.91411184192634
+Patient n240 sMAPE Formula validation: 51.52966945411749
+Patient n31 sMAPE Formula validation: 71.53750399725425
+Patient n606 sMAPE Formula validation: 96.1378610938508
+Patient n916 sMAPE Formula validation: 30.56449118904888
+Patient n772 sMAPE Formula validation: 65.42264660961632
+Patient n1543 sMAPE Formula validation: 39.18151066076118
+Patient n1280 sMAPE Formula validation: 72.27276345163243
+Patient n460 sMAPE Formula validation: 21.88495024478879
+Patient n377 sMAPE Formula validation: 34.498902418695174
+Patient n54 sMAPE Formula validation: 56.138690092272284
+Patient n1028 sMAPE Formula validation: 80.2469395610104
+Patient n998 sMAPE Formula validation: 45.93663616959559
+Patient n1462 sMAPE Formula validation: 58.54812992527103
+Patient n94 sMAPE Formula validation: 50.811411767078305
+Patient n1341 sMAPE Formula validation: 73.41411599423903
+Patient n1283 sMAPE Formula validation: 20.606367846186536
+Patient n1461 sMAPE Formula validation: 31.085708413665014
+Patient n365 sMAPE Formula validation: 40.804618256641035
+Patient n1255 sMAPE Formula validation: 30.704053288265996
+Patient n195 sMAPE Formula validation: 48.58934458078256
+Patient n689 sMAPE Formula validation: 56.91202645122356
+Patient n629 sMAPE Formula validation: 85.03449675201661
+Patient n1295 sMAPE Formula validation: 38.972893678190154
+Patient n1191 sMAPE Formula validation: 36.12745263563847
+Patient n766 sMAPE Formula validation: 37.81714787650602
+Patient n1212 sMAPE Formula validation: 46.94059765530306
+Patient n598 sMAPE Formula validation: 25.42435801109218
+Patient n724 sMAPE Formula validation: 38.63837312894409
+Patient n1000 sMAPE Formula validation: 30.214901437191777
+Patient n1379 sMAPE Formula validation: 64.45848423028094
+Patient n792 sMAPE Formula validation: 56.707131907232856
+Patient n827 sMAPE Formula validation: 17.180726153445818
+Patient n1477 sMAPE Formula validation: 56.63830837736128
+Patient n463 sMAPE Formula validation: 43.09914315782537
+Patient n441 sMAPE Formula validation: 37.23339139988012
+Patient n1186 sMAPE Formula validation: 23.269967095048287
+Patient n356 sMAPE Formula validation: 22.167623231999773
+Patient n270 sMAPE Formula validation: 55.9312122689358
+Patient n1319 sMAPE Formula validation: 26.74466891856643
+Patient n1250 sMAPE Formula validation: 40.56799466602865
+Patient n253 sMAPE Formula validation: 46.299816954145875
+Patient n1117 sMAPE Formula validation: 21.266097192881457
+Patient n121 sMAPE Formula validation: 23.117085848701947
+Patient n281 sMAPE Formula validation: 60.12125778654214
+--> Average - STD loss: 0.47239441867180626 - 0.4360921150867448
+--> Median [Q1-Q3] loss: 0.36218940422362844 [0.18463138478816665 - 0.6130998666189341]
+--> Average - STD sMAPE: 48.720420601323 - 19.820397477828447
+--> Median [Q1-Q3] sMAPE: 47.76497111804281 [33.26272875223509 - 60.166869667304724]
+--> Average - STD RMSLE: 0.2581110187201187 - 0.2035028330497523
+--> Median [Q1-Q3] RMSLE: 0.20177188182531358 [0.10753341325058788 - 0.34007245246364937]
+*********************************
+Evaluating MIMIC-IV Formula from SymReg with sMAPE
+Patient n1067 sMAPE Formula validation: 16.261958644895426
+Patient n488 sMAPE Formula validation: 5.3132670829427155
+*********************************
+Evaluating MIMIC-IV Formula from SymReg with sMAPE
+Patient n1067 sMAPE Formula validation: 16.261959258839408
+Patient n488 sMAPE Formula validation: 5.313267079869194
+Patient n713 sMAPE Formula validation: 14.685801141739127
+Patient n1286 sMAPE Formula validation: 23.68444270348991
+Patient n750 sMAPE Formula validation: 5.225218570538657
+Patient n1001 sMAPE Formula validation: 7.568488866201461
+Patient n1043 sMAPE Formula validation: 14.073969432122944
+Patient n1471 sMAPE Formula validation: 15.622362668334924
+Patient n736 sMAPE Formula validation: 53.239800460078555
+Patient n977 sMAPE Formula validation: 5.422668803269337
+Patient n1437 sMAPE Formula validation: 0.6571786288079922
+Patient n768 sMAPE Formula validation: 29.70558182275815
+*********************************
+Evaluating MIMIC-IV Formula from SymReg with sMAPE
+Patient n1067 sMAPE Formula validation: 16.261959258839408
+Patient n488 sMAPE Formula validation: 5.313267079869194
+Patient n713 sMAPE Formula validation: 14.685801141739127
+Patient n1286 sMAPE Formula validation: 23.68444270348991
+Patient n750 sMAPE Formula validation: 5.22819797940879
+Patient n1001 sMAPE Formula validation: 7.568488866201461
+Patient n1043 sMAPE Formula validation: 14.073969432122944
+Patient n1471 sMAPE Formula validation: 15.622362668334924
+Patient n736 sMAPE Formula validation: 53.239800460078555
+Patient n977 sMAPE Formula validation: 5.422668803269337
+Patient n1437 sMAPE Formula validation: 0.6571786288079922
+Patient n768 sMAPE Formula validation: 29.70558182275815
+Patient n240 sMAPE Formula validation: 32.395778277135676
+Patient n31 sMAPE Formula validation: 7.807978574689884
+Patient n606 sMAPE Formula validation: 74.94730871863857
+Patient n916 sMAPE Formula validation: 3.2305699524119458
+Patient n772 sMAPE Formula validation: 5.620334020332268
+Patient n1543 sMAPE Formula validation: 11.68739414350094
+Patient n1280 sMAPE Formula validation: 7.464646567510777
+Patient n460 sMAPE Formula validation: 6.684040160177402
+Patient n377 sMAPE Formula validation: 12.34763316384534
+Patient n54 sMAPE Formula validation: 7.652789646353911
+Patient n1028 sMAPE Formula validation: 11.85753822984478
+Patient n998 sMAPE Formula validation: 4.646931374149743
+Patient n1462 sMAPE Formula validation: 6.572230523769554
+Patient n94 sMAPE Formula validation: 4.226829938173723
+Patient n1341 sMAPE Formula validation: 25.648695153360997
+Patient n1283 sMAPE Formula validation: 5.833935963281698
+Patient n1461 sMAPE Formula validation: 4.7334991221082365
+Patient n365 sMAPE Formula validation: 30.336504728395596
+Patient n1255 sMAPE Formula validation: 8.52264926405833
+Patient n195 sMAPE Formula validation: 5.254384913708312
+Patient n689 sMAPE Formula validation: 31.344542639569305
+Patient n629 sMAPE Formula validation: 50.21255343177998
+Patient n1295 sMAPE Formula validation: 1.9783085100057458
+Patient n1191 sMAPE Formula validation: 10.254090423440324
+Patient n766 sMAPE Formula validation: 13.754566209119107
+Patient n1212 sMAPE Formula validation: 27.259301728093465
+Patient n598 sMAPE Formula validation: 8.381364860394758
+Patient n724 sMAPE Formula validation: 2.05273379143998
+Patient n1000 sMAPE Formula validation: 8.576055444352352
+Patient n1379 sMAPE Formula validation: 18.695893946880698
+Patient n792 sMAPE Formula validation: 11.753434220990169
+Patient n827 sMAPE Formula validation: 9.651965564764497
+Patient n1477 sMAPE Formula validation: 1.716375773968264
+Patient n463 sMAPE Formula validation: 5.856583718919967
+Patient n441 sMAPE Formula validation: 9.12395334349425
+Patient n1186 sMAPE Formula validation: 6.0096520343580675
+Patient n356 sMAPE Formula validation: 6.483991300727457
+Patient n270 sMAPE Formula validation: 3.002718292057353
+Patient n1319 sMAPE Formula validation: 18.87105278578824
+Patient n1250 sMAPE Formula validation: 6.755538371080899
+Patient n253 sMAPE Formula validation: 3.0090796233507855
+Patient n1117 sMAPE Formula validation: 7.5265615282431195
+Patient n121 sMAPE Formula validation: 2.411095599131907
+Patient n281 sMAPE Formula validation: 3.005609656390766
+--> Average - STD loss: 0.06408201216869228 - 0.1687444007050409
+--> Median [Q1-Q3] loss: 0.009117802461862032 [0.0039060151550735387 - 0.03397862492344516]
+--> Average - STD sMAPE: 13.153971679976946 - 14.00837345857644
+--> Median [Q1-Q3] sMAPE: 7.730384110521898 [5.298546538328973 - 14.919941523388076]
+--> Average - STD RMSLE: 0.06718360501970047 - 0.10125158506186573
+--> Median [Q1-Q3] RMSLE: 0.03295482328848384 [0.014666154380900409 - 0.07877474492725411]
+********************************
+********************************
+********************************
+********************************
+*************MULTISTART***********
+UMG - Test NN started 2026-03-16T00:50:41.537
+   Training set: 222
+   Test set: 45
+********************************
+*********************************
+UMG - Evaluating NN with sMAPE (idx:1) larger bounds
+Patient n2 sMAPE NN validation: 6.969584930102364
+Patient n3 sMAPE NN validation: 9.84453320286572
+Patient n6 sMAPE NN validation: 14.86640822581801
+Patient n7 sMAPE NN validation: 2.4752516843752392
+Patient n13 sMAPE NN validation: 40.98238927173923
+Patient n31 sMAPE NN validation: 11.125422957119614
+Patient n44 sMAPE NN validation: 15.022883998763792
+Patient n45 sMAPE NN validation: 10.188132902946052
+Patient n46 sMAPE NN validation: 7.657701685820693
+Patient n48 sMAPE NN validation: 6.7431169347216
+Patient n57 sMAPE NN validation: 15.553896890884996
+Patient n60 sMAPE NN validation: 7.100706160907045
+Patient n62 sMAPE NN validation: 6.765975433803607
+Patient n63 sMAPE NN validation: 32.54728326631729
+Patient n66 sMAPE NN validation: 4.667848290626247
+Patient n67 sMAPE NN validation: 14.010338272142933
+Patient n68 sMAPE NN validation: 2.3491753619778732
+Patient n69 sMAPE NN validation: 19.952922293337537
+Patient n70 sMAPE NN validation: 2.764856918889604
+Patient n71 sMAPE NN validation: 10.645318399142173
+Patient n72 sMAPE NN validation: 7.344787742346239
+Patient n73 sMAPE NN validation: 13.02108858799376
+Patient n75 sMAPE NN validation: 12.216509102064233
+Patient n76 sMAPE NN validation: 2.6602102248152737
+Patient n78 sMAPE NN validation: 20.86880375759021
+Patient n81 sMAPE NN validation: 7.064961094271857
+Patient n83 sMAPE NN validation: 5.784213907383515
+Patient n84 sMAPE NN validation: 39.95442837628089
+Patient n85 sMAPE NN validation: 9.560993590486094
+Patient n87 sMAPE NN validation: 25.185807464568327
+Patient n90 sMAPE NN validation: 33.34364469641807
+Patient n91 sMAPE NN validation: 7.4354716295990695
+Patient n92 sMAPE NN validation: 10.153843410046374
+Patient n93 sMAPE NN validation: 12.802662198661366
+Patient n95 sMAPE NN validation: 11.341041924433995
+Patient n96 sMAPE NN validation: 6.255692044419835
+Patient n97 sMAPE NN validation: 16.60189122724943
+Patient n99 sMAPE NN validation: 11.317706494510135
+Patient n100 sMAPE NN validation: 7.487296135015551
+Patient n101 sMAPE NN validation: 14.886036409303891
+Patient n102 sMAPE NN validation: 19.639261197753793
+Patient n105 sMAPE NN validation: 4.74595861662613
+Patient n107 sMAPE NN validation: 5.96827742891559
+Patient n109 sMAPE NN validation: 12.685986486172892
+Patient n110 sMAPE NN validation: 7.844952988838119
+--> Average - STD loss: 0.04619563013658428 - 0.08769689511308586
+--> Median [Q1-Q3] loss: 0.017061981210187833 [0.007150149771433582 - 0.046253304049351775]
+--> Average - STD sMAPE: 12.631228307068138 - 9.219975582762489
+--> Median [Q1-Q3] sMAPE: 10.188132902946052 [6.969584930102364 - 14.886036409303891]
+--> Average - STD RMSLE: 0.048991947412554714 - 0.05434481542173141
+--> Median [Q1-Q3] RMSLE: 0.032817279701770216 [0.01630856948060641 - 0.06679081644795559]
+*********************************
+UMG - Evaluating NN with sMAPE (idx:2) larger bounds
+Patient n2 sMAPE NN validation: 5.904891640938162
+Patient n3 sMAPE NN validation: 9.235610978964058
+Patient n6 sMAPE NN validation: 12.57314447862417
+Patient n7 sMAPE NN validation: 2.7495101255985195
+Patient n13 sMAPE NN validation: 41.233408327104826
+Patient n31 sMAPE NN validation: 6.129807267433264
+Patient n44 sMAPE NN validation: 7.288055974344948
+Patient n45 sMAPE NN validation: 8.644904341773277
+Patient n46 sMAPE NN validation: 6.7219983324479395
+Patient n48 sMAPE NN validation: 6.526859530085032
+Patient n57 sMAPE NN validation: 13.953412443065089
+Patient n60 sMAPE NN validation: 4.565822457864608
+Patient n62 sMAPE NN validation: 6.696557777651321
+Patient n63 sMAPE NN validation: 14.196114442985191
+Patient n66 sMAPE NN validation: 5.276779191772352
+Patient n67 sMAPE NN validation: 12.671503443349327
+Patient n68 sMAPE NN validation: 0.06340808715982008
+Patient n69 sMAPE NN validation: 7.12616402501163
+Patient n70 sMAPE NN validation: 2.697085986104411
+Patient n71 sMAPE NN validation: 8.958508311647002
+Patient n72 sMAPE NN validation: 6.695069815769239
+Patient n73 sMAPE NN validation: 9.740919596961083
+Patient n75 sMAPE NN validation: 9.790828682739203
+Patient n76 sMAPE NN validation: 4.241853500007471
+Patient n78 sMAPE NN validation: 18.032352978840798
+Patient n81 sMAPE NN validation: 8.042250128372428
+Patient n83 sMAPE NN validation: 4.156310638566154
+Patient n84 sMAPE NN validation: 39.64557195795082
+Patient n85 sMAPE NN validation: 8.32883780450033
+Patient n87 sMAPE NN validation: 20.21872804664211
+Patient n90 sMAPE NN validation: 25.459516037761443
+Patient n91 sMAPE NN validation: 4.85486246922711
+Patient n92 sMAPE NN validation: 9.21553679820983
+Patient n93 sMAPE NN validation: 23.391321298139086
+Patient n95 sMAPE NN validation: 5.174883137779528
+Patient n96 sMAPE NN validation: 6.924580053500589
+Patient n97 sMAPE NN validation: 11.525088822199486
+Patient n99 sMAPE NN validation: 10.256945302911477
+Patient n100 sMAPE NN validation: 3.6473506513714073
+Patient n101 sMAPE NN validation: 8.17047037215459
+Patient n102 sMAPE NN validation: 17.810639941092287
+Patient n105 sMAPE NN validation: 6.010505834271231
+Patient n107 sMAPE NN validation: 2.053455816062651
+Patient n109 sMAPE NN validation: 12.731670692479211
+Patient n110 sMAPE NN validation: 3.6952318594363445
+--> Average - STD loss: 0.03216773927890338 - 0.06878781416820427
+--> Median [Q1-Q3] loss: 0.010597708265212516 [0.004751821191192199 - 0.022122422691233507]
+--> Average - STD sMAPE: 10.289518431130464 - 8.533500440067414
+--> Median [Q1-Q3] sMAPE: 8.042250128372428 [5.276779191772352 - 12.57314447862417]
+--> Average - STD RMSLE: 0.043839928152244086 - 0.053730371796935926
+--> Median [Q1-Q3] RMSLE: 0.024670964460121934 [0.014887364796965981 - 0.048706062129301515]
+*********************************
+UMG - Evaluating NN with sMAPE (idx:3) larger bounds
+Patient n2 sMAPE NN validation: 7.253334181277743
+Patient n3 sMAPE NN validation: 9.09022906763162
+Patient n6 sMAPE NN validation: 14.034517911644443
+Patient n7 sMAPE NN validation: 4.237295444707969
+Patient n13 sMAPE NN validation: 26.33594480642225
+Patient n31 sMAPE NN validation: 14.320908669431528
+Patient n44 sMAPE NN validation: 12.488912857399422
+Patient n45 sMAPE NN validation: 10.905109366804217
+Patient n46 sMAPE NN validation: 6.7969329399394764
+Patient n48 sMAPE NN validation: 6.668209267243092
+Patient n57 sMAPE NN validation: 17.175476625573545
+Patient n60 sMAPE NN validation: 7.618808960170622
+Patient n62 sMAPE NN validation: 6.725371693686018
+Patient n63 sMAPE NN validation: 31.832623107968654
+Patient n66 sMAPE NN validation: 4.3694889235671015
+Patient n67 sMAPE NN validation: 12.65915043017676
+Patient n68 sMAPE NN validation: 1.0006463106486003
+Patient n69 sMAPE NN validation: 20.120065603734947
+Patient n70 sMAPE NN validation: 4.506313637339296
+Patient n71 sMAPE NN validation: 8.957713840931786
+Patient n72 sMAPE NN validation: 15.6750883496374
+Patient n73 sMAPE NN validation: 11.610306310768276
+Patient n75 sMAPE NN validation: 7.930609115407155
+Patient n76 sMAPE NN validation: 9.40406784483355
+Patient n78 sMAPE NN validation: 19.176120637909346
+Patient n81 sMAPE NN validation: 7.601997517745511
+Patient n83 sMAPE NN validation: 5.996157388589621
+Patient n84 sMAPE NN validation: 49.17249853534443
+Patient n85 sMAPE NN validation: 7.713138948161884
+Patient n87 sMAPE NN validation: 12.233119466898911
+Patient n90 sMAPE NN validation: 30.132938991122664
+Patient n91 sMAPE NN validation: 8.436785242954674
+Patient n92 sMAPE NN validation: 12.646404357419492
+Patient n93 sMAPE NN validation: 25.934370094537535
+Patient n95 sMAPE NN validation: 8.884422208816483
+Patient n96 sMAPE NN validation: 5.223946513319033
+Patient n97 sMAPE NN validation: 8.046391408359325
+Patient n99 sMAPE NN validation: 12.244064017451354
+Patient n100 sMAPE NN validation: 8.656096547788616
+Patient n101 sMAPE NN validation: 8.003406566308444
+Patient n102 sMAPE NN validation: 27.687270852819644
+Patient n105 sMAPE NN validation: 6.61949929637365
+Patient n107 sMAPE NN validation: 4.015773497257934
+Patient n109 sMAPE NN validation: 17.6397133214751
+Patient n110 sMAPE NN validation: 1.913129046732653
+--> Average - STD loss: 0.04159478133023633 - 0.07752217507610493
+--> Median [Q1-Q3] loss: 0.016731658270762905 [0.007658887278597731 - 0.04724042250838703]
+--> Average - STD sMAPE: 12.437652660540708 - 9.27325845717668
+--> Median [Q1-Q3] sMAPE: 8.957713840931786 [6.7969329399394764 - 14.320908669431528]
+--> Average - STD RMSLE: 0.051935322957442485 - 0.05632112797602714
+--> Median [Q1-Q3] RMSLE: 0.030413642123037155 [0.016340374663629014 - 0.062392926420855074]
+*********************************
+UMG - Evaluating NN with sMAPE (idx:4) larger bounds
+Patient n2 sMAPE NN validation: 5.509520665518431
+Patient n3 sMAPE NN validation: 9.874137161691417
+Patient n6 sMAPE NN validation: 13.54727332768573
+Patient n7 sMAPE NN validation: 4.337640271039275
+Patient n13 sMAPE NN validation: 13.275824804040873
+Patient n31 sMAPE NN validation: 13.20820855078448
+Patient n44 sMAPE NN validation: 6.563797412053322
+Patient n45 sMAPE NN validation: 9.5370157168561
+Patient n46 sMAPE NN validation: 6.254506604754092
+Patient n48 sMAPE NN validation: 6.475366286338835
+Patient n57 sMAPE NN validation: 13.38046644641399
+Patient n60 sMAPE NN validation: 7.034842410484544
+Patient n62 sMAPE NN validation: 7.25156552682706
+Patient n63 sMAPE NN validation: 25.1212313856662
+Patient n66 sMAPE NN validation: 4.718869945552053
+Patient n67 sMAPE NN validation: 14.316867381375037
+Patient n68 sMAPE NN validation: 1.4943608644228792
+Patient n69 sMAPE NN validation: 6.564167016327789
+Patient n70 sMAPE NN validation: 1.3320975513848177
+Patient n71 sMAPE NN validation: 9.21848224717671
+Patient n72 sMAPE NN validation: 10.983164246583573
+Patient n73 sMAPE NN validation: 11.829454809120813
+Patient n75 sMAPE NN validation: 9.410220542050732
+Patient n76 sMAPE NN validation: 3.696511216500351
+Patient n78 sMAPE NN validation: 11.810097950191816
+Patient n81 sMAPE NN validation: 5.080900996665826
+Patient n83 sMAPE NN validation: 5.575031374035961
+Patient n84 sMAPE NN validation: 38.07052382434988
+Patient n85 sMAPE NN validation: 7.644874397397904
+Patient n87 sMAPE NN validation: 18.593207753703165
+Patient n90 sMAPE NN validation: 25.114639729522974
+Patient n91 sMAPE NN validation: 5.986429376828088
+Patient n92 sMAPE NN validation: 7.1488788097901255
+Patient n93 sMAPE NN validation: 13.692801520937023
+Patient n95 sMAPE NN validation: 6.747366012850642
+Patient n96 sMAPE NN validation: 4.095062327587801
+Patient n97 sMAPE NN validation: 11.046492816361308
+Patient n99 sMAPE NN validation: 9.037245221164278
+Patient n100 sMAPE NN validation: 5.642299182843172
+Patient n101 sMAPE NN validation: 17.810338900169924
+Patient n102 sMAPE NN validation: 25.919352446868714
+Patient n105 sMAPE NN validation: 4.748142853477196
+Patient n107 sMAPE NN validation: 2.8754397693168765
+Patient n109 sMAPE NN validation: 21.089914416685197
+Patient n110 sMAPE NN validation: 3.386291128443179
+--> Average - STD loss: 0.03183815621263312 - 0.06765118045750834
+--> Median [Q1-Q3] loss: 0.010752785837916789 [0.005091322422345598 - 0.02552458669533776]
+--> Average - STD sMAPE: 10.35668718221867 - 7.435355999633189
+--> Median [Q1-Q3] sMAPE: 7.644874397397904 [5.575031374035961 - 13.275824804040873]
+--> Average - STD RMSLE: 0.0447383454036915 - 0.05025055456074853
+--> Median [Q1-Q3] RMSLE: 0.02887998355428136 [0.013505403288158451 - 0.06291637090318049]

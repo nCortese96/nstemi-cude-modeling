@@ -12,12 +12,16 @@ using .MultiStartOptimizer
 
 # CLI:
 # julia src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]
-length(ARGS) >= 2 || error(
-    "Usage: julia src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]"
-)
+# length(ARGS) >= 2 || error(
+#     "Usage: julia src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]"
+# )
 
-nn_width = parse(Int, ARGS[1])
-dataset_id = parse(Int, ARGS[2])
+length(ARGS) >= 2 || @info "REPL execution or default setting selected. 
+        For CLI usage, provide at least <width> and <dataset_id>.
+        \nUsage: julia --project=. src/test_NN.jl <width> <dataset_id> [bounds=true|false] [λ_back=1.0] [T_SCALE=240.0] [N_multistart=40]"
+
+nn_width = length(ARGS) >= 2 ? parse(Int, ARGS[1]) : 8
+dataset_id = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 0
 
 bounds = length(ARGS) >= 3 ? parse(Bool, lowercase(ARGS[3])) : true
 λ_back = length(ARGS) >= 4 ? parse(Float64, ARGS[4]) : 1.0
@@ -63,6 +67,8 @@ use_multistart = N_multistart > 0
 multistart_maxiters = 1000
 multistart_maxtime = 80.0
 multistart_rng = StableRNG(1234)
+prescreen = false
+topk = 12
 
 chain = neural_network_model(nn_depth, nn_width; input_dims=input_dim);
 
@@ -209,19 +215,21 @@ models_summary = DataFrame(
     rmsle_iqr = Float64[]
 )
 
-for best_idx in eachindex(neural_network_parameters)
+# for best_idx in eachindex(neural_network_parameters)
+    best_idx = 3
 
     model_id = "cfg$(nn_depth)$(nn_width)_$(best_idx)"
 
-    figsave_path = "$(fig_path)/$(dataset_name)_test_NN_$(best_idx)$(use_multistart ? "_ms_test" : "")"
-    modelssave_path = "$(models_path)/$(dataset_name)_test_NN_$(best_idx)$(use_multistart ? "_ms_test" : "")"
+    figsave_path = "$(fig_path)/$(dataset_name)_test_NN_ab10_$(best_idx)$(use_multistart ? "_ms_test" : "")"
+    modelssave_path = "$(models_path)/$(dataset_name)_test_NN_ab10_$(best_idx)$(use_multistart ? "_ms_test" : "")"
 
     mkpath(figsave_path)
     mkpath(modelssave_path)
 
     best_nn = neural_network_parameters[best_idx]
     best_ode_p = ode_params[best_idx] # log version where 1 is the index of the best model in info_output
-    reshaped_params = reshape(best_ode_p, :, N_params)
+    # reshaped_params = reshape(best_ode_p, :, N_params)
+    reshaped_params = permutedims(reshape(best_ode_p, N_params, :)) # reshape to (N_param_sets, N_params) and then permute to (N_param_sets, N_params)
     mean_pguess = vec(mean(reshaped_params, dims=1))
     std_pguess = vec(std(exp.(reshaped_params), dims=1))
     median_pguess = vec(median(exp.(reshaped_params), dims=1))
@@ -236,7 +244,7 @@ for best_idx in eachindex(neural_network_parameters)
     @info "Selected as pguess: $(exp.(pguess))"
 
     # t_norm = range(0.0, 1.0, length=200)
-    t_span_grid = 0.1:0.1:1000  # alcuni valori tipici del tuo β
+    t_span_grid = 0.1:0.1:2500  # alcuni valori tipici del tuo β
     β_vals = 0.1:0.1:1.0
     p = Plots.plot()
     for β in β_vals
@@ -244,12 +252,16 @@ for best_idx in eachindex(neural_network_parameters)
         Plots.plot!(p, t_span_grid, y, label="β = $β", linewidth=2)
     end
     Plots.plot!(p, xlabel="Time (h)", ylabel="rupture f(t_norm,β)", title="Learned sarcomere rupture function")
-    # save("$(figsave_path)/correction_function.png", p)
-    savefig(p, "$(figsave_path)/correction_function.png")
-    # Plots.plot!(p, legend=false)
     display(p)
+    # save("$(figsave_path)/correction_function.png", p)
+    savefig(p, "$(figsave_path)/correction_function_2500h.png")
+    # Plots.plot!(p, legend=false)
 
-    a_train, b_train, Cs0_train, Cc0_train, β_train, f_train = params_extraction(training_dataset, best_ode_p, best_nn; N_params=N_params, data_label="training", dataset=dataset_name, figsave_path=figsave_path, show_outliers=true, savefigure=true)
+    a_train, b_train, Cs0_train, Cc0_train, β_train, f_train = params_extraction(
+        training_dataset, best_ode_p;
+        N_params=N_params, data_label="training", 
+        dataset=dataset_name, figsave_path=figsave_path, 
+        show_outliers=true, savefigure=true)
     display(f_train)
 
     CSV.write("$(modelssave_path)/patients_params_train.csv", DataFrame(
@@ -268,10 +280,10 @@ for best_idx in eachindex(neural_network_parameters)
     if N_params == 5
         lhs_lb = log.([0.001, 0.001, 0.001, 0.001, 0.001]) # 0.001, 0.001, 0.01, 0.01, 0.001
         # lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1.0]); # 5.0, 5.0, 300.0, 400.0, 1
-        lhs_ub = log.([5.0, 5.0, 500.0, 500.0, 1.0]) # 5.0, 5.0, 300.0, 400.0, 1
+        lhs_ub = log.([10.0, 10.0, 500.0, 500.0, 1.0]) # 5.0, 5.0, 300.0, 400.0, 1
     else
         lhs_lb = log.([0.001, 0.001, 0.001, 0.001]) # 0.001, 0.001, 0.01, 0.01
-        lhs_ub = log.([5.0, 5.0, 500.0, 500.0]) # 5.0, 5.0, 300.0, 400.0
+        lhs_ub = log.([10.0, 10.0, 500.0, 500.0]) # 5.0, 5.0, 300.0, 400.0
     end
 
     # ode_p = best_solution;
@@ -348,8 +360,8 @@ for best_idx in eachindex(neural_network_parameters)
                 verbose = false,
                 maxiters = multistart_maxiters,
                 maxtime = multistart_maxtime,
-                prescreen = true,
-                topk = 8
+                prescreen = prescreen,
+                topk = topk
             )
 
             if best_result === nothing
@@ -470,8 +482,8 @@ for best_idx in eachindex(neural_network_parameters)
 
         # save("$(figsave_path)/patient_$(patient.id)$(dataset_name).svg", pl)
         # save("$(figsave_path)/patient_$(patient.id)$(dataset_name)_plasm.svg", pl_plasm)
-        savefig(pl, "$(figsave_path)/patient_$(patient.id)$(dataset_name).svg")
-        savefig(pl_plasm, "$(figsave_path)/patient_$(patient.id)$(dataset_name)_plasm.svg")
+        savefig(pl, "$(figsave_path)/patient_$(patient.id)_$(dataset_name).svg")
+        savefig(pl_plasm, "$(figsave_path)/patient_$(patient.id)_$(dataset_name)_plasm.svg")
 
         next!(ev_bar)
     end
@@ -481,7 +493,7 @@ for best_idx in eachindex(neural_network_parameters)
         open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
             println(io, "WARN: No successful patients for model $(model_id). Skipping summary and CSV export.")
         end
-        continue
+        # continue
     end
 
     used_test_dataset = test_dataset[successful_idx]
@@ -492,8 +504,7 @@ for best_idx in eachindex(neural_network_parameters)
 
     a, b, Cs0, Cc0, β, fig = params_extraction(
         used_test_dataset,
-        ode_params_val,
-        best_nn;
+        ode_params_val;
         N_params = N_params,
         data_label = "validation",
         dataset = dataset_name,
@@ -504,7 +515,7 @@ for best_idx in eachindex(neural_network_parameters)
     display(fig)
 
     CSV.write("$(modelssave_path)/patients_params_val.csv", DataFrame(
-        patient_id=test_ids,
+        patient_id=used_test_ids,
         a=a,
         b=b,
         Cs0=Cs0,
@@ -524,7 +535,7 @@ for best_idx in eachindex(neural_network_parameters)
         model_idx = best_idx,
         nn_depth = nn_depth,
         nn_width = nn_width,
-        n_patients = length(test_dataset),
+        n_patients = length(used_test_dataset),
 
         loss_mean = mean(loss_values),
         loss_std = std(loss_values),
@@ -565,12 +576,12 @@ for best_idx in eachindex(neural_network_parameters)
     end
 
     CSV.write("$(modelssave_path)/patients_metrics_val.csv", DataFrame(
-        patient_id=test_ids,
+        patient_id=used_test_ids,
         smape=smape_values,
         rmsle=rmsle_values,
         loss=loss_values
     ))
-end
+# end
 
 sort!(models_summary, :smape_median)
 CSV.write("$(models_path)/models_summary_$(dataset_name).csv", models_summary)

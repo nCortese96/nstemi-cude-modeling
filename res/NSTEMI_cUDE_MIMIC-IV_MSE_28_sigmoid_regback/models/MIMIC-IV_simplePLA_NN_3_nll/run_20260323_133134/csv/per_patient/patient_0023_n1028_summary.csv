@@ -1,0 +1,6 @@
+patient_id,patient_idx,param_idx,param_name,class_label,theta_hat,theta_hat_exp,threshold,left_endpoint,right_endpoint,retcode_left,retcode_right
+n1028,23,1,a,Unidentifiable,-2.414721120320316,0.08939226513215114,3.8414588206941245,NaN,NaN,nonidentifiable,failure
+n1028,23,2,b,Practically identifiable,0.4108741603217803,1.5081355613226743,3.8414588206941245,NaN,0.642021707236328,nonidentifiable,identifiable
+n1028,23,3,Cs0,Practically identifiable,6.214607998422191,499.9999500000022,3.8414588206941245,1.549404580923937,NaN,identifiable,nonidentifiable
+n1028,23,4,Cc0,Unidentifiable,2.2887536712299728,9.862637928598797,3.8414588206941245,NaN,NaN,nonidentifiable,failure
+n1028,23,5,beta,Practically identifiable,-6.9077551789821365,0.0010000001000000055,3.8414588206941245,NaN,-3.363674687814516,nonidentifiable,identifiable

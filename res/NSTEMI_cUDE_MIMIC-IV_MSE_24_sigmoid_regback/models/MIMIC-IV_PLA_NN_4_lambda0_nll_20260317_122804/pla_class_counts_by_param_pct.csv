@@ -1,0 +1,16 @@
+param,class,count,param_total,percentage
+a,practically_identifiable,30,56,53.57
+b,practically_identifiable,18,56,32.14
+Cs0,identifiable,21,56,37.5
+Cc0,identifiable,31,56,55.36
+beta,identifiable,33,56,58.93
+a,identifiable,16,56,28.57
+b,identifiable,32,56,57.14
+Cs0,practically_identifiable,28,56,50.0
+beta,practically_identifiable,15,56,26.79
+Cs0,unidentifiable,7,56,12.5
+a,unidentifiable,10,56,17.86
+Cc0,practically_identifiable,15,56,26.79
+Cc0,unidentifiable,10,56,17.86
+beta,unidentifiable,8,56,14.29
+b,unidentifiable,6,56,10.71

@@ -1,0 +1,13 @@
+base_patient,synthetic_id,trunc_section,trunc_set,budget,kept_n,removed_n,removed_start,removed_gap,removed_end
+MIMIC_n606,s42MIMIC_n606_START_S1_B03,start,1,3,10,3,3,0,0
+MIMIC_n606,s42MIMIC_n606_START_S2_B06,start,2,6,7,6,6,0,0
+MIMIC_n606,s42MIMIC_n606_MID_S1_B03,middle,1,3,10,3,0,3,0
+MIMIC_n606,s42MIMIC_n606_MID_S2_B06,middle,2,6,7,6,0,6,0
+MIMIC_n606,s42MIMIC_n606_END_S1_B03,end,1,3,10,3,0,0,3
+MIMIC_n606,s42MIMIC_n606_END_S2_B06,end,2,6,7,6,0,0,6
+UMG_n107,s42UMG_n107_START_S1_B01,start,1,1,7,1,1,0,0
+UMG_n107,s42UMG_n107_START_S2_B02,start,2,2,6,2,2,0,0
+UMG_n107,s42UMG_n107_MID_S1_B01,middle,1,1,7,1,0,1,0
+UMG_n107,s42UMG_n107_MID_S2_B02,middle,2,2,6,2,0,2,0
+UMG_n107,s42UMG_n107_END_S1_B01,end,1,1,7,1,0,0,1
+UMG_n107,s42UMG_n107_END_S2_B02,end,2,2,6,2,0,0,2

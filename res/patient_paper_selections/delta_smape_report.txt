@@ -1,0 +1,119 @@
+=== DELTA sMAPE REPORT (MIMIC) ===
+Total Patients: 56
+cUDE Wins (ΔsMAPE < -1.0%): 37.5% (21 patients)
+Ties (|ΔsMAPE| ≤ 1.0%):     30.36% (17 patients)
+ODE Wins (ΔsMAPE > 1.0%):   32.14% (18 patients)
+-----------------------------------------
+Patient Breakdown:
+n736 | ODE: 39.75% | cUDE: 14.99% | Delta: -24.75% | Outcome: cUDE Wins
+n768 | ODE: 28.24% | cUDE: 6.9% | Delta: -21.34% | Outcome: cUDE Wins
+n377 | ODE: 15.5% | cUDE: 0.7% | Delta: -14.79% | Outcome: cUDE Wins
+n240 | ODE: 29.7% | cUDE: 15.64% | Delta: -14.06% | Outcome: cUDE Wins
+n629 | ODE: 41.88% | cUDE: 28.22% | Delta: -13.66% | Outcome: cUDE Wins
+n689 | ODE: 30.66% | cUDE: 20.49% | Delta: -10.18% | Outcome: cUDE Wins
+n1341 | ODE: 9.76% | cUDE: 4.47% | Delta: -5.29% | Outcome: cUDE Wins
+n1286 | ODE: 19.05% | cUDE: 14.59% | Delta: -4.46% | Outcome: cUDE Wins
+n713 | ODE: 14.28% | cUDE: 9.83% | Delta: -4.44% | Outcome: cUDE Wins
+n750 | ODE: 4.5% | cUDE: 0.62% | Delta: -3.88% | Outcome: cUDE Wins
+n460 | ODE: 8.62% | cUDE: 5.23% | Delta: -3.39% | Outcome: cUDE Wins
+n1461 | ODE: 4.93% | cUDE: 2.61% | Delta: -2.32% | Outcome: cUDE Wins
+n1319 | ODE: 14.92% | cUDE: 12.87% | Delta: -2.04% | Outcome: cUDE Wins
+n253 | ODE: 4.11% | cUDE: 2.1% | Delta: -2.0% | Outcome: cUDE Wins
+n31 | ODE: 8.57% | cUDE: 6.69% | Delta: -1.88% | Outcome: cUDE Wins
+n772 | ODE: 3.96% | cUDE: 2.56% | Delta: -1.4% | Outcome: cUDE Wins
+n1212 | ODE: 23.39% | cUDE: 22.0% | Delta: -1.39% | Outcome: cUDE Wins
+n488 | ODE: 2.6% | cUDE: 1.26% | Delta: -1.35% | Outcome: cUDE Wins
+n94 | ODE: 4.93% | cUDE: 3.72% | Delta: -1.21% | Outcome: cUDE Wins
+n195 | ODE: 2.78% | cUDE: 1.72% | Delta: -1.07% | Outcome: cUDE Wins
+n54 | ODE: 7.76% | cUDE: 6.73% | Delta: -1.03% | Outcome: cUDE Wins
+n916 | ODE: 4.82% | cUDE: 3.87% | Delta: -0.95% | Outcome: Tie
+n1379 | ODE: 9.43% | cUDE: 8.64% | Delta: -0.79% | Outcome: Tie
+n724 | ODE: 2.12% | cUDE: 1.38% | Delta: -0.74% | Outcome: Tie
+n441 | ODE: 9.03% | cUDE: 8.36% | Delta: -0.67% | Outcome: Tie
+n1462 | ODE: 8.35% | cUDE: 7.68% | Delta: -0.66% | Outcome: Tie
+n121 | ODE: 2.77% | cUDE: 2.47% | Delta: -0.3% | Outcome: Tie
+n1437 | ODE: 0.6% | cUDE: 0.59% | Delta: -0.01% | Outcome: Tie
+n1295 | ODE: 1.94% | cUDE: 1.98% | Delta: 0.04% | Outcome: Tie
+n356 | ODE: 6.51% | cUDE: 6.58% | Delta: 0.07% | Outcome: Tie
+n792 | ODE: 4.0% | cUDE: 4.1% | Delta: 0.1% | Outcome: Tie
+n1283 | ODE: 3.95% | cUDE: 4.1% | Delta: 0.15% | Outcome: Tie
+n977 | ODE: 5.18% | cUDE: 5.34% | Delta: 0.16% | Outcome: Tie
+n1471 | ODE: 12.83% | cUDE: 13.01% | Delta: 0.18% | Outcome: Tie
+n1043 | ODE: 4.59% | cUDE: 4.81% | Delta: 0.22% | Outcome: Tie
+n1250 | ODE: 6.38% | cUDE: 6.71% | Delta: 0.33% | Outcome: Tie
+n827 | ODE: 8.98% | cUDE: 9.51% | Delta: 0.53% | Outcome: Tie
+n1477 | ODE: 1.17% | cUDE: 1.9% | Delta: 0.73% | Outcome: Tie
+n1543 | ODE: 10.65% | cUDE: 11.8% | Delta: 1.15% | Outcome: ODE Wins
+n598 | ODE: 0.48% | cUDE: 1.69% | Delta: 1.21% | Outcome: ODE Wins
+n1186 | ODE: 2.38% | cUDE: 3.62% | Delta: 1.25% | Outcome: ODE Wins
+n270 | ODE: 2.56% | cUDE: 3.86% | Delta: 1.3% | Outcome: ODE Wins
+n998 | ODE: 3.79% | cUDE: 5.31% | Delta: 1.52% | Outcome: ODE Wins
+n1067 | ODE: 13.99% | cUDE: 15.79% | Delta: 1.79% | Outcome: ODE Wins
+n1117 | ODE: 5.58% | cUDE: 7.54% | Delta: 1.96% | Outcome: ODE Wins
+n766 | ODE: 12.61% | cUDE: 14.6% | Delta: 2.0% | Outcome: ODE Wins
+n1000 | ODE: 0.01% | cUDE: 2.3% | Delta: 2.28% | Outcome: ODE Wins
+n606 | ODE: 56.09% | cUDE: 59.18% | Delta: 3.08% | Outcome: ODE Wins
+n1001 | ODE: 8.49% | cUDE: 11.65% | Delta: 3.17% | Outcome: ODE Wins
+n281 | ODE: 3.19% | cUDE: 6.55% | Delta: 3.36% | Outcome: ODE Wins
+n1191 | ODE: 0.01% | cUDE: 3.42% | Delta: 3.42% | Outcome: ODE Wins
+n1255 | ODE: 3.08% | cUDE: 7.83% | Delta: 4.75% | Outcome: ODE Wins
+n365 | ODE: 25.24% | cUDE: 33.67% | Delta: 8.44% | Outcome: ODE Wins
+n1028 | ODE: 8.25% | cUDE: 16.87% | Delta: 8.63% | Outcome: ODE Wins
+n1280 | ODE: 8.7% | cUDE: 20.0% | Delta: 11.3% | Outcome: ODE Wins
+n463 | ODE: 3.69% | cUDE: 29.53% | Delta: 25.83% | Outcome: ODE Wins
+=========================================
+
+=== DELTA sMAPE REPORT (UMG) ===
+Total Patients: 45
+cUDE Wins (ΔsMAPE < -1.0%): 51.11% (23 patients)
+Ties (|ΔsMAPE| ≤ 1.0%):     33.33% (15 patients)
+ODE Wins (ΔsMAPE > 1.0%):   15.56% (7 patients)
+-----------------------------------------
+Patient Breakdown:
+n63 | ODE: 24.32% | cUDE: 7.5% | Delta: -16.82% | Outcome: cUDE Wins
+n76 | ODE: 16.61% | cUDE: 1.55% | Delta: -15.06% | Outcome: cUDE Wins
+n70 | ODE: 14.83% | cUDE: 0.83% | Delta: -14.0% | Outcome: cUDE Wins
+n101 | ODE: 22.28% | cUDE: 12.97% | Delta: -9.31% | Outcome: cUDE Wins
+n73 | ODE: 13.76% | cUDE: 5.73% | Delta: -8.04% | Outcome: cUDE Wins
+n69 | ODE: 16.04% | cUDE: 8.64% | Delta: -7.4% | Outcome: cUDE Wins
+n67 | ODE: 22.53% | cUDE: 16.09% | Delta: -6.44% | Outcome: cUDE Wins
+n109 | ODE: 19.36% | cUDE: 13.32% | Delta: -6.03% | Outcome: cUDE Wins
+n48 | ODE: 10.66% | cUDE: 6.21% | Delta: -4.45% | Outcome: cUDE Wins
+n95 | ODE: 13.15% | cUDE: 8.92% | Delta: -4.23% | Outcome: cUDE Wins
+n6 | ODE: 16.89% | cUDE: 12.79% | Delta: -4.1% | Outcome: cUDE Wins
+n78 | ODE: 21.91% | cUDE: 18.27% | Delta: -3.64% | Outcome: cUDE Wins
+n62 | ODE: 8.28% | cUDE: 5.08% | Delta: -3.19% | Outcome: cUDE Wins
+n66 | ODE: 7.09% | cUDE: 3.92% | Delta: -3.16% | Outcome: cUDE Wins
+n68 | ODE: 3.49% | cUDE: 0.36% | Delta: -3.13% | Outcome: cUDE Wins
+n84 | ODE: 42.97% | cUDE: 39.9% | Delta: -3.08% | Outcome: cUDE Wins
+n107 | ODE: 5.45% | cUDE: 2.43% | Delta: -3.02% | Outcome: cUDE Wins
+n46 | ODE: 10.87% | cUDE: 8.05% | Delta: -2.83% | Outcome: cUDE Wins
+n45 | ODE: 10.82% | cUDE: 8.28% | Delta: -2.54% | Outcome: cUDE Wins
+n44 | ODE: 9.89% | cUDE: 7.91% | Delta: -1.98% | Outcome: cUDE Wins
+n92 | ODE: 9.79% | cUDE: 7.93% | Delta: -1.86% | Outcome: cUDE Wins
+n13 | ODE: 33.87% | cUDE: 32.42% | Delta: -1.45% | Outcome: cUDE Wins
+n3 | ODE: 8.47% | cUDE: 7.41% | Delta: -1.06% | Outcome: cUDE Wins
+n100 | ODE: 4.78% | cUDE: 3.97% | Delta: -0.81% | Outcome: Tie
+n57 | ODE: 15.95% | cUDE: 15.21% | Delta: -0.74% | Outcome: Tie
+n90 | ODE: 24.74% | cUDE: 24.07% | Delta: -0.67% | Outcome: Tie
+n93 | ODE: 17.29% | cUDE: 16.62% | Delta: -0.67% | Outcome: Tie
+n97 | ODE: 13.19% | cUDE: 12.64% | Delta: -0.55% | Outcome: Tie
+n71 | ODE: 9.48% | cUDE: 8.94% | Delta: -0.54% | Outcome: Tie
+n2 | ODE: 6.05% | cUDE: 5.59% | Delta: -0.45% | Outcome: Tie
+n99 | ODE: 11.99% | cUDE: 11.64% | Delta: -0.34% | Outcome: Tie
+n83 | ODE: 5.68% | cUDE: 5.47% | Delta: -0.2% | Outcome: Tie
+n85 | ODE: 7.49% | cUDE: 7.36% | Delta: -0.14% | Outcome: Tie
+n91 | ODE: 2.92% | cUDE: 3.12% | Delta: 0.2% | Outcome: Tie
+n7 | ODE: 3.63% | cUDE: 3.91% | Delta: 0.28% | Outcome: Tie
+n96 | ODE: 5.04% | cUDE: 5.49% | Delta: 0.45% | Outcome: Tie
+n110 | ODE: 3.26% | cUDE: 4.01% | Delta: 0.75% | Outcome: Tie
+n81 | ODE: 7.0% | cUDE: 7.94% | Delta: 0.94% | Outcome: Tie
+n105 | ODE: 4.2% | cUDE: 5.24% | Delta: 1.05% | Outcome: ODE Wins
+n75 | ODE: 8.88% | cUDE: 10.77% | Delta: 1.89% | Outcome: ODE Wins
+n60 | ODE: 5.2% | cUDE: 7.16% | Delta: 1.96% | Outcome: ODE Wins
+n87 | ODE: 14.61% | cUDE: 17.13% | Delta: 2.52% | Outcome: ODE Wins
+n72 | ODE: 5.35% | cUDE: 14.41% | Delta: 9.06% | Outcome: ODE Wins
+n31 | ODE: 6.81% | cUDE: 17.2% | Delta: 10.39% | Outcome: ODE Wins
+n102 | ODE: 21.66% | cUDE: 32.19% | Delta: 10.52% | Outcome: ODE Wins
+=========================================
+

@@ -138,20 +138,22 @@ function run_multistart(
         prescreen_losses = fill(NaN, N)
 
         if prescreen
-            prescreen_losses = map(starts) do s
-                try
-                    loss(s)
-                catch
-                    Inf
-                end
-            end
+            # prescreen_losses = map(starts) do s
+            #     try
+            #         loss(s)
+            #     catch
+            #         Inf
+            #     end
+            # end
+            prescreen_losses = [loss(s) for s in starts]
 
             finite_idx = findall(isfinite, prescreen_losses)
+            isempty(finite_idx) && error("Prescreen failed: no finite starting point found.")
 
-            if isempty(finite_idx)
-                verbose && println("Prescreen failed: no finite starting point found.")
-                return nothing, Any[]
-            end
+            # if isempty(finite_idx)
+            #     verbose && println("Prescreen failed: no finite starting point found.")
+            #     return nothing, Any[]
+            # end
 
             keep_n = min(topk, length(finite_idx))
             ord = sortperm(prescreen_losses[finite_idx])
@@ -169,7 +171,7 @@ function run_multistart(
         best_loss_atomic = Threads.Atomic{Float64}(Inf)
 
         # Progress bar
-        p = Progress(length(starts); desc="MultiStart", dt=0.5, showspeed=true)
+        p = Progress(length(starts); desc="MultiStart", dt=0.1, showspeed=true)
 
         monitor = Threads.@spawn begin
             last = 0
@@ -196,11 +198,12 @@ function run_multistart(
                 OptimizationProblem(optf, p0) :
                 OptimizationProblem(optf, p0; lb=lower, ub=upper)
 
-            result = try
-                solve(optprob, optimizer; maxiters=maxiters, maxtime=maxtime)
-            catch
-                nothing
-            end
+            result = solve(optprob, optimizer; maxiters=maxiters, maxtime=maxtime)
+            # result = try
+            #     solve(optprob, optimizer; maxiters=maxiters, maxtime=maxtime)
+            # catch
+            #     nothing
+            # end
 
             results[i] = result
 
@@ -219,6 +222,7 @@ function run_multistart(
         end
 
         wait(monitor)
+        finish!(p)
 
         if verbose
             nfail = count(r -> r === nothing, results)
@@ -238,6 +242,7 @@ function run_multistart(
             CSV.write(save_to_csv, Tables.columntable(rows))
         end
 
+        best_sol === nothing && error("MultiStart failed: no valid solution found among $(length(starts)) starts.")
         return best_sol, results
     end
 end

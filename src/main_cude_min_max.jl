@@ -455,7 +455,9 @@ ode_params = [optsol.u.ode[:] for optsol in optsols];
 # lb = log.([0.001, 0.001, 0.001, 0.01, 0.001]);
 # ub = log.([5.0, 5.0, 300.0, 400.0, 3]);
 
-#### Evaluation ####
+#### Preliminary Evaluation, not used in the final pipeline to select the final model. ####
+#### The final model was selected after running test_NN.jl, that extract all the metrics after optimizing through the multi-start optimization. ####
+#### The final model was therefore selected through grid_search.jl ####
 
 # n_models = length(optsols)                      # = selected_initials
 n_optsol = length(neural_network_parameters);
@@ -495,8 +497,8 @@ for k in 1:n_optsol # Solutions level
         for j in eachindex(test_dataset)]
 
     # println(models_valid)
-
-    initial = vec(mean(reshape(ode_p, :, N_params), dims=1))
+    reshaped_params = permutedims(reshape(ode_p, N_params, :))
+    initial = vec(mean(reshaped_params, dims=1))
     println("Initial: ", exp.(initial))
     open("res/$(experiment)/info_output.txt", "a") do io          # "w" = write (sovrascrive)
         println(io, "Initial: ", exp.(initial))

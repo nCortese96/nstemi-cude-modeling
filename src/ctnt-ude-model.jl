@@ -50,15 +50,24 @@ const EDGES = [0.0, 12.0, 24.0, 48.0, 72.0, 120.0, 200.0, T_SCALE];
 smape(pred, obs) = 200 * mean(abs.(pred .- obs) ./ (abs.(pred) .+ abs.(obs)))
 rmsle(y_true, y_pred) = sqrt(mean((log.(y_pred .+ 1) .- log.(y_true .+ 1)) .^ 2))
 
-function ctnt_ude!(
-    du,
-    u,
-    p,
-    t,
-    chain::SimpleChain;
-    # norm_type = 0,
-    # pat_times = Float64[]
-)
+function troponin_ode!(du, u, p, τ)
+    Cs, Cc, Cp = u
+
+    a = exp(p[1])
+    b = exp(p[2])
+    Td = exp(p[5])
+
+    n = 3.0
+    τn = τ^n
+    Td_n = Td^n
+    fτ = τn / (τn + Td_n)
+
+    du[1] = -(Cs - Cc) * fτ
+    du[2] = (Cs - Cc) * fτ - a * (Cc - Cp)
+    du[3] = a * (Cc - Cp) - b * Cp
+end
+
+function ctnt_ude!(du, u, p, t, chain::SimpleChain)
     Cs = u[1]
     Cc = u[2]
     Cp = u[3]
@@ -66,27 +75,12 @@ function ctnt_ude!(
     a = exp(p.ode[1])
     b = exp(p.ode[2])
 
-    # Cs0 = exp(p.ode[3])
-    # Cc0 = exp(p.ode[4])
-
-    # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
-
-    # correction = chain([u[1], t, a, b, Cs0, Cc0, β], p.neural)[1]
-
-    # correction = chain([u[1], t, β], p.neural)[1]
-
     t_norm = t / T_SCALE #NORMALIZZAZIONE
 
     correction = chain([t_norm], p.neural)[1]
-    # correction = chain([t_norm, Cs0, Cc0], p.neural)[1]
-
-    # t_in, β_in = promote(t_norm, β)
-    # correction = chain([t_in, β_in], p.neural)[1]
 
     du[1] = -(Cs - Cc) * correction
-    # du[1] = - correction
     du[2] = (Cs - Cc) * correction - a * (Cc - Cp)
-    # du[2] = correction - a*(Cc - Cp)
     du[3] = a * (Cc - Cp) - b * Cp
 
 end
@@ -96,25 +90,9 @@ struct ctntUDEModel
     chain::SimpleChain
 end
 
-function ctntUDEModel(
-    # ctnt_timepoints::AbstractVector{T},
-    θ,
-    chain::SimpleChain,
-    pat_times::Vector{Float64}=Float64[];
-    # norm_type = 0
-) # where T <: Real
+function ctntUDEModel(θ, chain::SimpleChain, pat_times::Vector{Float64}=Float64[])
 
-    # println("In model: ", θ)
-    # construct the ude function
-    cude!(du, u, p, t) = ctnt_ude!(
-        du,
-        u,
-        p,
-        t,
-        chain;
-        # norm_type = norm_type,
-        # pat_times = pat_times
-    )
+    cude!(du, u, p, t) = ctnt_ude!(du, u, p, t, chain)
 
     Cs0 = exp(θ[3]) # exp both if params in log
     Cc0 = exp(θ[4])
@@ -122,27 +100,13 @@ function ctntUDEModel(
     u0 = [Cs0, Cc0, 0.0]
     # u0 = SVector(Cs0, Cc0, 0.0);
 
-    # ode = ODEProblem(cude!, u0, tspan, θ)
-    # isoutofdomain = (u, p, t) -> any(<(0), u)
     tspan = (0.0, pat_times[end] + 10.0)
-    ode = ODEProblem(
-        cude!,
-        u0,
-        tspan;
-        # isoutofdomain = isoutofdomain
-    )
+    ode = ODEProblem(cude!, u0, tspan)
 
     return ctntUDEModel(ode, chain)
 end
 
-function ctnt_cude!(
-    du,
-    u,
-    p,
-    t,
-    chain::SimpleChain;
-    # norm_type = 0, pat_times::Vector{Float64} = Float64[]
-)
+function ctnt_cude!(du, u, p, t, chain::SimpleChain)
     Cs = u[1]
     Cc = u[2]
     Cp = u[3]
@@ -151,50 +115,20 @@ function ctnt_cude!(
 
     a = exp(p.ode[1])
     b = exp(p.ode[2])
-    # Cs0 = exp(p.ode[3])
-    # Cc0 = exp(p.ode[4])
-
-    # correction = chain([u[1], t, p.ode[1:4]..., β], p.neural)[1]
-
-    # correction = chain([u[1], t, a, b, Cs0, Cc0, β], p.neural)[1]
-
-    # correction = chain([u[1], t, β], p.neural)[1]
 
     t_norm = t / T_SCALE #NORMALIZZAZIONE
 
     correction = chain([t_norm, β], p.neural)[1]
-    # correction = chain([t_norm, Cs0, Cc0, β], p.neural)[1]
-    # t_in, β_in = promote(t_norm, β)
-    # correction = chain([t_in, β_in], p.neural)[1]
-    # correction = chain(SVector(t_in, β_in), p.neural)[1]
 
     du[1] = -(Cs - Cc) * correction
-    # du[1] = - correction
     du[2] = (Cs - Cc) * correction - a * (Cc - Cp)
-    # du[2] = correction - a*(Cc - Cp)
     du[3] = a * (Cc - Cp) - b * Cp
 
 end
 
-function ctntCUDEModel(
-    # ctnt_timepoints::AbstractVector{T},
-    θ,
-    chain::SimpleChain,
-    pat_times::Vector{Float64}=Float64[];
-    # norm_type = 0
-) # where T <: Real
+function ctntCUDEModel(θ, chain::SimpleChain, pat_times::Vector{Float64}=Float64[]) # where T <: Real
 
-    # println("In model: ", θ)
-    # construct the ude function
-    cude!(du, u, p, t) = ctnt_cude!(
-        du,
-        u,
-        p,
-        t,
-        chain;
-        # norm_type = norm_type,
-        # pat_times = pat_times
-    )
+    cude!(du, u, p, t) = ctnt_cude!(du, u, p, t, chain)
 
     Cs0 = exp(θ[3]) # exp both if params in log
     Cc0 = exp(θ[4])
@@ -202,15 +136,8 @@ function ctntCUDEModel(
     u0 = [Cs0, Cc0, 0.0]
     # u0 = SVector(Cs0, Cc0, 0.0);
 
-    # ode = ODEProblem(cude!, u0, tspan, θ)
-    # isoutofdomain = (u, p, t) -> any(<(0), u)
     tspan = (0.0, pat_times[end] + 10.0)
-    ode = ODEProblem(
-        cude!,
-        u0,
-        tspan;
-        # isoutofdomain = isoutofdomain
-    )
+    ode = ODEProblem(cude!, u0, tspan)
 
     return ctntUDEModel(ode, chain)
 end
@@ -254,6 +181,7 @@ function fromPatientData2DataFrame(patients::Vector{PatientData}; save::Bool=fal
     if save
         CSV.write(save_path, df)
     end
+    return df
 end
 
 function fromDataFrame2PatientData(df::DataFrame)
@@ -334,7 +262,6 @@ function compute_loss(θ, (model, timepoints, ctnt_data)) # ::Tuple{M, AbstractV
     # return 0.1 * sum(abs2, (plasm - ctnt_data) / maximum(ctnt_data) ) + 0.8 * sum(abs2, log.(plasm) .- log.(ctnt_data))
 end
 
-## Finito il train si estraggono i parametri della rete 
 # patient_loss: Quando sono noti i parametri della rete
 function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params); λ_back=0.0)
     p = ComponentArray(ode=θ, neural=fixed_nn_params)
@@ -374,51 +301,10 @@ function patient_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params); λ_ba
     # ic_pen = relu(θ[4] - θ[3])^2
     ic_pen = relu_smooth(θ[4] - θ[3])^2
 
-    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA)) + λ_back * ic_pen # λ_back*(back_sc + back_cp)
-
-
-    # return sum(abs2, plasm - ctnt_data)
-    # return sum(abs2, log.(plasm) .- log.(ctnt_data))
-    # return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA))
-    # return sum(((plasm - ctnt_data).^2).*ctnt_data)
-    # return smape(plasm, ctnt_data)
-    # return 0.1 * sum(abs2, (plasm - ctnt_data) / maximum(ctnt_data)) + 0.8 * sum(abs2, log.(plasm) .- log.(ctnt_data))
-end
-# La differenza sta nel dove si crea il component array:
-# Se lo dai in pasto alla loss lo ottimizza tutto,
-# se lo costruisci dentro ottimizza solo i parametri del modello
-
-function smape_loss(θ, (model, timepoints, ctnt_data, fixed_nn_params))
-    p = ComponentArray(ode=θ, neural=fixed_nn_params)
-
-    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
-
-    # ODEProblem aggiornato
-    prob = remake(model.problem; u0=u0, p=p)
-
-    # sol = solve(prob, AutoTsit5(Rosenbrock23()); p=p, saveat=timepoints,
-    #callback = POS_CB, isoutofdomain = NEG_TEST
-    # )
-
-    sol = solve(
-        prob, Tsit5(); p=p, saveat=timepoints,
-        abstol=1e-8, reltol=1e-6
-    )
-
-    if !successful_retcode(sol)
-        # If the solver fails, return infinity
-        return Inf
-    end
-
-    # sol = max.(Array(sol), DELTA)
-
-    # plasm = max.(sol[3, :], DELTA);
-    plasm = sol[3, :]
-
-    return smape(plasm, ctnt_data)
+    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA)) + λ_back * ic_pen
 end
 
-function patient_loss_formula(θ, (problem, timepoints, ctnt_data))
+function patient_loss_formula(θ, (problem, timepoints, ctnt_data); λ_back=0.0)
     # println("loss")
     # println(θ)
     u0 = [exp(θ[3]), exp(θ[4]), 0.0]
@@ -432,6 +318,7 @@ function patient_loss_formula(θ, (problem, timepoints, ctnt_data))
         p=θ,
         saveat=timepoints,
         #callback = POS_CB, isoutofdomain = NEG_TEST
+        abstol=1e-8, reltol=1e-6
     )
 
     if !successful_retcode(sol)
@@ -443,98 +330,100 @@ function patient_loss_formula(θ, (problem, timepoints, ctnt_data))
 
     plasm = sol[3, :]
 
+    ic_pen = relu_smooth(θ[4] - θ[3])^2
+
     # return sum(abs2, plasm - ctnt_data)
     # return sum(abs2, log.(plasm) .- log.(ctnt_data))
-    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA))
+    return mean(abs2, log.(plasm .+ DELTA) .- log.(ctnt_data .+ DELTA)) + λ_back * ic_pen
     # return sum(((plasm - ctnt_data).^2).*ctnt_data)
     # return smape(plasm, ctnt_data)
 end
 
-function smape_loss_formula(θ, (problem, timepoints, ctnt_data))
+# function smape_loss_formula(θ, (problem, timepoints, ctnt_data))
 
-    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+#     u0 = [exp(θ[3]), exp(θ[4]), 0.0]
 
-    # ODEProblem aggiornato
-    prob = remake(problem; u0=u0, p=θ)
+#     # ODEProblem aggiornato
+#     prob = remake(problem; u0=u0, p=θ)
 
-    sol = solve(
-        prob,
-        Tsit5();
-        p=θ,
-        saveat=timepoints,
-        #callback = POS_CB, isoutofdomain = NEG_TEST
-    )
+#     sol = solve(
+#         prob,
+#         Tsit5();
+#         p=θ,
+#         saveat=timepoints,
+#         #callback = POS_CB, isoutofdomain = NEG_TEST
+#     )
 
-    if !successful_retcode(sol)
-        # If the solver fails, return infinity
-        return Inf
-    end
+#     if !successful_retcode(sol)
+#         # If the solver fails, return infinity
+#         return Inf
+#     end
 
-    # sol = max.(Array(sol), DELTA)
+#     # sol = max.(Array(sol), DELTA)
 
-    plasm = sol[3, :]
+#     plasm = sol[3, :]
 
-    return smape(plasm, ctnt_data)
-end
+#     return smape(plasm, ctnt_data)
+# end
 
-function training_loss(p, (models, training_dataset); n_params::Int=5)
-    loss_tot = 0.0
-    for (i, model) in enumerate(models)
-        patient = training_dataset[i]
-        idx_start = n_params * (i - 1) + 1
-        idx_end = n_params * i
-        θ = ComponentArray(ode=p.ode[idx_start:idx_end], neural=p.neural)
-        u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
-        prob = remake(model.problem; u0=u0_new, p=θ)
-        new_model = ctntUDEModel(prob, model.chain)
-        loss_tot += compute_loss(θ, (new_model, patient.timepoints, patient.ctnt_data))
-    end
-    return loss_tot / length(training_dataset)
-end
+# function training_loss(p, (models, training_dataset); n_params::Int=5)
+#     loss_tot = 0.0
+#     for (i, model) in enumerate(models)
+#         patient = training_dataset[i]
+#         idx_start = n_params * (i - 1) + 1
+#         idx_end = n_params * i
+#         θ = ComponentArray(ode=p.ode[idx_start:idx_end], neural=p.neural)
+#         u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
+#         prob = remake(model.problem; u0=u0_new, p=θ)
+#         new_model = ctntUDEModel(prob, model.chain)
+#         loss_tot += compute_loss(θ, (new_model, patient.timepoints, patient.ctnt_data))
+#     end
+#     return loss_tot / length(training_dataset)
+# end
 
-function serial_training_loss(p, (models, training_dataset); n_params::Int=5)
-    n = length(training_dataset)
-    loss_tot = zero(eltype(p.ode))  # ok anche con Dual
+# function serial_training_loss(p, (models, training_dataset); n_params::Int=5)
+#     n = length(training_dataset)
+#     loss_tot = zero(eltype(p.ode))  # ok anche con Dual
 
-    @inbounds @views for i in 1:n
-        patient = training_dataset[i]
-        model = models[i]
+#     @inbounds @views for i in 1:n
+#         patient = training_dataset[i]
+#         model = models[i]
 
-        idx1 = n_params * (i - 1) + 1
-        idx2 = n_params * i
+#         idx1 = n_params * (i - 1) + 1
+#         idx2 = n_params * i
 
-        # idx1 = length(p.ode)*(i-1) + 1
-        # idx2 = length(p.ode)*i
+#         # idx1 = length(p.ode)*(i-1) + 1
+#         # idx2 = length(p.ode)*i
 
-        ode_i = p.ode[idx1:idx2]  # no copy
-        θ = ComponentArray(ode=ode_i, neural=p.neural)
+#         ode_i = p.ode[idx1:idx2]  # no copy
+#         θ = ComponentArray(ode=ode_i, neural=p.neural)
 
-        u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
-        # u0_new = SVector(exp(θ.ode[3]), exp(θ.ode[4]), 0.0)
-        prob = remake(model.problem; u0=u0_new, p=θ)
+#         u0_new = [exp(θ.ode[3]), exp(θ.ode[4]), 0.0]
+#         # u0_new = SVector(exp(θ.ode[3]), exp(θ.ode[4]), 0.0)
+#         prob = remake(model.problem; u0=u0_new, p=θ)
 
-        # evita new_model: risolvi direttamente
-        sol = solve(
-            prob, Tsit5();
-            p=θ, saveat=patient.timepoints,
-            # sensealg = SENSE,
-            abstol=1e-8, reltol=1e-6
-        )
+#         # evita new_model: risolvi direttamente
+#         sol = solve(
+#             prob, Tsit5();
+#             p=θ, saveat=patient.timepoints,
+#             # sensealg = SENSE,
+#             abstol=1e-8, reltol=1e-6
+#         )
 
-        if !successful_retcode(sol)
-            loss_tot += oftype(loss_tot, Inf)
-            continue
-        end
+#         if !successful_retcode(sol)
+#             loss_tot += oftype(loss_tot, Inf)
+#             continue
+#         end
 
-        # evita Array(sol) 3xN: prendi solo Cp
-        # plasm = max.(sol[3, :], DELTA);
-        plasm = sol[3, :]
-        # data-term identico al tuo (ma senza allocazioni globali)
-        loss_tot += mean(abs2, log.(plasm .+ DELTA) .- log.(patient.ctnt_data .+ DELTA))
-    end
+#         # evita Array(sol) 3xN: prendi solo Cp
+#         # plasm = max.(sol[3, :], DELTA);
+#         plasm = sol[3, :]
+#         # data-term identico al tuo (ma senza allocazioni globali)
+#         loss_tot += mean(abs2, log.(plasm .+ DELTA) .- log.(patient.ctnt_data .+ DELTA))
+#     end
 
-    return loss_tot / n
-end
+#     return loss_tot / n
+# end
 
 function par_training_loss(p, (models, training_dataset);
     n_params::Int=5,
@@ -986,6 +875,15 @@ function patient_dims(patients::AbstractVector{PatientData})
     return (length(p_min.ctnt_data), length(p_max.ctnt_data))
 end
 
+function param_stats(v::AbstractVector)
+    # v_clean = collect(skipmissing(v))              # rimuove eventuali missing
+    μ = mean(v)
+    σ = std(v)
+    q1, med, q3 = quantile(v, (0.25, 0.5, 0.75))
+    iqr = q3 - q1
+    return μ, σ, q1, med, q3, iqr
+end
+
 function plot_distribution(patients::AbstractVector{PatientData})
     all_times = vcat([p.timepoints for p in patients]...)                 # Vector{Float64}
     all_ctnt = vcat([p.ctnt_data for p in patients]...)                # Vector{Float64}
@@ -1244,6 +1142,135 @@ function plot_residuals_vs_fitted(df::DataFrame; title="Residuals vs fitted", ϵ
     # CairoMakie.Legend(fig[1, 2], ax;)
 
     fig
+end
+
+# Only for original model at the moment
+function compute_residuals(odefun::Function,
+    params::DataFrame,
+    patients::Vector{PatientData};
+    plotting::Bool=false,
+    tpad::Real=10.0,
+    abstol=1e-12,
+    reltol=1e-10)
+    # residuals = []
+    ids = []
+    residuals_list = []
+    for patient in patients
+        patient_params = filter(row -> row.patient == patient.id, params)
+        if nrow(patient_params) > 0
+            p = [patient_params.p1[1], patient_params.p2[1], patient_params.p3[1],
+                patient_params.p4[1], patient_params.p5[1]]
+            u0 = [exp(p[3]), exp(p[4]), 0.0]
+            tspan = (0.0, patient.timepoints[end] + tpad)
+            prob = ODEProblem(odefun, u0, tspan, p)
+            pred = solve(prob, Tsit5(); saveat=patient.timepoints, abstol=abstol, reltol=reltol)
+            # pred = [sol(t)[3] for t in patient.timepoints]
+            # Check comupte_residuals_patient
+            if plotting
+                # sol = solve(prob, Tsit5(); abstol=abstol, reltol=reltol)
+                # plt = Plots.plot(sol; idxs=3, label = "cTnT simulation patient $(patient.id)")
+                # Plots.scatter!(plt, patient.timepoints, patient.ctnt_data, label = "Data")
+                # display(plt)
+                sol = solve(prob, Tsit5(); abstol=abstol, reltol=reltol)
+
+                fig = CairoMakie.Figure(size=(800, 500))
+                ax = CairoMakie.Axis(fig[1, 1],
+                    xlabel="Time (h)",
+                    ylabel="cTnT",
+                    title="cTnT simulation patient $(patient.id)")
+
+                # curva continua del modello (variabile 3)
+                CairoMakie.lines!(ax, sol.t, sol[3, :], color=:blue, label="cTnT simulation")
+
+                # dati sperimentali
+                CairoMakie.scatter!(ax, patient.timepoints, patient.ctnt_data,
+                    color=:red, label="Data", markersize=8)
+
+                CairoMakie.axislegend(ax, position=:rt)
+
+                display(fig)
+            end
+            # predicted = [sol(t)[3] for t in patient.timepoints]
+            # residual = patient.ctnt_data .- sol[3,:]
+            residual = log_residuals(patient.ctnt_data, pred[3, :])
+            # if any(sol[3,:] .< 0)
+            #     println(sol[3,:])
+            #     println(patient_params.patient)
+            # end
+            # push!(residuals, (id=patient.id, residuals=residual))
+            push!(ids, patient.id)
+            push!(residuals_list, residual)
+        end
+    end
+    # return residuals
+    return DataFrame(id=ids, residuals=residuals_list)
+end
+
+# Also for this - imported from TroponinRelease
+function compute_residuals_long(odefun::Function,
+    params::DataFrame,
+    patients::Vector{PatientData};
+    plotting::Bool=false,
+    tpad::Real=20.0,
+    abstol=1e-12,
+    reltol=1e-10)
+
+    out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[])
+
+    for patient in patients
+        patient_params = filter(row -> row.patient == patient.id, params)
+        nrow(patient_params) == 0 && continue
+
+        p = [patient_params.p1[1], patient_params.p2[1], patient_params.p3[1],
+            patient_params.p4[1], patient_params.p5[1]] # params a b Td Cc0 Cs0
+
+        u0 = [exp(p[3]), exp(p[4]), 0.0] # initial conditions Cs0 Cc0 Cp0
+        tspan = (0.0, patient.timepoints[end] + tpad)
+
+        prob = ODEProblem(odefun, u0, tspan, p)
+
+        # predizione ESATTAMENTE ai timepoints (coerente per residual)
+        pred = solve(prob, Tsit5(); saveat=patient.timepoints, abstol=abstol, reltol=reltol)
+
+        # if any(pred .< 0)
+        #     println("Warning: negative prediction for patient $(patient.id)")
+        #     println(pred[3,:])
+        # end
+
+        if plotting
+
+            sol = solve(prob, Tsit5(); abstol=abstol, reltol=reltol)
+
+            fig = CairoMakie.Figure(size=(800, 500))
+            ax = CairoMakie.Axis(fig[1, 1],
+                xlabel="Time (h)",
+                ylabel="cTnT",
+                title="cTnT simulation patient $(patient.id)")
+
+            # curva continua del modello (variabile 3)
+            CairoMakie.lines!(ax, sol.t, sol[3, :], color=:blue, label="cTnT simulation")
+
+            # dati sperimentali
+            CairoMakie.scatter!(ax, patient.timepoints, patient.ctnt_data,
+                color=:red, label="Data", markersize=8)
+
+            axislegend(ax, position=:rt)
+
+            display(fig)
+        end
+
+        yhat = vec(pred[3, :])
+        y = patient.ctnt_data
+        res = log_residuals(y, yhat)
+
+        append!(out, DataFrame(id=fill(patient.id, length(y)),
+            t=patient.timepoints,
+            y=y,
+            yhat=yhat,
+            res=res))
+    end
+
+    return out
 end
 
 function compute_plot_residuals(patients::Vector{PatientData}, ode_params_val::Vector{Float64}, best_nn::Vector{Float64},
@@ -1519,8 +1546,9 @@ end
 
 function params_extraction(
     patients::Vector{PatientData},
-    ode_params_val::Vector{Float64},
-    best_nn::Vector{Float64};
+    ode_params_val::Vector{Float64};
+    # best_nn::Union{Vector{Float64}, Nothing} = nothing,
+    UDE::Bool=false,
     N_params::Int=5,
     data_label::String="", # "training" / "validation"
     dataset::String="",
@@ -1540,14 +1568,21 @@ function params_extraction(
         idx1 = N_params * (i - 1) + 1
         idx2 = N_params * i
         local ode_p = ode_params_val[idx1:idx2]
-        local p = ComponentArray(ode=ode_p, neural=best_nn)
+        # local p = ComponentArray(ode=ode_p, neural=best_nn)
 
-        push!(a, exp(p.ode[1]))
-        push!(b, exp(p.ode[2]))
-        push!(Cs0, exp(p.ode[3]))
-        push!(Cc0, exp(p.ode[4]))
+        # push!(a, exp(p.ode[1]))
+        # push!(b, exp(p.ode[2]))
+        # push!(Cs0, exp(p.ode[3]))
+        # push!(Cc0, exp(p.ode[4]))
+        # if N_params == 5
+        #     push!(β, exp(p.ode[5]))
+        # end
+        push!(a, exp(ode_p[1]))
+        push!(b, exp(ode_p[2]))
+        push!(Cs0, exp(ode_p[3]))
+        push!(Cc0, exp(ode_p[4]))
         if N_params == 5
-            push!(β, exp(p.ode[5]))
+            push!(β, exp(ode_p[5]))
         end
 
     end
@@ -1632,8 +1667,199 @@ function params_extraction(
     return a, b, Cs0, Cc0, β, f
 end
 
+########################## DATA-ONLY OBJECTIVES FOR PLA ##########################################
+
+"""
+Solve the patient-specific cUDE/UDE model with fixed NN parameters and return plasma predictions.
+Returns a Vector{Float64} on success, or `nothing` on failure.
+"""
+function patient_plasma_prediction(θ, (model, timepoints, ctnt_data, fixed_nn_params))
+    p = ComponentArray(ode=θ, neural=fixed_nn_params)
+
+    u0 = [exp(θ[3]), exp(θ[4]), 0.0]
+    prob = remake(model.problem; u0=u0, p=p)
+
+    sol = try
+        solve(
+            prob,
+            Tsit5();
+            p=p,
+            saveat=timepoints,
+            abstol=1e-8,
+            reltol=1e-6
+        )
+    catch
+        return nothing
+    end
+
+    if !successful_retcode(sol)
+        return nothing
+    end
+
+    plasma = vec(sol[3, :])
+
+    if length(plasma) != length(ctnt_data) || any(!isfinite, plasma)
+        return nothing
+    end
+
+    return plasma
+end
+
+"""
+Log-residual vector:
+r_k(θ) = log(pred_k + DELTA) - log(obs_k + DELTA)
+"""
+function patient_log_residuals(θ, data)
+    model, timepoints, ctnt_data, fixed_nn_params = data
+
+    plasma = patient_plasma_prediction(θ, data)
+    plasma === nothing && return nothing
+
+    resid = log.(plasma .+ DELTA) .- log.(ctnt_data .+ DELTA)
+
+    if any(!isfinite, resid)
+        return nothing
+    end
+
+    return resid
+end
+
+"""
+Residual sum of squares on the log scale.
+This is the data-only part, with no physics-informed penalty.
+"""
+function patient_rss_log(θ, data)
+    resid = patient_log_residuals(θ, data)
+    resid === nothing && return Inf
+    return sum(abs2, resid)
+end
+
+# """
+# Mean squared log error on the log scale.
+# Useful if you want continuity with your current training metric,
+# but not recommended as the main inferential objective for PLA.
+# """
+# function patient_mse_log(θ, data)
+#     resid = patient_log_residuals(θ, data)
+#     resid === nothing && return Inf
+#     return mean(abs2, resid)
+# end
+
+"""
+Negative log-likelihood under a Gaussian error model on the log-transformed data.
+
+If sigma2 === nothing:
+    returns the profiled objective n * log(RSS/n)
+    which is equivalent to -2 log L up to an additive constant.
+
+If sigma2 is provided:
+    returns the full NLL up to the constant n/2 * log(2π).
+"""
+function patient_nll_log_gaussian(θ, data; sigma2::Union{Nothing,Float64}=nothing)
+    resid = patient_log_residuals(θ, data)
+    resid === nothing && return Inf
+
+    n = length(resid)
+    n == 0 && return Inf
+
+    rss = max(sum(abs2, resid), eps(Float64))
+
+    if !isfinite(rss)
+        return Inf
+    end
+
+    if sigma2 === nothing
+        # Profiled Gaussian likelihood on log-data:
+        # -2 log L_prof = n * log(RSS/n) + const
+        return n * log(rss / n)
+    else
+        if !(isfinite(sigma2) && sigma2 > 0.0)
+            return Inf
+        end
+        # Full Gaussian NLL on log-data, up to additive constant n/2*log(2π)
+        return 0.5 * n * log(sigma2) + rss / (2 * sigma2)
+    end
+end
+
+### ODE Only ###
+
+"""
+    parse_log_to_csv(inpath::AbstractString;
+                     out_csv::AbstractString = "params.csv",
+                     meta_csv::Union{Nothing,AbstractString} = "meta.csv")
+
+Parsa un log tipo:
+  "dataset: ...\nUB: [..]\nPatient: n1 | smape: ... | params: [a,b,c,...]"
+e scrive:
+  - `out_csv`: tabella con patient, smape, p1..pK
+  - `meta_csv` (se non `nothing`): riga con dataset e UB
+
+Ritorna il DataFrame dei parametri.
+"""
+function parse_log_to_csv(inpath::AbstractString; out_csv::AbstractString="params.csv",
+    meta_csv::Union{Nothing,AbstractString}="meta.csv")
+
+    txt = read(inpath, String)
+
+    dataset = match(r"(?m)^\s*dataset:\s*(.+)$", txt)
+    dataset = dataset === nothing ? missing : strip(dataset.captures[1])
+
+    ub_m = match(r"(?m)^\s*UB:\s*\[([^\]]+)\]", txt)
+    UB = ub_m === nothing ? missing :
+         [parse(Float64, strip(x)) for x in split(ub_m.captures[1], ',')]
+
+    num_re = raw"([+-]?(?:Inf|NaN|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?))"
+    pat_re = Regex(
+        raw"(?m)^\s*Patient:\s*([^\|]+?)\s*\|\s*smape:\s*" * num_re *
+        raw"(?:\s*\|\s*rmsle:\s*" * num_re *
+        raw"\s*\|\s*loss:\s*" * num_re * raw")?" *
+        raw"\s*\|\s*params:\s*\[([^\]]*)\]"
+    )
+    ms = collect(eachmatch(pat_re, txt))
+
+    params_lists = Vector{Vector{Float64}}(undef, length(ms))
+    patients = Vector{String}(undef, length(ms))
+    smapes = Vector{Float64}(undef, length(ms))
+    rmsles = Vector{Union{Missing,Float64}}(undef, length(ms))
+    losses = Vector{Union{Missing,Float64}}(undef, length(ms))
+    maxK = 0
+
+    for (i, m) in enumerate(ms)
+        patients[i] = strip(m.captures[1])
+        smapes[i] = parse(Float64, m.captures[2])
+        rmsles[i] = m.captures[3] === nothing ? missing : parse(Float64, m.captures[3])
+        losses[i] = m.captures[4] === nothing ? missing : parse(Float64, m.captures[4])
+
+        params_str = strip(m.captures[5])
+        plist = isempty(params_str) ? Float64[] :
+                [parse(Float64, strip(x)) for x in split(params_str, ',')]
+
+        params_lists[i] = plist
+        maxK = max(maxK, length(plist))
+    end
+
+    df = DataFrame(patient=patients, smape=smapes, rmsle=rmsles, loss=losses)
+    for k in 1:maxK
+        col = Vector{Union{Missing,Float64}}(undef, length(params_lists))
+        @inbounds for i in eachindex(params_lists)
+            col[i] = k <= length(params_lists[i]) ? params_lists[i][k] : missing
+        end
+        df[!, Symbol("p$k")] = col
+    end
+
+    CSV.write(out_csv, df)
+
+    if meta_csv !== nothing
+        meta = DataFrame(dataset=[dataset],
+            UB=[UB === missing ? missing : join(UB, ",")])
+        CSV.write(meta_csv, meta)
+    end
+
+    return df
+end
+
 # function compute_residuals_long(params::Vector{Float64},
-#                                 patients::Vector{DataUtils.PatientData},
+#                                 patients::Vector{PatientData},
 #                                 UDE::Bool=false,
 #                                 n_params::Int=5;
 #                                 chain::SimpleChain,
@@ -1700,3 +1926,146 @@ end
 
 #     return out
 # end
+
+# =============================================================================
+# UNIFIED RESIDUAL COMPUTATION (both ODE and cUDE from CSV DataFrames)
+# =============================================================================
+#
+# This helper can replace:
+#   - compute_residuals_long(odefun, params::DataFrame, patients; ...)
+#       (lines ~1210-1274 above, ODE-only, reads from DataFrame with :patient, :p1..p5)
+#   - The per-patient loop inside compute_plot_residuals(patients, ode_params_val::Vector, best_nn, chain; ...)
+#       (lines ~1276-1412 above, cUDE-only, reads from flat Vector with N_params stride)
+#   - extract_p_from_df in boxplotting_cude.jl
+#   - compute_residuals(odefun, params::DataFrame, patients; ...)
+#       (lines ~1148-1207 above, ODE-only)
+#
+# Migration example (OLD → NEW):
+#
+#   # OLD (ODE):
+#   #   res_long = compute_residuals_long(troponin_ode!, params_df, patients)
+#   #
+#   # NEW (ODE):
+#   #   res_long, metrics, extracted = compute_residuals_long_unified(
+#   #       patients, params_df; model_type=:ode)
+#
+#   # OLD (cUDE):
+#   #   out, smape_out = compute_plot_residuals(patients, ode_params_val, best_nn, chain;
+#   #       N_params=5, UDE=false, ...)
+#   #
+#   # NEW (cUDE):
+#   #   res_long, metrics, extracted = compute_residuals_long_unified(
+#   #       patients, cude_params_df; model_type=:cude,
+#   #       chain=chain, nn_params=best_nn)
+#
+# =============================================================================
+
+"""
+    compute_residuals_long_unified(patients, params_df;
+        model_type=:ode, chain=nothing, nn_params=nothing,
+        tpad=10.0, abstol=1e-8, reltol=1e-6)
+
+Unified residual computation for both ODE and cUDE models.
+
+Returns `(residuals_df, metrics_df, params_extracted)`:
+  - `residuals_df`: long-format DataFrame(id, t, y, yhat, res)
+  - `metrics_df`: DataFrame(id, smape_val, rmsle_val)
+  - `params_extracted`: DataFrame(patient_id, a, b, Cs0, Cc0, p5) where p5 is Td (ODE) or beta (cUDE)
+
+Arguments:
+  - `patients`: Dict{String, PatientData} or Vector{PatientData}
+  - `params_df`: DataFrame with patient-specific parameters
+      * For `:ode`: columns :patient, :p1…:p5 (log-scale)
+      * For `:cude`: columns :patient_id, :a, :b, :Cs0, :Cc0, :beta (natural-scale)
+  - `model_type`: `:ode` or `:cude`
+  - `chain`: SimpleChain (required for :cude)
+  - `nn_params`: Vector{Float64} of NN weights (required for :cude)
+"""
+function compute_residuals_long_unified(
+    patients,  # Dict{String,PatientData} or Vector{PatientData}
+    params_df::DataFrame;
+    model_type::Symbol=:ode,
+    chain=nothing,
+    nn_params=nothing,
+    tpad::Real=10.0,
+    abstol=1e-12,
+    reltol=1e-10
+)
+    @assert model_type in (:ode, :cude) "model_type must be :ode or :cude"
+    if model_type == :cude
+        @assert chain !== nothing "chain required for cUDE"
+        @assert nn_params !== nothing "nn_params required for cUDE"
+    end
+
+    # Build lookup if Vector
+    patient_lookup = if patients isa Dict
+        patients
+    else
+        Dict(p.id => p for p in patients)
+    end
+
+    residuals_out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[])
+    metrics_out = DataFrame(id=String[], smape_val=Float64[], rmsle_val=Float64[])
+    params_out = DataFrame(patient_id=String[], a=Float64[], b=Float64[],
+        Cs0=Float64[], Cc0=Float64[], p5=Float64[])
+
+    id_col = model_type == :ode ? :patient : :patient_id
+
+    for row in eachrow(params_df)
+        pid = String(row[id_col])
+        haskey(patient_lookup, pid) || continue
+        p_data = patient_lookup[pid]
+
+        tmax = maximum(p_data.timepoints) + tpad
+
+        if model_type == :ode
+            p_log = Float64[row.p1, row.p2, row.p3, row.p4, row.p5]
+            u0 = [exp(p_log[3]), exp(p_log[4]), 0.0]
+            prob = ODEProblem(troponin_ode!, u0, (0.0, tmax), p_log)
+            pred = solve(prob, Tsit5(); saveat=p_data.timepoints, abstol=abstol, reltol=reltol)
+
+            # Extract natural-scale params
+            push!(params_out, (pid, exp(p_log[1]), exp(p_log[2]),
+                exp(p_log[3]), exp(p_log[4]), exp(p_log[5])))
+        else  # :cude
+            p_nat = Float64[row.a, row.b, row.Cs0, row.Cc0, row.beta]
+            # θ_log = log.(p_nat .+ 1e-15)
+            θ_log = log.(p_nat)
+            u0 = [p_nat[3], p_nat[4], 0.0]
+
+            cude_f!(du, u, p, t) = ctnt_cude!(du, u, p, t, chain)
+            prob = ODEProblem(cude_f!, u0, (0.0, tmax))
+            p_full = ComponentArray(ode=θ_log, neural=nn_params)
+            pred = solve(prob, Tsit5(); p=p_full, saveat=p_data.timepoints, abstol=abstol, reltol=reltol)
+
+            push!(params_out, (pid, p_nat[1], p_nat[2], p_nat[3], p_nat[4], p_nat[5]))
+        end
+
+        if !successful_retcode(pred)
+            @warn "Solve failed for patient $pid (model=$model_type)"
+            continue
+        end
+
+        yhat = vec(pred[3, :])
+        y = p_data.ctnt_data
+
+        if length(yhat) != length(y)
+            @warn "Length mismatch for patient $pid: yhat=$(length(yhat)), y=$(length(y))"
+            continue
+        end
+
+        res = log_residuals(y, yhat)
+
+        append!(residuals_out, DataFrame(
+            id=fill(pid, length(y)),
+            t=p_data.timepoints,
+            y=y,
+            yhat=yhat,
+            res=res
+        ))
+
+        push!(metrics_out, (pid, smape(yhat, y), rmsle(y, yhat)))
+    end
+
+    return residuals_out, metrics_out, params_out
+end
