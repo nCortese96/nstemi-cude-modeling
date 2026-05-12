@@ -1,0 +1,104 @@
+╔══════════════════════════════════════════════════════════════╗
+║           DATASET PREPROCESSING REPORT                     ║
+║  Dataset:  MIMIC-IV                                      ║
+║  Date:     2026-03-25 17:54:07                           ║
+╚══════════════════════════════════════════════════════════════╝
+
+──────────────────────────────────────────────────────────────
+  STEP 1: Raw dataset loaded
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     1575
+  Acquisizioni cTnT totali:            9514
+  Timepoints totali:                   9514
+  Info aggiuntive:                     File: data/MIMIC-IV/NSTEMI_reorganized_skipped.xlsx
+
+  Acquisizioni per paziente:           5.0 [4.0–7.0] (1.0–26.0)
+  Primo timepoint (h):                 8.63 [5.33–14.85] (-7.17–1398.92)
+  Ultimo timepoint (h):                78.15 [48.54–134.69] (7.17–2116.5)
+  Observation span (h):                59.83 [35.63–109.59] (0.0–1747.9)
+  Max gap consecutivo (h):             24.43 [14.77–50.41] (4.83–919.53)
+──────────────────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────────────────
+  STEP 2: Duplicate timepoints collapsed
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     1575
+  Acquisizioni cTnT totali:            9501
+  Timepoints totali:                   9501
+  Info aggiuntive:                     Pazienti modificati: 13, punti rimossi: 13
+
+  Acquisizioni per paziente:           5.0 [4.0–7.0] (1.0–26.0)
+  Primo timepoint (h):                 8.63 [5.33–14.85] (-7.17–1398.92)
+  Ultimo timepoint (h):                78.15 [48.54–134.69] (7.17–2116.5)
+  Observation span (h):                59.83 [35.63–109.59] (0.0–1747.9)
+  Max gap consecutivo (h):             24.43 [14.77–50.41] (4.83–919.53)
+──────────────────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────────────────
+  STEP 3: Trimmed to 240.0h
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     1558
+  Acquisizioni cTnT totali:            8801
+  Timepoints totali:                   8801
+
+  Acquisizioni per paziente:           5.0 [4.0–7.0] (1.0–18.0)
+  Primo timepoint (h):                 8.54 [5.24–14.58] (-7.17–233.07)
+  Ultimo timepoint (h):                71.41 [45.4–117.73] (0.37–239.85)
+  Observation span (h):                56.51 [33.76–95.7] (0.0–239.42)
+  Max gap consecutivo (h):             24.0 [14.13–43.12] (1.02–220.15)
+──────────────────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────────────────
+  STEP 4: Anomaly filtering (All Eligible)
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     278
+  Acquisizioni cTnT totali:            2068
+  Timepoints totali:                   2068
+  Info aggiuntive:                     Filtro: min_meas=5, before=1×12.0h, after=1×48.0h, min_span=72.0h, max_gap=72.0h. Rimossi: 1280
+
+  Acquisizioni per paziente:           7.0 [6.0–9.0] (5.0–16.0)
+  Primo timepoint (h):                 6.66 [3.19–9.0] (0.08–12.0)
+  Ultimo timepoint (h):                99.57 [84.3–120.6] (72.15–238.58)
+  Observation span (h):                92.82 [77.87–116.38] (61.42–233.92)
+  Max gap consecutivo (h):             36.21 [25.0–49.36] (10.98–71.98)
+──────────────────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────────────────
+  STEP 5: Training split (80%)
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     222
+  Acquisizioni cTnT totali:            1657
+  Timepoints totali:                   1657
+  Info aggiuntive:                     Split: 222 training, 56 test
+
+  Acquisizioni per paziente:           7.0 [5.0–9.0] (5.0–15.0)
+  Primo timepoint (h):                 6.52 [3.08–8.69] (0.08–11.88)
+  Ultimo timepoint (h):                97.99 [84.35–120.69] (72.15–238.58)
+  Observation span (h):                91.06 [77.64–116.38] (61.42–233.92)
+  Max gap consecutivo (h):             35.65 [24.92–49.15] (10.98–71.98)
+──────────────────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────────────────
+  STEP 6: Test split (20%)
+──────────────────────────────────────────────────────────────
+  Numero pazienti:                     56
+  Acquisizioni cTnT totali:            411
+  Timepoints totali:                   411
+
+  Acquisizioni per paziente:           7.0 [6.0–8.0] (5.0–16.0)
+  Primo timepoint (h):                 7.15 [4.1–9.23] (0.35–12.0)
+  Ultimo timepoint (h):                104.47 [83.86–117.9] (72.93–192.55)
+  Observation span (h):                96.06 [79.46–115.03] (63.62–183.17)
+  Max gap consecutivo (h):             37.02 [25.38–49.78] (15.75–69.45)
+──────────────────────────────────────────────────────────────
+
+╔══════════════════════════════════════════════════════════════╗
+║  REPORT COMPLETATO                                         ║
+║  Step totali registrati:   6                                ║
+║  File salvato in: res/dataset_report_MIMIC-IV_20260325_1754978.txt║
+╚══════════════════════════════════════════════════════════════╝

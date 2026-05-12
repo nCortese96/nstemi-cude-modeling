@@ -1,0 +1,7 @@
+base_patient,synthetic_id,trunc_section,trunc_set,budget,kept_n,removed_n,removed_start,removed_gap,removed_end
+MIMIC_n606,MIMIC_n606_START_S1_B03,start,1,3,10,3,3,0,0
+MIMIC_n606,MIMIC_n606_START_S2_B06,start,2,6,7,6,6,0,0
+MIMIC_n606,MIMIC_n606_MID_S1_B03,middle,1,3,10,3,0,3,0
+MIMIC_n606,MIMIC_n606_MID_S2_B06,middle,2,6,7,6,0,6,0
+MIMIC_n606,MIMIC_n606_END_S1_B03,end,1,3,10,3,0,0,3
+MIMIC_n606,MIMIC_n606_END_S2_B06,end,2,6,7,6,0,0,6
