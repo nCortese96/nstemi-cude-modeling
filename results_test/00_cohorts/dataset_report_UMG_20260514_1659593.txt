@@ -1,0 +1,93 @@
+==============================================================================
+cTnT DATASET PREPROCESSING REPORT
+==============================================================================
+Dataset:      UMG
+Generated at: 2026-05-14 16:59:21
+Report file:  results_test/00_cohorts/dataset_report_UMG_20260514_1659593.txt
+
+Summary format
+  Distributional fields are reported as: median [Q1-Q3] (min-max).
+  Missing values (NaN) are excluded from counts and summary statistics.
+
+Metric definitions
+  Patients:
+    Number of patient trajectories present at the current pipeline step.
+  Total cTnT observations:
+    Count of non-missing cTnT concentration values.
+  Total acquisition timepoints:
+    Count of non-missing acquisition times.
+  cTnT observations per patient:
+    Distribution of non-missing cTnT observations per patient.
+  First acquisition time (h):
+    Distribution of the first valid acquisition time per patient.
+  Last acquisition time (h):
+    Distribution of the last valid acquisition time per patient.
+  Observation span (h):
+    Last acquisition time minus first acquisition time per patient.
+  Max consecutive acquisition gap (h):
+    Largest gap between consecutive valid acquisition times per patient.
+==============================================================================
+
+------------------------------------------------------------------------------
+STEP 01: Raw dataset loaded
+------------------------------------------------------------------------------
+Patients:                              99
+Total cTnT observations:               708
+Total acquisition timepoints:          708
+Additional information:                 File: data/UMG_NSTEMI_Dataset.xlsx
+cTnT observations per patient:         7.0 [5.0-8.0] (3.0-15.0)
+First acquisition time (h):            4.33 [0.14-34.59] (0.02-217.57)
+Last acquisition time (h):             116.55 [91.03-155.94] (36.18-334.97)
+Observation span (h):                  96.98 [69.54-134.57] (21.43-252.65)
+Max consecutive acquisition gap (h):   24.72 [24.15-25.73] (10.8-48.24)
+------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+STEP 02: Duplicate timepoints collapsed
+------------------------------------------------------------------------------
+Patients:                              99
+Total cTnT observations:               708
+Total acquisition timepoints:          708
+Additional information:                 Modified patients: 0, removed duplicate points: 0
+cTnT observations per patient:         7.0 [5.0-8.0] (3.0-15.0)
+First acquisition time (h):            4.33 [0.14-34.59] (0.02-217.57)
+Last acquisition time (h):             116.55 [91.03-155.94] (36.18-334.97)
+Observation span (h):                  96.98 [69.54-134.57] (21.43-252.65)
+Max consecutive acquisition gap (h):   24.72 [24.15-25.73] (10.8-48.24)
+------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+STEP 03: Trimmed to 240.0h
+------------------------------------------------------------------------------
+Patients:                              99
+Total cTnT observations:               696
+Total acquisition timepoints:          696
+cTnT observations per patient:         7.0 [5.0-8.0] (3.0-14.0)
+First acquisition time (h):            4.33 [0.14-34.59] (0.02-217.57)
+Last acquisition time (h):             116.55 [91.03-155.94] (36.18-239.88)
+Observation span (h):                  94.52 [68.86-130.38] (20.43-228.68)
+Max consecutive acquisition gap (h):   24.63 [24.13-25.58] (10.8-48.24)
+------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+STEP 04: Anomaly filtering (All Eligible)
+------------------------------------------------------------------------------
+Patients:                              45
+Total cTnT observations:               367
+Total acquisition timepoints:          367
+Additional information:                 Eligibility filters: minimum observations=5, early window=at least 1 observation(s) within the first 12.0h, late window=at least 1 observation(s) after 48.0h, minimum observation span=72.0h, maximum consecutive gap=72.0h. Removed patients: 54.
+cTnT observations per patient:         7.0 [7.0-9.0] (6.0-14.0)
+First acquisition time (h):            0.15 [0.05-2.73] (0.02-10.98)
+Last acquisition time (h):             114.15 [94.75-142.35] (72.63-228.8)
+Observation span (h):                  107.95 [90.63-138.67] (71.17-228.68)
+Max consecutive acquisition gap (h):   24.63 [24.17-29.42] (22.63-40.55)
+------------------------------------------------------------------------------
+
+==============================================================================
+REPORT COMPLETE
+Recorded preprocessing steps: 4
+Report saved to: results_test/00_cohorts/dataset_report_UMG_20260514_1659593.txt
+==============================================================================

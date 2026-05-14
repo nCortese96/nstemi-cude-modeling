@@ -7,7 +7,7 @@ sets for downstream training and evaluation scripts.
 Pipeline:
 1. Read preprocessing configuration from `config/workflow_config.jl`.
 2. Resolve input/output paths.
-3. Load raw Excel datasets through helpers.jl.
+3. Load raw Excel datasets through dedicated preprocessing helpers.
 4. Collapse duplicate timepoints, trim, filter anomalies, and report each step.
 5. Save all-eligible IDs plus JLD2 train/test artifacts.
 """
@@ -15,7 +15,8 @@ Pipeline:
 using Dates
 using Logging
 
-include(joinpath(@__DIR__, "..", "src", "MechanisticAI.jl"))
+include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
+include(joinpath(@__DIR__, "..", "src", "preprocessing.jl"))
 include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 
 # =============================================================================
@@ -47,11 +48,17 @@ config = WORKFLOW_CONFIG
 preprocessing = config.preprocessing
 filters = preprocessing.filters
 datasets = [config.datasets[key] for key in preprocessing.dataset_keys]
+preprocessing_output_dirs = (cohorts=preprocessing.output_dir,)
 
 train_percent_label = round(Int, preprocessing.train_fraction * 100)
 test_percent_label = 100 - train_percent_label
 
 @info "═══ Preprocessing pipeline started $(now()) ═══"
+log_workflow_context(config;
+    script_name=basename(@__FILE__),
+    output_paths=preprocessing_output_dirs,
+)
+ensure_output_dirs!(preprocessing_output_dirs; header="Created or verified preprocessing output directories")
 @info "MIMIC-IV split: $(train_percent_label)% train / $(test_percent_label)% test"
 
 results = Dict{String,Any}()
@@ -59,7 +66,7 @@ results = Dict{String,Any}()
 for dataset in datasets
     @info "Processing $(dataset.dataset_name)..."
 
-    results[dataset.dataset_name] = run_dataset_report(;
+    dataset_result = run_dataset_report(;
         dataset_name=dataset.dataset_name,
         dataset_path=dataset.dataset_path,
         column_letter=dataset.column_letter,
@@ -77,7 +84,15 @@ for dataset in datasets
         data_root=config.paths.data_root,
     )
 
-    @info "$(dataset.dataset_name) report: $(results[dataset.dataset_name].report_path)"
+    results[dataset.dataset_name] = dataset_result
+
+    dataset_output_paths = preprocessing_output_paths(
+        dataset.dataset_name,
+        preprocessing.output_dir;
+        train_fraction=preprocessing.train_fraction,
+        report_path=dataset_result.report_path,
+    )
+    log_output_paths(dataset_output_paths; header="$(dataset.dataset_name) saved output paths")
 end
 
 @info "═══ Preprocessing pipeline completed ═══"

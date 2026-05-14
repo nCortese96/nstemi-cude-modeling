@@ -29,10 +29,13 @@ renamed, reorganized, and connected to shared helpers.
 │   └── 07_evaluate_symbolic_formula.jl
 ├── src/
 │   ├── MechanisticAI.jl          # Shared entrypoint for refactored scripts
-│   └── helpers.jl                # Consolidated helpers during the transition
+│   ├── data_io.jl                # Workflow IO plus patient spreadsheet/dataframe IO
+│   ├── preprocessing.jl          # Preprocessing, reports, and cohort artifact export
+│   └── helpers.jl                # Remaining helpers not yet split
 ├── data/                         # Input datasets, not part of the refactor itself
 ├── res/                          # Legacy output tree from previous runs
 ├── results/                      # New output root for refactored runs
+├── results_test/                 # Optional output root when test mode is enabled
 └── .legacy/src/                  # Original scripts kept as reference baselines
 ```
 
@@ -71,6 +74,8 @@ The public configuration object is `WORKFLOW_CONFIG`, currently structured as:
 
 ```julia
 WORKFLOW_CONFIG.paths
+WORKFLOW_CONFIG.run
+WORKFLOW_CONFIG.outputs
 WORKFLOW_CONFIG.datasets
 WORKFLOW_CONFIG.model
 WORKFLOW_CONFIG.preprocessing
@@ -80,30 +85,43 @@ Important current settings:
 
 - `WORKFLOW_CONFIG.paths.data_root = "data"`
 - `WORKFLOW_CONFIG.paths.results_root = "results"`
+- `WORKFLOW_CONFIG.paths.results_test_root = "results_test"`
+- `WORKFLOW_CONFIG.paths.active_results_root` selects either `results` or `results_test`
+- `WORKFLOW_CONFIG.outputs.cohorts = joinpath(active_results_root, "00_cohorts")`
 - `WORKFLOW_CONFIG.model.t_scale = 240.0`
 - `WORKFLOW_CONFIG.preprocessing.dataset_keys = (:mimic_iv, :umg)`
-- `WORKFLOW_CONFIG.preprocessing.output_dir = "results"`
+- `WORKFLOW_CONFIG.preprocessing.output_dir = WORKFLOW_CONFIG.outputs.cohorts`
 
 `t_scale` is a model-domain time scale in hours. It is used by preprocessing to
 define the analysis window and by cUDE models to normalize time as `t / t_scale`.
 It is therefore stored under `WORKFLOW_CONFIG.model`, not under preprocessing.
+
+To isolate exploratory runs, set the `test_mode` entry in `WORKFLOW_RUN_MODE`
+to `true` in `config/workflow_config.jl`. It is exposed as
+`WORKFLOW_CONFIG.run.test_mode`, and refactored scripts will then write outputs
+under `results_test/` through the same step-specific output interfaces. Step 00
+currently writes to `results/00_cohorts` or `results_test/00_cohorts`.
 
 ## Current Refactor Progress
 
 Completed in the current refactor pass:
 
 - Created `src/MechanisticAI.jl` as the shared include entrypoint.
-- Consolidated model, data IO, preprocessing, reporting, loss, diagnostics,
-  PLA, log parsing, and multi-start optimization helpers into `src/helpers.jl`.
+- Split the completed preprocessing helper surface out of `src/helpers.jl`
+  into focused files under `src/`.
+- Kept model, loss, diagnostics, PLA, log parsing, and multi-start optimization
+  helpers in `src/helpers.jl` until their corresponding workflow steps are
+  refactored.
 - Integrated `MultiStartOptimizer` into `helpers.jl` while preserving the
   `MultiStartOptimizer.run_multistart` call pattern.
 - Moved legacy baseline scripts into `.legacy/src/`.
 - Created the numbered workflow scripts in `scripts/`.
 - Created `config/workflow_config.jl`.
 - Refactored `scripts/00_run_preprocessing.jl` to read settings directly from
-  `WORKFLOW_CONFIG` and to run as a simple top-level pipeline.
-- Created `results/` as the root for future refactored outputs. It is currently
-  intended to stay empty until the workflow is executed.
+  `WORKFLOW_CONFIG`, load only its required helper files, and run as a simple
+  top-level pipeline.
+- Adopted `results/` as the official output root for refactored products, with
+  `results_test/` reserved for isolated test-mode runs.
 
 ## How To Run The Current Preprocessing Step
 
@@ -113,9 +131,12 @@ From the repository root:
 julia --project=. scripts/00_run_preprocessing.jl
 ```
 
-This step reads Excel inputs from `data/`, writes preprocessing reports and
-patient-set artifacts to `results/`, and uses the settings in
-`config/workflow_config.jl`.
+This step reads Excel inputs from `data/`, creates the configured cohort output
+directory if needed, writes preprocessing reports and patient-set artifacts to
+`results/00_cohorts`, and uses the settings in `config/workflow_config.jl`.
+
+When test mode is enabled in the config, the same command writes to
+`results_test/00_cohorts` instead.
 
 The downstream scripts are present but have not all been fully cleaned to the
 same standard as step 00 yet.
@@ -128,8 +149,8 @@ Recommended next work:
    `00_run_preprocessing.jl` to `01_run_ode_tdsigmoid_fit.jl`.
 2. Move step-specific constants from scripts into `WORKFLOW_CONFIG` only when
    they are shared, user-editable, or needed for reproducibility.
-3. Keep `helpers.jl` modular by section until the helper surface stabilizes;
-   then split it into dedicated files that mirror its section structure.
+3. Continue removing completed sections from `helpers.jl` as each numbered
+   script is refactored, so scripts eventually load only the helpers they need.
 4. Design `03_model_diagnostic.jl` before moving the remaining diagnostic and
    plotting scripts out of their provisional state.
 5. Keep `.legacy/src/` untouched unless a legacy script is needed as a reference
