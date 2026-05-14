@@ -39,3 +39,5 @@ Manifest.toml
 # .trash/
 # .resources/
 # .ForRefactor/
+
+results_test/
