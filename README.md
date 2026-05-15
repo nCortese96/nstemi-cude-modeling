@@ -1,76 +1,76 @@
 # MechanisticAI.jl
 
 MechanisticAI.jl is a Julia research codebase for mechanistic and hybrid
-modeling of cardiac troponin T (cTnT) trajectories. The repository currently
-contains the original analysis workflow and an ongoing refactor whose goal is
-to make the pipeline easier to read, reproduce, and extend.
+modeling of cardiac troponin T (cTnT) trajectories.
 
-The refactor is intentionally conservative: scientific equations, parameter
-bounds, metrics, and output conventions are being preserved while scripts are
-renamed, reorganized, and connected to shared helpers.
+The project organizes a sequential workflow for preprocessing patient-level
+cTnT data, fitting mechanistic ODE models, training hybrid cUDE models,
+selecting models, and running downstream analyses such as diagnostics, profile
+likelihood analysis, systematic truncation, symbolic regression, and surrogate
+evaluation.
 
-## Current Repository Structure
+The current codebase is being consolidated into a reproducible, config-driven
+workflow while preserving the scientific equations, parameter bounds, metrics,
+and output conventions used by the original analyses.
+
+## Repository Layout
 
 ```text
 .
 ├── config/
-│   └── workflow_config.jl        # Central workflow settings used by refactored scripts
+│   └── workflow_config.jl        # Central settings for refactored workflow steps
 ├── scripts/
-│   ├── 00_run_preprocessing.jl   # Dataset loading, cleaning, eligibility report, split export
+│   ├── 00_run_preprocessing.jl   # Cohort preprocessing and artifact export
 │   ├── 01_run_ode_tdsigmoid_fit.jl
 │   ├── 02a_run_cude_training.jl
 │   ├── 02b_evaluate_cude_nn.jl
 │   ├── 02c_grid_search.jl
 │   ├── 02d_evaluate_cude_nn_external_test.jl
-│   ├── 03_model_diagnostic.jl    # Placeholder for the diagnostics workflow
+│   ├── 03_model_diagnostic.jl
 │   ├── 04_simple_pla_afs_multimodel.jl
 │   ├── 05_run_systematic_truncation.jl
 │   ├── 06_sym_reg_controlled.jl
 │   └── 07_evaluate_symbolic_formula.jl
 ├── src/
-│   ├── MechanisticAI.jl          # Shared entrypoint for refactored scripts
-│   ├── data_io.jl                # Workflow IO plus patient spreadsheet/dataframe IO
-│   ├── preprocessing.jl          # Preprocessing, reports, and cohort artifact export
-│   └── helpers.jl                # Remaining helpers not yet split
-├── data/                         # Input datasets, not part of the refactor itself
-├── res/                          # Legacy output tree from previous runs
-├── results/                      # New output root for refactored runs
-├── results_test/                 # Optional output root when test mode is enabled
-└── .legacy/src/                  # Original scripts kept as reference baselines
+│   ├── MechanisticAI.jl          # Shared include entrypoint
+│   ├── data_io.jl                # Workflow IO, patient data IO, cohort loading
+│   ├── preprocessing.jl          # Preprocessing, reporting, and cohort export
+│   ├── models.jl                 # Model definitions, metrics, and losses
+│   ├── fitting.jl                # Optimization and fitting helpers
+│   └── helpers.jl                # Remaining helpers pending full consolidation
+├── data/                         # Input datasets expected by workflow scripts
+├── results/                      # Official output tree for refactored runs
+└── results_test/                 # Test-mode output tree
 ```
 
-Some plotting and diagnostic scripts are still present in `scripts/` while the
-step `03_model_diagnostic.jl` is being designed. They have not yet been folded
-into the numbered workflow.
-
-## Refactored Workflow
+## Workflow Overview
 
 The refactored workflow is represented by numbered scripts in `scripts/`.
-Numbers describe execution order; names keep the original script intent visible.
+Numbers describe the intended execution order.
 
 | Step | Script | Purpose |
 | --- | --- | --- |
-| 00 | `00_run_preprocessing.jl` | Load datasets, collapse duplicate timepoints, trim by time, apply eligibility filters, export reports and patient sets. |
-| 01 | `01_run_ode_tdsigmoid_fit.jl` | Fit the mechanistic ODE with Td-sigmoid release. |
-| 02a | `02a_run_cude_training.jl` | Train the cUDE model. |
-| 02b | `02b_evaluate_cude_nn.jl` | Evaluate cUDE models during validation/model comparison. |
+| 00 | `00_run_preprocessing.jl` | Load raw datasets, collapse duplicate timepoints, trim by time, apply eligibility filters, write reports and cohort artifacts. |
+| 01 | `01_run_ode_tdsigmoid_fit.jl` | Fit the mechanistic ODE model with Td-sigmoid release on preprocessed cohorts. |
+| 02a | `02a_run_cude_training.jl` | Train cUDE models. |
+| 02b | `02b_evaluate_cude_nn.jl` | Evaluate cUDE models during validation. |
 | 02c | `02c_grid_search.jl` | Select candidate models from validation summaries. |
 | 02d | `02d_evaluate_cude_nn_external_test.jl` | Evaluate the selected cUDE model on an external dataset. |
-| 03 | `03_model_diagnostic.jl` | Placeholder for parameter, residual, and plotting diagnostics. |
-| 04 | `04_simple_pla_afs_multimodel.jl` | Profile likelihood analysis for ODE/cUDE models. |
+| 03 | `03_model_diagnostic.jl` | Model diagnostics, including parameter and residual analyses. |
+| 04 | `04_simple_pla_afs_multimodel.jl` | Profile likelihood analysis for ODE and cUDE models. |
 | 05 | `05_run_systematic_truncation.jl` | Systematic truncation analysis. |
-| 06 | `06_sym_reg_controlled.jl` | Symbolic regression on the selected cUDE model. |
-| 07 | `07_evaluate_symbolic_formula.jl` | Surrogate formula fitting/evaluation. |
+| 06 | `06_sym_reg_controlled.jl` | Symbolic regression based on the selected cUDE model. |
+| 07 | `07_evaluate_symbolic_formula.jl` | Surrogate formula fitting and evaluation. |
 
 ## Configuration
 
-Shared settings for the refactored workflow live in:
+Workflow settings live in:
 
 ```text
 config/workflow_config.jl
 ```
 
-The public configuration object is `WORKFLOW_CONFIG`, currently structured as:
+The central configuration object is `WORKFLOW_CONFIG`. It includes:
 
 ```julia
 WORKFLOW_CONFIG.paths
@@ -79,86 +79,95 @@ WORKFLOW_CONFIG.outputs
 WORKFLOW_CONFIG.datasets
 WORKFLOW_CONFIG.model
 WORKFLOW_CONFIG.preprocessing
+WORKFLOW_CONFIG.ode_tdsigmoid
 ```
 
-Important current settings:
+Important settings include:
 
-- `WORKFLOW_CONFIG.paths.data_root = "data"`
-- `WORKFLOW_CONFIG.paths.results_root = "results"`
-- `WORKFLOW_CONFIG.paths.results_test_root = "results_test"`
-- `WORKFLOW_CONFIG.paths.active_results_root` selects either `results` or `results_test`
-- `WORKFLOW_CONFIG.outputs.cohorts = joinpath(active_results_root, "00_cohorts")`
-- `WORKFLOW_CONFIG.model.t_scale = 240.0`
-- `WORKFLOW_CONFIG.preprocessing.dataset_keys = (:mimic_iv, :umg)`
-- `WORKFLOW_CONFIG.preprocessing.output_dir = WORKFLOW_CONFIG.outputs.cohorts`
+- `WORKFLOW_CONFIG.run.test_mode`: writes outputs to `results_test/` when
+  enabled.
+- `WORKFLOW_CONFIG.run.progress_bars`: enables or disables progress bars in
+  long-running steps that support them.
+- `WORKFLOW_CONFIG.outputs.cohorts`: step 00 cohort output directory.
+- `WORKFLOW_CONFIG.outputs.ode_evaluation`: step 01 ODE evaluation output
+  directory.
+- `WORKFLOW_CONFIG.model.t_scale`: model-domain time scale in hours.
+- `WORKFLOW_CONFIG.datasets`: dataset registry used by workflow scripts.
 
-`t_scale` is a model-domain time scale in hours. It is used by preprocessing to
-define the analysis window and by cUDE models to normalize time as `t / t_scale`.
-It is therefore stored under `WORKFLOW_CONFIG.model`, not under preprocessing.
+The `t_scale` setting is shared by preprocessing and model code. It defines the
+analysis window during preprocessing and is also used by cUDE models to
+normalize time.
 
-To isolate exploratory runs, set the `test_mode` entry in `WORKFLOW_RUN_MODE`
-to `true` in `config/workflow_config.jl`. It is exposed as
-`WORKFLOW_CONFIG.run.test_mode`, and refactored scripts will then write outputs
-under `results_test/` through the same step-specific output interfaces. Step 00
-currently writes to `results/00_cohorts` or `results_test/00_cohorts`.
+## Running The Workflow
 
-## Current Refactor Progress
+Run commands from the repository root with the project environment active.
 
-Completed in the current refactor pass:
-
-- Created `src/MechanisticAI.jl` as the shared include entrypoint.
-- Split the completed preprocessing helper surface out of `src/helpers.jl`
-  into focused files under `src/`.
-- Kept model, loss, diagnostics, PLA, log parsing, and multi-start optimization
-  helpers in `src/helpers.jl` until their corresponding workflow steps are
-  refactored.
-- Integrated `MultiStartOptimizer` into `helpers.jl` while preserving the
-  `MultiStartOptimizer.run_multistart` call pattern.
-- Moved legacy baseline scripts into `.legacy/src/`.
-- Created the numbered workflow scripts in `scripts/`.
-- Created `config/workflow_config.jl`.
-- Refactored `scripts/00_run_preprocessing.jl` to read settings directly from
-  `WORKFLOW_CONFIG`, load only its required helper files, and run as a simple
-  top-level pipeline.
-- Adopted `results/` as the official output root for refactored products, with
-  `results_test/` reserved for isolated test-mode runs.
-
-## How To Run The Current Preprocessing Step
-
-From the repository root:
+### Step 00: Preprocessing
 
 ```bash
 julia --project=. scripts/00_run_preprocessing.jl
 ```
 
-This step reads Excel inputs from `data/`, creates the configured cohort output
-directory if needed, writes preprocessing reports and patient-set artifacts to
-`results/00_cohorts`, and uses the settings in `config/workflow_config.jl`.
+This step reads raw Excel datasets from `data/`, writes preprocessing reports,
+exports all-eligible patient IDs, and saves JLD2 cohort artifacts under the
+configured cohort output directory.
 
-When test mode is enabled in the config, the same command writes to
-`results_test/00_cohorts` instead.
+When `WORKFLOW_CONFIG.run.test_mode=true`, outputs are written under
+`results_test/00_cohorts`. Otherwise they are written under
+`results/00_cohorts`.
 
-The downstream scripts are present but have not all been fully cleaned to the
-same standard as step 00 yet.
+### Step 01: ODE Td-Sigmoid Fit
 
-## Notes For Continuing The Refactor
+```bash
+julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+```
 
-Recommended next work:
+This step loads the preprocessed cohorts produced by step 00 and fits one
+mechanistic ODE model per patient. Outputs are written under
+`results*/01_ode_evaluation`.
 
-1. Apply the same config-driven, top-level pipeline style used in
-   `00_run_preprocessing.jl` to `01_run_ode_tdsigmoid_fit.jl`.
-2. Move step-specific constants from scripts into `WORKFLOW_CONFIG` only when
-   they are shared, user-editable, or needed for reproducibility.
-3. Continue removing completed sections from `helpers.jl` as each numbered
-   script is refactored, so scripts eventually load only the helpers they need.
-4. Design `03_model_diagnostic.jl` before moving the remaining diagnostic and
-   plotting scripts out of their provisional state.
-5. Keep `.legacy/src/` untouched unless a legacy script is needed as a reference
-   while refactoring its numbered replacement.
+For threaded execution, start Julia with a thread count before running the
+script:
 
-## Development Status
+```bash
+JULIA_NUM_THREADS=auto julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+```
 
-This repository is not yet in its final public form. The README is already
-written in the intended public style, but the implementation is mid-refactor.
-Until the workflow is fully validated, treat `.legacy/src/` as the source of
-historical behavior and `scripts/` as the active refactor line.
+or:
+
+```bash
+JULIA_NUM_THREADS=8 julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+```
+
+Progress bars and plotting behavior are controlled from
+`config/workflow_config.jl`.
+
+## Output Trees
+
+Refactored runs use two mirrored output roots:
+
+```text
+results/
+results_test/
+```
+
+Use `results/` for official outputs and `results_test/` for exploratory or
+validation runs. The active root is selected by `WORKFLOW_CONFIG.run.test_mode`.
+
+Current step-level output directories include:
+
+```text
+results*/00_cohorts
+results*/01_ode_evaluation
+results*/02_cude_workflow
+results*/03_comparison_analyses
+```
+
+## Notes
+
+The repository is still being consolidated. Numbered workflow scripts are the
+active execution path, while helper code in `src/` is being progressively split
+into focused modules.
+
+Later workflow steps may still contain code inherited from the original
+analysis scripts and will be cleaned as their steps are refactored.

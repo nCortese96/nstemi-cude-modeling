@@ -10,6 +10,17 @@ Pipeline:
 3. Load raw Excel datasets through dedicated preprocessing helpers.
 4. Collapse duplicate timepoints, trim, filter anomalies, and report each step.
 5. Save all-eligible IDs plus JLD2 train/test artifacts.
+
+Command-line usage:
+  julia --project=. scripts/00_run_preprocessing.jl
+
+Workflow-consistent threaded execution:
+  JULIA_NUM_THREADS=auto julia --project=. scripts/00_run_preprocessing.jl
+  JULIA_NUM_THREADS=8 julia --project=. scripts/00_run_preprocessing.jl
+
+Step 00 currently does not require threaded optimization, but refactored
+workflow scripts should be launched this way when they contain training,
+multi-start fitting, or other thread-parallel work.
 """
 
 using Dates
@@ -47,7 +58,7 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 config = WORKFLOW_CONFIG
 preprocessing = config.preprocessing
 filters = preprocessing.filters
-datasets = [config.datasets[key] for key in preprocessing.dataset_keys]
+datasets = resolve_dataset_configs(config, preprocessing.dataset_keys)
 preprocessing_output_dirs = (cohorts=preprocessing.output_dir,)
 
 train_percent_label = round(Int, preprocessing.train_fraction * 100)

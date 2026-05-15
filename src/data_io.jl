@@ -90,6 +90,17 @@ function log_workflow_context(
     return nothing
 end
 
+"""
+    resolve_dataset_configs(config, dataset_keys)
+
+Return dataset configuration entries selected from `config.datasets` by the
+ordered `dataset_keys` collection.
+"""
+# Used by: scripts/00_run_preprocessing.jl, scripts/01_run_ode_tdsigmoid_fit.jl. Planned use: future workflow scripts.
+function resolve_dataset_configs(config, dataset_keys)
+    return [getproperty(config.datasets, key) for key in dataset_keys]
+end
+
 # =============================================================================
 # Patient Data IO
 # =============================================================================

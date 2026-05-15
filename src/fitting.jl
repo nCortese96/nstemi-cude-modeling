@@ -33,7 +33,7 @@ import Base.Threads
 # =============================================================================
 
 """
-    run_multistart(loss, N; lower, upper, optimizer, rng, maxiters, maxtime, prescreen, topk)
+    run_multistart(loss, N; lower, upper, optimizer, rng, maxiters, maxtime, prescreen, topk, show_progress)
 
 Run Latin-hypercube multi-start optimization and return `(best_solution,
 all_results)`.
@@ -52,7 +52,8 @@ function run_multistart(
     maxiters::Int=1000,
     maxtime::Float64=80.0,
     prescreen::Bool=false,
-    topk::Int=8
+    topk::Int=8,
+    show_progress::Bool=true
 )
     lhs_starts = sample(N, lower, upper, LatinHypercubeSample(rng))
     starts = [Vector(lhs_starts[:, i]) for i in 1:N]
@@ -76,19 +77,23 @@ function run_multistart(
 
     done = Threads.Atomic{Int}(0)
     best_loss_atomic = Threads.Atomic{Float64}(Inf)
-    progress = Progress(length(starts); desc="MultiStart", dt=0.1, showspeed=true)
+    progress = show_progress ? Progress(length(starts); desc="MultiStart", dt=0.1, showspeed=true) : nothing
 
-    monitor = Threads.@spawn begin
-        last = 0
-        while true
-            d = done[]
-            if d > last
-                ProgressMeter.update!(progress, d; showvalues=[(:best_loss, best_loss_atomic[])])
-                last = d
+    monitor = if show_progress
+        Threads.@spawn begin
+            last = 0
+            while true
+                d = done[]
+                if d > last
+                    ProgressMeter.update!(progress, d; showvalues=[(:best_loss, best_loss_atomic[])])
+                    last = d
+                end
+                d >= length(starts) && break
+                sleep(0.1)
             end
-            d >= length(starts) && break
-            sleep(0.1)
         end
+    else
+        nothing
     end
 
     best_lock = ReentrantLock()
@@ -119,8 +124,10 @@ function run_multistart(
         done[] += 1
     end
 
-    wait(monitor)
-    finish!(progress)
+    if show_progress
+        wait(monitor)
+        finish!(progress)
+    end
 
     if verbose
         nfail = count(r -> r === nothing, results)
@@ -291,7 +298,8 @@ function fit_ode_patient(patient::PatientData, pguess::AbstractVector, lower::Ab
     maxiters::Int=1000,
     maxtime::Real=80.0,
     prescreen::Bool=false,
-    topk::Int=8)
+    topk::Int=8,
+    show_progress::Bool=true)
 
     t_data = patient.timepoints
     x_data = patient.ctnt_data
@@ -312,6 +320,7 @@ function fit_ode_patient(patient::PatientData, pguess::AbstractVector, lower::Ab
         maxtime=Float64(maxtime),
         prescreen=prescreen,
         topk=topk,
+        show_progress=show_progress,
     )
 
     best_params = Vector(best_result.u)
@@ -379,11 +388,12 @@ function fit_ode_dataset(patients::AbstractVector{PatientData}, settings; datase
             maxtime=settings.maxtime,
             prescreen=settings.prescreen,
             topk=settings.topk,
+            show_progress=settings.progress_bars,
         )
 
         save_ode_patient_plots(result.sol, patient, dataset_name, fig_dir; plotting=settings.plotting)
 
-        @info "Completed patient $(patient.id): SMAPE=$(result.smape), RMSLE=$(result.rmsle), loss=$(result.loss)"
+        @info "Completed $(dataset_name) patient $(i)/$(length(patients)): $(patient.id) | SMAPE=$(result.smape), RMSLE=$(result.rmsle), loss=$(result.loss)"
         results[i] = result
     end
 

@@ -25,10 +25,12 @@ const WORKFLOW_PATHS = (
 #
 # Set `test_mode=true` to keep trial runs isolated under `results_test`.
 # Set `test_mode=false` to write standard workflow outputs under `results`.
+# Set `progress_bars=false` to disable progress bars in time-consuming steps.
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
     test_mode=true,
+    progress_bars=true,
 )
 
 const ACTIVE_RESULTS_ROOT = WORKFLOW_RUN_MODE.test_mode ?
@@ -130,6 +132,7 @@ const ODE_TDSIGMOID_SETTINGS = (
     prescreen=false,
     topk=8,
     plotting=true,
+    progress_bars=WORKFLOW_RUN_MODE.progress_bars,
 )
 
 const WORKFLOW_CONFIG = (
