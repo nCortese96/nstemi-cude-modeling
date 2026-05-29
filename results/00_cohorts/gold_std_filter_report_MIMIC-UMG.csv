@@ -1,3 +1,0 @@
-dataset,raw_n,eligible_n,removed_anoms,gold_n
-MIMIC-IV,1558,56,51,5
-UMG,99,99,97,2

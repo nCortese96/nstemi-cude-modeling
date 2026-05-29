@@ -1,8 +1,0 @@
-Parameter,Local,Global
-Cs(t),true,globally
-Cc(t),true,globally
-Cp(t),true,globally
-tau(t),true,globally
-Td,true,locally
-a,true,globally
-b,true,globally
