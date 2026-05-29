@@ -24,6 +24,11 @@ bars for multi-start fitting are controlled by `WORKFLOW_CONFIG.run.progress_bar
 and the step-level `WORKFLOW_CONFIG.ode_tdsigmoid.progress_bars`.
 """
 
+# =============================================================================
+# IMPORTS AND SHARED HELPERS
+# Minimal dependencies used directly by this executable workflow script.
+# =============================================================================
+
 using Dates
 using DataFrames: nrow
 using Logging
@@ -31,6 +36,7 @@ using Logging
 include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
 include(joinpath(@__DIR__, "..", "src", "models.jl"))
 include(joinpath(@__DIR__, "..", "src", "fitting.jl"))
+include(joinpath(@__DIR__, "..", "src", "plotting.jl"))
 include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 
 # =============================================================================
@@ -39,33 +45,42 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 # `WORKFLOW_CONFIG.ode_tdsigmoid`.
 # =============================================================================
 
+config = WORKFLOW_CONFIG
+settings = config.ode_tdsigmoid
+datasets = resolve_dataset_configs(config, settings.dataset_keys)
+
 # =============================================================================
 # INPUT PATHS
 # Step 01 consumes only step 00 artifacts from `WORKFLOW_CONFIG.outputs.cohorts`.
 # =============================================================================
+
+cohort_dir = config.outputs.cohorts
 
 # =============================================================================
 # OUTPUT PATHS
 # Step 01 writes to `WORKFLOW_CONFIG.ode_tdsigmoid.output_dir`.
 # =============================================================================
 
+output_root = settings.output_dir
+
+# =============================================================================
+# DERIVED SETTINGS
+# Values derived from settings and paths. No heavy side effects here.
+# =============================================================================
+
+workflow_output_paths = (
+    cohorts=cohort_dir,
+    ode_evaluation=output_root,
+)
+
 # =============================================================================
 # PIPELINE
 # =============================================================================
 
-config = WORKFLOW_CONFIG
-settings = config.ode_tdsigmoid
-cohort_dir = config.outputs.cohorts
-output_root = settings.output_dir
-datasets = resolve_dataset_configs(config, settings.dataset_keys)
-
 log_workflow_context(
     config;
     script_name=basename(@__FILE__),
-    output_paths=(
-        cohorts=cohort_dir,
-        ode_evaluation=output_root,
-    ),
+    output_paths=workflow_output_paths,
 )
 
 ensure_output_dirs!((ode_evaluation=output_root,); header="Ensured step 01 output root")
@@ -105,8 +120,11 @@ for dataset in datasets
         cohort.patients,
         settings;
         dataset_name=dataset_name,
-        fig_dir=paths.fig_dir,
     )
+
+    for (patient, result) in zip(cohort.patients, fit_results)
+        save_ode_patient_plots(result.sol, patient, dataset_name, paths.fig_dir; plotting=settings.plotting)
+    end
 
     validation_ids = dataset_name == "MIMIC-IV" ? cohort.validation_ids : String[]
     saved = save_ode_fit_results(paths, fit_results; validation_ids=validation_ids)

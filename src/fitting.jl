@@ -1,31 +1,29 @@
 """
 fitting.jl
 
-Optimization, patient-level fitting, metrics, and fit-output helpers.
+Optimization, patient-level fitting, and training helpers.
 
 Sections:
 - Multi-Start Optimization: reproducible bounded optimization from multiple starts.
 - Initialization Utilities: reusable neural and ODE parameter initialization.
-- Fit Metrics And Tables: metric summaries and patient-level CSV builders.
-- Prediction And Plotting: reusable ODE prediction and patient fit plots.
+- Prediction Helpers: reusable ODE prediction utilities.
+- cUDE Training: width-level cUDE training helpers for workflow step 02a.
+- cUDE Evaluation: patient-level cUDE evaluation helpers for workflow step 02b.
 - ODE Td-Sigmoid Fitting: step 01 fitting and output helpers.
 """
 
 using Base.Threads: @threads
-using CSV
-using DataFrames: DataFrame
+using ComponentArrays: ComponentArray
+using LineSearches
 using Logging
-using Optimization, OptimizationOptimJL
+using Optimization, OptimizationOptimJL, OptimizationOptimisers
 using OrdinaryDiffEq: Tsit5
-using Plots
 using ProgressMeter
 using QuasiMonteCarlo: LatinHypercubeSample, sample
 using Random: AbstractRNG
 using SciMLBase: ODEProblem, successful_retcode, solve, remake
 using SimpleChains: SimpleChain, init_params
 using StableRNGs: StableRNG
-using Statistics: mean, median, quantile, std
-using Tables
 import Base.Threads
 
 # =============================================================================
@@ -47,7 +45,6 @@ function run_multistart(
     optimizer=Fminbox(LBFGS()),
     verbose::Bool=true,
     callback::Function=(x, f) -> nothing,
-    save_to_csv::Union{Nothing,String}=nothing,
     rng::AbstractRNG=StableRNG(42),
     maxiters::Int=1000,
     maxtime::Float64=80.0,
@@ -134,19 +131,6 @@ function run_multistart(
         println("Finished MultiStart: best_loss=$(best_loss), failed=$(nfail)/$(length(starts))")
     end
 
-    if save_to_csv !== nothing
-        rows = [
-            (
-                start=selected_idx[i],
-                prescreen_loss=prescreen ? prescreen_losses[selected_idx[i]] : NaN,
-                loss=(r === nothing ? NaN : r.minimum),
-                params=(r === nothing ? [] : r.u)
-            )
-            for (i, r) in enumerate(results)
-        ]
-        CSV.write(save_to_csv, Tables.columntable(rows))
-    end
-
     best_sol === nothing && error("MultiStart failed: no valid solution found among $(length(starts)) starts.")
     return best_sol, results
 end
@@ -176,60 +160,7 @@ function sample_initial_parameters(n_patients::Int, n_initials::Int, lhs_lb::Abs
 end
 
 # =============================================================================
-# Fit Metrics And Tables
-# =============================================================================
-
-"""
-    summarize_metric_vector(values)
-
-Return mean, standard deviation, median, quartiles, and IQR after dropping
-non-finite values.
-"""
-# Planned use: scripts/02a_run_cude_training.jl and downstream model-comparison scripts.
-function summarize_metric_vector(values::AbstractVector{<:Real})
-    finite_values = collect(filter(isfinite, values))
-    isempty(finite_values) && return (mean=NaN, std=NaN, median=NaN, q1=NaN, q3=NaN, iqr=NaN)
-    q1 = quantile(finite_values, 0.25)
-    q3 = quantile(finite_values, 0.75)
-    return (
-        mean=mean(finite_values),
-        std=length(finite_values) > 1 ? std(finite_values) : 0.0,
-        median=median(finite_values),
-        q1=q1,
-        q3=q3,
-        iqr=q3 - q1,
-    )
-end
-
-"""
-    summarize_metrics(losses, smapes, rmsles)
-
-Return grouped summary statistics for loss, sMAPE, and RMSLE vectors.
-"""
-# Planned use: scripts/02a_run_cude_training.jl and downstream model-comparison scripts.
-function summarize_metrics(losses, smapes, rmsles)
-    return (
-        loss=summarize_metric_vector(losses),
-        smape=summarize_metric_vector(smapes),
-        rmsle=summarize_metric_vector(rmsles),
-    )
-end
-
-"""
-    save_patient_metrics(path, ids, smapes, rmsles, losses)
-
-Write patient-level metrics to CSV and return the saved DataFrame.
-"""
-# Planned use: scripts/02b_evaluate_cude_nn.jl and downstream evaluation scripts.
-function save_patient_metrics(path::AbstractString, ids, smapes, rmsles, losses)
-    mkpath(dirname(path))
-    df = DataFrame(patient_id=ids, smape=smapes, rmsle=rmsles, loss=losses)
-    CSV.write(path, df)
-    return df
-end
-
-# =============================================================================
-# Prediction And Plotting
+# Prediction Helpers
 # =============================================================================
 
 """
@@ -246,43 +177,611 @@ function predict_patient_curve(problem::ODEProblem, theta; saveat=1.0, abstol=1e
     return sol
 end
 
-"""
-    plot_patient_fit(sol, patient; title="Patient <id>", plasma_only=false)
+# =============================================================================
+# cUDE Training
+# =============================================================================
 
-Build a patient fit plot from an ODE solution and observed cTnT data.
 """
-# Planned use: scripts/05_run_systematic_truncation.jl and diagnostic scripts.
-function plot_patient_fit(sol, patient::PatientData; title::AbstractString="Patient $(patient.id)", plasma_only::Bool=false)
-    if plasma_only
-        plt = Plots.plot(sol[3, :]; lw=2, label="Blood", xlabel="Time", ylabel="cTnT [ng/mL]", title=title)
-    else
-        plt = Plots.plot(sol[1, :]; lw=2, label="Sarcomere", xlabel="Time", ylabel="CTNT", title=title)
-        Plots.plot!(plt, sol[2, :]; lw=2, label="Cytosol")
-        Plots.plot!(plt, sol[3, :]; lw=2, label="Blood")
+    make_optimization_progress_callback!(pbar, losses; offset=0, every_iters=10, every_secs=1.0)
+
+Build an Optimization.jl callback that records every reported loss and updates
+an optional progress bar at controlled intervals.
+"""
+# Used by: src/fitting.jl (train_cude_initialization).
+function make_optimization_progress_callback!(pbar, losses; offset::Int=0, every_iters::Int=10, every_secs::Real=1.0)
+    last_t = Ref(time())
+    last_k = Ref(0)
+
+    return (state, loss) -> begin
+        push!(losses, loss)
+
+        k = offset + state.iter
+        if pbar !== nothing && ((k - last_k[] >= every_iters) || (time() - last_t[] > every_secs))
+            ProgressMeter.update!(pbar, k; showvalues=() -> [(:iter, k), (:loss, loss)])
+            last_k[] = k
+            last_t[] = time()
+        end
+
+        return false
     end
-    Plots.scatter!(plt, patient.timepoints, patient.ctnt_data; ms=5, label="Observed Data", legend=:best)
-    return plt
+end
+
+"""
+    cude_local_training_models(training_dataset, chain, theta, n_params)
+
+Build reusable cUDE ODE problem containers for the training cohort using the
+legacy patient-specific time spans and the shared neural chain.
+"""
+# Used by: src/fitting.jl (select_cude_initial_candidates, train_cude_width).
+function cude_local_training_models(training_dataset::AbstractVector{PatientData}, chain::SimpleChain, theta, n_params::Integer)
+    return [
+        ctntCUDEModel(
+            theta.ode[n_params * (j - 1) + 1:n_params * j],
+            chain,
+            training_dataset[j].timepoints,
+        )
+        for j in eachindex(training_dataset)
+    ]
+end
+
+"""
+    generate_cude_initial_candidates(training_dataset, chain, settings; rng)
+
+Generate neural and patient-level ODE initial candidates with the same sampling
+order used by the legacy cUDE training script.
+"""
+# Used by: src/fitting.jl (train_cude_width).
+function generate_cude_initial_candidates(training_dataset::AbstractVector{PatientData}, chain::SimpleChain, settings; rng::AbstractRNG)
+    initial_nn = sample_initial_neural_parameters(settings.initial_guesses, chain, rng)
+    initial_ode = sample_initial_parameters(length(training_dataset), settings.initial_guesses, settings.lower, settings.upper, rng)
+    n_conditional = hasproperty(settings, :n_conditional) ? settings.n_conditional : 1
+
+    return [
+        ComponentArray(
+            neural=initial_nn[i],
+            ode=repeat(initial_ode[:, i], 1, n_conditional),
+        )
+        for i in eachindex(initial_nn)
+    ]
+end
+
+"""
+    select_cude_initial_candidates(initial_parameters, training_dataset, chain, settings; width, show_progress)
+
+Evaluate all initial candidates with the cohort training loss and return the
+best starts selected by `partialsortperm`.
+"""
+# Used by: src/fitting.jl (train_cude_width).
+function select_cude_initial_candidates(
+    initial_parameters,
+    training_dataset::AbstractVector{PatientData},
+    chain::SimpleChain,
+    settings;
+    width::Integer,
+    show_progress::Bool=true,
+)
+    isempty(initial_parameters) && error("No cUDE initial parameters were generated.")
+    settings.selected_initials <= length(initial_parameters) ||
+        error("selected_initials=$(settings.selected_initials) exceeds initial_guesses=$(length(initial_parameters)).")
+
+    local_models = cude_local_training_models(training_dataset, chain, first(initial_parameters), settings.n_params)
+    losses_initial = Vector{Float64}(undef, length(initial_parameters))
+
+    progress = show_progress ?
+               Progress(length(initial_parameters); dt=1, desc="Evaluating initial guesses width $(width)", showspeed=true, color=:firebrick) :
+               nothing
+
+    for k in eachindex(initial_parameters)
+        losses_initial[k] = par_training_loss(
+            initial_parameters[k],
+            (local_models, training_dataset);
+            n_params=settings.n_params,
+            lb_param=settings.lower,
+            ub_param=settings.upper,
+            κ_bounds=settings.kappa_bounds,
+            λ_back=settings.lambda_back,
+        )
+
+        progress !== nothing && next!(progress)
+    end
+
+    progress !== nothing && finish!(progress)
+
+    selected_indices = partialsortperm(losses_initial, 1:settings.selected_initials)
+    out_params = initial_parameters[selected_indices]
+
+    return (
+        out_params=out_params,
+        losses_initial=losses_initial,
+        selected_indices=selected_indices,
+        selected_losses=losses_initial[selected_indices],
+        local_models=local_models,
+    )
+end
+
+"""
+    train_cude_initialization(theta_init, local_models, training_dataset, settings; model_index, show_progress)
+
+Train one selected cUDE initialization through the legacy ADAM phase followed by
+the legacy LBFGS phase.
+"""
+# Used by: src/fitting.jl (train_cude_width).
+function train_cude_initialization(
+    theta_init,
+    local_models,
+    training_dataset::AbstractVector{PatientData},
+    settings;
+    model_index::Integer,
+    show_progress::Bool=true,
+)
+    losses_this = Float64[]
+
+    optfunc = OptimizationFunction(
+        (p, data) -> par_training_loss(
+            p,
+            data;
+            n_params=settings.n_params,
+            lb_param=settings.lower,
+            ub_param=settings.upper,
+            κ_bounds=settings.kappa_bounds,
+            λ_back=settings.lambda_back,
+        ),
+        AutoForwardDiff(),
+    )
+
+    optprob = OptimizationProblem(optfunc, theta_init, (local_models, training_dataset))
+
+    adam_bar = show_progress ?
+               Progress(settings.adam_maxiters; dt=1, desc="ADAM phase theta $(model_index)", showspeed=true, color=:firebrick) :
+               nothing
+    cb_adam = make_optimization_progress_callback!(adam_bar, losses_this; offset=0, every_iters=10, every_secs=10.0)
+
+    opt_result1 = solve(
+        optprob,
+        Optimisers.Adam(settings.adam_eta);
+        maxiters=settings.adam_maxiters,
+        callback=cb_adam,
+    )
+
+    adam_bar !== nothing && finish!(adam_bar)
+
+    optprob2 = OptimizationProblem(optfunc, opt_result1.u, (local_models, training_dataset))
+
+    lbfgs_bar = show_progress ?
+                Progress(settings.lbfgs_maxiters; dt=1, desc="LBFGS phase theta $(model_index)", showspeed=true, color=:firebrick) :
+                nothing
+    cb_lbfgs = make_optimization_progress_callback!(lbfgs_bar, losses_this; offset=0, every_iters=10, every_secs=10.0)
+
+    opt_result2 = solve(
+        optprob2,
+        LBFGS(linesearch=LineSearches.BackTracking());
+        maxiters=settings.lbfgs_maxiters,
+        g_abstol=settings.lbfgs_tolerances.g,
+        f_abstol=settings.lbfgs_tolerances.f,
+        x_abstol=settings.lbfgs_tolerances.x,
+        callback=cb_lbfgs,
+    )
+
+    lbfgs_bar !== nothing && finish!(lbfgs_bar)
+
+    return (
+        solution=opt_result2,
+        losses=losses_this,
+        adam_retcode=opt_result1.retcode,
+        lbfgs_retcode=opt_result2.retcode,
+        final_loss=opt_result2.objective,
+    )
+end
+
+"""
+    train_cude_width(training_dataset, settings; width, initial_parameters, initial_parameters_source)
+
+Run the complete step 02a cUDE training pipeline for one neural-network width.
+When `initial_parameters` is provided, skip the initial candidate generation
+and screening phase and train directly from those selected starts.
+"""
+# Used by: scripts/02a_run_cude_training.jl.
+function train_cude_width(
+    training_dataset::AbstractVector{PatientData},
+    settings;
+    width::Integer,
+    initial_parameters=nothing,
+    initial_parameters_source=nothing,
+)
+    chain = neural_network_model(settings.nn_depth, width; input_dims=settings.input_dim)
+
+    if initial_parameters === nothing
+        rng = StableRNG(settings.rng_seed)
+        generated_parameters = generate_cude_initial_candidates(training_dataset, chain, settings; rng=rng)
+        selection = select_cude_initial_candidates(
+            generated_parameters,
+            training_dataset,
+            chain,
+            settings;
+            width=width,
+            show_progress=settings.progress_bars,
+        )
+        initial_source = :generated
+    else
+        out_params = collect(initial_parameters)
+        isempty(out_params) && error("Existing cUDE initial-parameter file contains no out_params.")
+
+        local_models = cude_local_training_models(training_dataset, chain, first(out_params), settings.n_params)
+        selected_losses = [
+            par_training_loss(
+                theta,
+                (local_models, training_dataset);
+                n_params=settings.n_params,
+                lb_param=settings.lower,
+                ub_param=settings.upper,
+                κ_bounds=settings.kappa_bounds,
+                λ_back=settings.lambda_back,
+            )
+            for theta in out_params
+        ]
+
+        selection = (
+            out_params=out_params,
+            losses_initial=selected_losses,
+            selected_indices=nothing,
+            selected_losses=selected_losses,
+            local_models=local_models,
+        )
+        initial_source = :loaded
+    end
+
+    n_start = length(selection.out_params)
+    optsols = Vector{Any}(undef, n_start)
+    losses_per_model = Vector{Vector{Float64}}(undef, n_start)
+    adam_retcodes = Vector{Any}(undef, n_start)
+    lbfgs_retcodes = Vector{Any}(undef, n_start)
+    final_losses = Vector{Float64}(undef, n_start)
+
+    for (i, theta_init) in enumerate(selection.out_params)
+        @info "Training cUDE width $(width), selected initialization $(i)/$(n_start)."
+        trained = train_cude_initialization(
+            theta_init,
+            selection.local_models,
+            training_dataset,
+            settings;
+            model_index=i,
+            show_progress=settings.progress_bars,
+        )
+
+        optsols[i] = trained.solution
+        losses_per_model[i] = trained.losses
+        adam_retcodes[i] = trained.adam_retcode
+        lbfgs_retcodes[i] = trained.lbfgs_retcode
+        final_losses[i] = trained.final_loss
+
+        @info "Completed cUDE width $(width), initialization $(i)/$(n_start): retcode=$(trained.lbfgs_retcode), final_loss=$(trained.final_loss)"
+    end
+
+    neural_network_parameters = [optsol.u.neural[:] for optsol in optsols]
+    ode_params = [optsol.u.ode[:] for optsol in optsols]
+
+    return (
+        width=width,
+        chain=chain,
+        initial_source=initial_source,
+        initial_parameters_source=initial_parameters_source,
+        initial_losses=selection.losses_initial,
+        selected_indices=selection.selected_indices,
+        selected_losses=selection.selected_losses,
+        out_params=selection.out_params,
+        optsols=optsols,
+        losses_per_model=losses_per_model,
+        neural_network_parameters=neural_network_parameters,
+        ode_params=ode_params,
+        adam_retcodes=adam_retcodes,
+        lbfgs_retcodes=lbfgs_retcodes,
+        final_losses=final_losses,
+    )
+end
+
+# =============================================================================
+# cUDE Evaluation
+# =============================================================================
+
+"""
+    fit_cude_patient(patient, chain, nn_params, pguess, lower, upper, settings; rng)
+
+Fit one patient's cUDE ODE parameters with the fixed neural correction from a
+trained candidate model.
+"""
+# Used by: src/fitting.jl (evaluate_cude_model).
+function fit_cude_patient(
+    patient::PatientData,
+    chain::SimpleChain,
+    nn_params,
+    pguess::AbstractVector,
+    lower::AbstractVector,
+    upper::AbstractVector,
+    settings;
+    rng::AbstractRNG,
+)
+    model = ctntCUDEModel(pguess, chain, patient.timepoints)
+    patient_data = (model, patient.timepoints, patient.ctnt_data, nn_params)
+    loss_fun = θ -> patient_loss(θ, patient_data; λ_back=settings.lambda_back)
+    use_multistart = settings.n_multistart > 0
+
+    if use_multistart
+        settings.bounds ||
+            error("cUDE multi-start evaluation requires bounds=true because starts are sampled inside [lower, upper].")
+
+        best_result, _ = run_multistart(
+            loss_fun,
+            settings.n_multistart;
+            lower=lower,
+            upper=upper,
+            rng=rng,
+            verbose=false,
+            maxiters=settings.maxiters,
+            maxtime=Float64(settings.maxtime),
+            prescreen=settings.prescreen,
+            topk=settings.topk,
+            show_progress=settings.progress_bars,
+        )
+
+        best_ode_params = Vector(best_result.u)
+        best_objective = best_result.minimum
+    else
+        optfunc = OptimizationFunction(
+            (p, data) -> patient_loss(p, data; λ_back=settings.lambda_back),
+            AutoForwardDiff(),
+        )
+
+        optprob = settings.bounds ?
+                  OptimizationProblem(optfunc, pguess, patient_data; lb=lower, ub=upper) :
+                  OptimizationProblem(optfunc, pguess, patient_data)
+
+        optsol = solve(
+            optprob,
+            LBFGS(linesearch=LineSearches.BackTracking());
+            maxiters=settings.maxiters,
+        )
+
+        best_ode_params = Vector(optsol.u)
+        best_objective = optsol.objective
+    end
+
+    p_opt = ComponentArray(ode=best_ode_params, neural=nn_params)
+    u0_new = initial_conditions_from_log_params(p_opt.ode)
+    prob = remake(model.problem; u0=u0_new, p=p_opt)
+    opt_model = ctntUDEModel(prob, chain)
+
+    pred = solve(prob, Tsit5(); p=p_opt, saveat=patient.timepoints)
+    successful_retcode(pred) || error("Prediction solve failed with retcode=$(pred.retcode)")
+
+    sol = solve(prob, Tsit5(); p=p_opt, saveat=1)
+    successful_retcode(sol) || error("Full trajectory solve failed with retcode=$(sol.retcode)")
+
+    return (
+        patient=patient.id,
+        smape=smape(pred[3, :], patient.ctnt_data),
+        rmsle=rmsle(patient.ctnt_data, pred[3, :]),
+        loss=best_objective,
+        params=best_ode_params,
+        component_params=p_opt,
+        model=opt_model,
+        pred=pred,
+        sol=sol,
+    )
+end
+
+"""
+    evaluate_cude_model(patients, chain, nn_params, pguess, settings; dataset_name, width, model_idx)
+
+Evaluate one trained cUDE candidate on an ordered patient cohort.
+"""
+# Used by: scripts/02b_evaluate_cude_nn.jl, scripts/02d_evaluate_cude_nn_external_test.jl.
+function evaluate_cude_model(
+    patients::AbstractVector{PatientData},
+    chain::SimpleChain,
+    nn_params,
+    pguess::AbstractVector,
+    settings;
+    dataset_name::AbstractString,
+    width::Integer,
+    model_idx::Integer,
+)
+    rng = StableRNG(settings.rng_seed)
+    results = Any[]
+    successful_patients = PatientData[]
+    successful_indices = Int[]
+    validation_params = Vector{Vector{Float64}}()
+
+    progress = settings.progress_bars ?
+               Progress(length(patients); desc="Evaluating $(dataset_name) width $(width) model $(model_idx)", color=:cyan, showspeed=true) :
+               nothing
+
+    for (i, patient) in enumerate(patients)
+        @info "Evaluating cUDE patient $(i)/$(length(patients)) for $(dataset_name), width=$(width), model=$(model_idx): $(patient.id)"
+
+        result = try
+            fit_cude_patient(
+                patient,
+                chain,
+                nn_params,
+                pguess,
+                settings.lower,
+                settings.upper,
+                settings;
+                rng=rng,
+            )
+        catch err
+            @warn "Skipping patient $(patient.id) for $(dataset_name), width=$(width), model=$(model_idx): $(err)"
+            nothing
+        end
+
+        if result !== nothing
+            push!(results, result)
+            push!(successful_patients, patient)
+            push!(successful_indices, i)
+            push!(validation_params, result.params)
+            @info "Completed $(dataset_name) cUDE patient $(i)/$(length(patients)): $(patient.id) | SMAPE=$(result.smape), RMSLE=$(result.rmsle), loss=$(result.loss)"
+        end
+
+        progress !== nothing && next!(progress)
+    end
+
+    progress !== nothing && finish!(progress)
+
+    return (
+        results=results,
+        successful_patients=successful_patients,
+        successful_indices=successful_indices,
+        patient_ids=[patient.id for patient in successful_patients],
+        ode_params_val=isempty(validation_params) ? Float64[] : reduce(vcat, validation_params),
+        smape_values=[result.smape for result in results],
+        rmsle_values=[result.rmsle for result in results],
+        loss_values=[result.loss for result in results],
+    )
+end
+
+# =============================================================================
+# Symbolic Formula Evaluation
+# =============================================================================
+
+"""
+    fit_symbolic_formula_patient(patient, pguess, lower, upper, settings; rng)
+
+Fit one patient's ODE parameters for the fixed symbolic surrogate formula using
+the same patient loss and multi-start strategy as the legacy formula script.
+"""
+# Used by: src/fitting.jl (evaluate_symbolic_formula_dataset).
+function fit_symbolic_formula_patient(
+    patient::PatientData,
+    pguess::AbstractVector,
+    lower::AbstractVector,
+    upper::AbstractVector,
+    settings;
+    rng::AbstractRNG,
+)
+    problem = symbolic_formula_problem(pguess, patient)
+    patient_data = (problem, patient.timepoints, patient.ctnt_data)
+    loss_fun = θ -> patient_loss_formula(θ, patient_data; λ_back=settings.lambda_back)
+
+    if settings.n_multistart > 0
+        best_result, _ = run_multistart(
+            loss_fun,
+            settings.n_multistart;
+            lower=lower,
+            upper=upper,
+            rng=rng,
+            verbose=false,
+            maxiters=settings.maxiters,
+            maxtime=Float64(settings.maxtime),
+            prescreen=settings.prescreen,
+            topk=settings.topk,
+            show_progress=settings.progress_bars,
+        )
+
+        best_params = Vector(best_result.u)
+        best_objective = best_result.minimum
+    else
+        optfunc = OptimizationFunction(
+            (p, data) -> patient_loss_formula(p, data; λ_back=settings.lambda_back),
+            AutoForwardDiff(),
+        )
+        optprob = OptimizationProblem(optfunc, pguess, patient_data; lb=lower, ub=upper)
+        optsol = solve(
+            optprob,
+            LBFGS(linesearch=LineSearches.BackTracking());
+            maxiters=settings.maxiters,
+        )
+
+        best_params = Vector(optsol.u)
+        best_objective = optsol.objective
+    end
+
+    new_problem = remake(problem; u0=initial_conditions_from_log_params(best_params), p=best_params)
+    pred = solve(new_problem, Tsit5(); p=best_params, saveat=patient.timepoints)
+    successful_retcode(pred) || error("Prediction solve failed with retcode=$(pred.retcode)")
+
+    sol = solve(new_problem, Tsit5(); p=best_params, saveat=1)
+    successful_retcode(sol) || error("Full trajectory solve failed with retcode=$(sol.retcode)")
+
+    return (
+        patient=patient.id,
+        smape=smape(pred[3, :], patient.ctnt_data),
+        rmsle=rmsle(patient.ctnt_data, pred[3, :]),
+        loss=best_objective,
+        params=best_params,
+        pred=pred,
+        sol=sol,
+    )
+end
+
+"""
+    evaluate_symbolic_formula_dataset(patients, settings; dataset_name)
+
+Evaluate the official symbolic surrogate formula on an ordered patient cohort.
+The shared RNG is advanced patient-by-patient to match the legacy multi-start
+evaluation pattern.
+"""
+# Used by: scripts/04b_evaluate_symbolic_formula.jl.
+function evaluate_symbolic_formula_dataset(
+    patients::AbstractVector{PatientData},
+    settings;
+    dataset_name::AbstractString,
+)
+    rng = StableRNG(settings.rng_seed)
+    results = Any[]
+    successful_patients = PatientData[]
+    successful_indices = Int[]
+    params_list = Vector{Vector{Float64}}()
+
+    progress = settings.progress_bars ?
+               Progress(length(patients); desc="Evaluating formula $(dataset_name)", color=:cyan, showspeed=true) :
+               nothing
+
+    for (i, patient) in enumerate(patients)
+        @info "Evaluating symbolic formula patient $(i)/$(length(patients)) for $(dataset_name): $(patient.id)"
+
+        result = try
+            fit_symbolic_formula_patient(
+                patient,
+                settings.pguess,
+                settings.lower,
+                settings.upper,
+                settings;
+                rng=rng,
+            )
+        catch err
+            @warn "Skipping symbolic formula patient $(patient.id) for $(dataset_name): $(err)"
+            nothing
+        end
+
+        if result !== nothing
+            push!(results, result)
+            push!(successful_patients, patient)
+            push!(successful_indices, i)
+            push!(params_list, result.params)
+            @info "Completed $(dataset_name) symbolic formula patient $(i)/$(length(patients)): $(patient.id) | SMAPE=$(result.smape), RMSLE=$(result.rmsle), loss=$(result.loss)"
+        end
+
+        progress !== nothing && next!(progress)
+    end
+
+    progress !== nothing && finish!(progress)
+
+    return (
+        results=results,
+        successful_patients=successful_patients,
+        successful_indices=successful_indices,
+        patient_ids=[patient.id for patient in successful_patients],
+        params_list=params_list,
+        params_list_flat=isempty(params_list) ? Float64[] : reduce(vcat, params_list),
+        smape_values=[result.smape for result in results],
+        rmsle_values=[result.rmsle for result in results],
+        loss_values=[result.loss for result in results],
+    )
 end
 
 # =============================================================================
 # ODE Td-Sigmoid Fitting
 # =============================================================================
-
-"""
-    ode_dataset_output_paths(output_root, dataset_name)
-
-Return canonical step 01 output paths for one dataset.
-"""
-# Used by: scripts/01_run_ode_tdsigmoid_fit.jl.
-function ode_dataset_output_paths(output_root::AbstractString, dataset_name::AbstractString)
-    dataset_dir = joinpath(output_root, "$(dataset_name)_opt")
-    return (
-        dataset_dir=dataset_dir,
-        fig_dir=joinpath(dataset_dir, "figs"),
-        params_csv=joinpath(dataset_dir, "params_out.csv"),
-        params_val_csv=joinpath(dataset_dir, "params_out_val.csv"),
-    )
-end
 
 """
     fit_ode_patient(patient, pguess, lower, upper; ...)
@@ -340,38 +839,12 @@ function fit_ode_patient(patient::PatientData, pguess::AbstractVector, lower::Ab
 end
 
 """
-    save_ode_patient_plots(sol, patient, dataset_name, fig_dir; plotting=true)
+    fit_ode_dataset(patients, settings; dataset_name)
 
-Save full-state and plasma-only patient SVG plots for step 01.
-"""
-# Used by: src/fitting.jl (fit_ode_dataset).
-function save_ode_patient_plots(sol, patient::PatientData, dataset_name::AbstractString, fig_dir::AbstractString; plotting::Bool=true)
-    pl = Plots.plot(sol; idxs=1, lw=2, label="Sarcomere", xlabel="Time", ylabel="CTNT", title="ODE - Patient $(patient.id)")
-    Plots.plot!(pl, sol; idxs=2, lw=2, label="Cytosol")
-    Plots.plot!(pl, sol; idxs=3, lw=2, label="Blood")
-    Plots.scatter!(pl, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data", legend=:best)
-
-    pl_plasm = Plots.plot(sol; idxs=3, lw=2, label="Blood", xlabel="Time", ylabel="cTnT [ng/mL]", title="Patient $(patient.id)")
-    Plots.scatter!(pl_plasm, patient.timepoints, patient.ctnt_data, ms=5, label="Observed Data", legend=:best)
-
-    if plotting
-        display(pl)
-        display(pl_plasm)
-    end
-
-    savefig(pl, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name).svg"))
-    savefig(pl_plasm, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name)_plasm.svg"))
-
-    return (full=pl, plasma=pl_plasm)
-end
-
-"""
-    fit_ode_dataset(patients, settings; dataset_name, fig_dir)
-
-Fit all patients for one step 01 dataset and save patient plots.
+Fit all patients for one step 01 dataset and return numeric fit results.
 """
 # Used by: scripts/01_run_ode_tdsigmoid_fit.jl.
-function fit_ode_dataset(patients::AbstractVector{PatientData}, settings; dataset_name::AbstractString, fig_dir::AbstractString)
+function fit_ode_dataset(patients::AbstractVector{PatientData}, settings; dataset_name::AbstractString)
     results = Vector{Any}(undef, length(patients))
 
     for (i, patient) in enumerate(patients)
@@ -391,71 +864,9 @@ function fit_ode_dataset(patients::AbstractVector{PatientData}, settings; datase
             show_progress=settings.progress_bars,
         )
 
-        save_ode_patient_plots(result.sol, patient, dataset_name, fig_dir; plotting=settings.plotting)
-
         @info "Completed $(dataset_name) patient $(i)/$(length(patients)): $(patient.id) | SMAPE=$(result.smape), RMSLE=$(result.rmsle), loss=$(result.loss)"
         results[i] = result
     end
 
     return results
-end
-
-"""
-    ode_fit_results_dataframe(results)
-
-Build the step 01 parameter and metric DataFrame from patient fit results.
-"""
-# Used by: src/fitting.jl (save_ode_fit_results).
-function ode_fit_results_dataframe(results)
-    isempty(results) && return DataFrame(patient=String[], smape=Float64[], rmsle=Float64[], loss=Float64[])
-
-    n_params = maximum(length(result.params) for result in results)
-    df = DataFrame(
-        patient=[result.patient for result in results],
-        smape=[result.smape for result in results],
-        rmsle=[result.rmsle for result in results],
-        loss=[result.loss for result in results],
-    )
-
-    for k in 1:n_params
-        df[!, Symbol("p$(k)")] = [k <= length(result.params) ? result.params[k] : NaN for result in results]
-    end
-
-    return df
-end
-
-"""
-    subset_results_by_patient_ids(df, ids)
-
-Return the subset of fit results whose patients are listed in `ids`, preserving
-the original order of `df`.
-"""
-# Used by: src/fitting.jl (save_ode_fit_results).
-function subset_results_by_patient_ids(df::DataFrame, ids::AbstractVector{<:AbstractString})
-    requested_ids = Set(ids)
-    fitted_ids = Set(string.(df.patient))
-    missing_ids = setdiff(requested_ids, fitted_ids)
-    isempty(missing_ids) || error("Cannot build validation subset. Missing fitted patient ID: $(first(missing_ids))")
-
-    subset_idx = findall(patient -> string(patient) in requested_ids, df.patient)
-    return df[subset_idx, :]
-end
-
-"""
-    save_ode_fit_results(paths, results; validation_ids=String[])
-
-Write step 01 full fit results and optional MIMIC-IV validation subset.
-"""
-# Used by: scripts/01_run_ode_tdsigmoid_fit.jl.
-function save_ode_fit_results(paths, results; validation_ids::AbstractVector{<:AbstractString}=String[])
-    df = ode_fit_results_dataframe(results)
-    CSV.write(paths.params_csv, df)
-
-    validation_df = nothing
-    if !isempty(validation_ids)
-        validation_df = subset_results_by_patient_ids(df, validation_ids)
-        CSV.write(paths.params_val_csv, validation_df)
-    end
-
-    return (all=df, validation=validation_df)
 end

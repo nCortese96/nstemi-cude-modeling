@@ -26,17 +26,21 @@ and output conventions used by the original analyses.
 │   ├── 02b_evaluate_cude_nn.jl
 │   ├── 02c_grid_search.jl
 │   ├── 02d_evaluate_cude_nn_external_test.jl
-│   ├── 03_model_diagnostic.jl
-│   ├── 04_simple_pla_afs_multimodel.jl
-│   ├── 05_run_systematic_truncation.jl
-│   ├── 06_sym_reg_controlled.jl
-│   └── 07_evaluate_symbolic_formula.jl
+│   ├── 03a_run_model_diagnostics.jl
+│   ├── 03b_run_profile_likelihood.jl
+│   ├── 03c_run_systematic_truncation.jl
+│   ├── 04a_sym_reg_controlled.jl
+│   └── 04b_evaluate_symbolic_formula.jl
 ├── src/
 │   ├── MechanisticAI.jl          # Shared include entrypoint
 │   ├── data_io.jl                # Workflow IO, patient data IO, cohort loading
 │   ├── preprocessing.jl          # Preprocessing, reporting, and cohort export
 │   ├── models.jl                 # Model definitions, metrics, and losses
 │   ├── fitting.jl                # Optimization and fitting helpers
+│   ├── model_selection.jl        # cUDE model-selection helpers
+│   ├── diagnostics.jl            # Model-comparison diagnostic helpers
+│   ├── profile_likelihood.jl     # Profile likelihood numerical helpers
+│   ├── plotting.jl               # Shared plotting helpers
 │   └── helpers.jl                # Remaining helpers pending full consolidation
 ├── data/                         # Input datasets expected by workflow scripts
 ├── results/                      # Official output tree for refactored runs
@@ -56,11 +60,11 @@ Numbers describe the intended execution order.
 | 02b | `02b_evaluate_cude_nn.jl` | Evaluate cUDE models during validation. |
 | 02c | `02c_grid_search.jl` | Select candidate models from validation summaries. |
 | 02d | `02d_evaluate_cude_nn_external_test.jl` | Evaluate the selected cUDE model on an external dataset. |
-| 03 | `03_model_diagnostic.jl` | Model diagnostics, including parameter and residual analyses. |
-| 04 | `04_simple_pla_afs_multimodel.jl` | Profile likelihood analysis for ODE and cUDE models. |
-| 05 | `05_run_systematic_truncation.jl` | Systematic truncation analysis. |
-| 06 | `06_sym_reg_controlled.jl` | Symbolic regression based on the selected cUDE model. |
-| 07 | `07_evaluate_symbolic_formula.jl` | Surrogate formula fitting and evaluation. |
+| 03a | `03a_run_model_diagnostics.jl` | Model diagnostics, including parameter, residual, metric-comparison, and profile-selection analyses. |
+| 03b | `03b_run_profile_likelihood.jl` | Profile likelihood analysis for ODE and cUDE models. |
+| 03c | `03c_run_systematic_truncation.jl` | Systematic truncation analysis. |
+| 04a | `04a_sym_reg_controlled.jl` | Symbolic regression based on the selected cUDE model. |
+| 04b | `04b_evaluate_symbolic_formula.jl` | Surrogate formula fitting and evaluation. |
 
 ## Configuration
 
@@ -80,6 +84,12 @@ WORKFLOW_CONFIG.datasets
 WORKFLOW_CONFIG.model
 WORKFLOW_CONFIG.preprocessing
 WORKFLOW_CONFIG.ode_tdsigmoid
+WORKFLOW_CONFIG.cude_training
+WORKFLOW_CONFIG.cude_evaluation
+WORKFLOW_CONFIG.cude_model_selection
+WORKFLOW_CONFIG.cude_external_test
+WORKFLOW_CONFIG.model_diagnostics
+WORKFLOW_CONFIG.profile_likelihood
 ```
 
 Important settings include:
@@ -171,3 +181,5 @@ into focused modules.
 
 Later workflow steps may still contain code inherited from the original
 analysis scripts and will be cleaned as their steps are refactored.
+
+The repository provides the code and configuration files required to reproduce the analysis workflow. Exact numerical reproduction of the trained cUDE instance may depend on stochastic initialization, software versions, and access to restricted patient-level data. Aggregate outputs corresponding to the manuscript tables are provided where they do not contain patient-level information.

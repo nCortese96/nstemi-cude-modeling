@@ -9,7 +9,7 @@ Pipeline:
 2. Resolve input/output paths.
 3. Load raw Excel datasets through dedicated preprocessing helpers.
 4. Collapse duplicate timepoints, trim, filter anomalies, and report each step.
-5. Save all-eligible IDs plus JLD2 train/test artifacts.
+5. Save all-eligible IDs, validation IDs, gold-standard IDs, and JLD2 artifacts.
 
 Command-line usage:
   julia --project=. scripts/00_run_preprocessing.jl
@@ -18,10 +18,14 @@ Workflow-consistent threaded execution:
   JULIA_NUM_THREADS=auto julia --project=. scripts/00_run_preprocessing.jl
   JULIA_NUM_THREADS=8 julia --project=. scripts/00_run_preprocessing.jl
 
-Step 00 currently does not require threaded optimization, but refactored
-workflow scripts should be launched this way when they contain training,
-multi-start fitting, or other thread-parallel work.
+Step 00 also writes the gold-standard cohort artifacts consumed by the
+systematic truncation workflow.
 """
+
+# =============================================================================
+# IMPORTS AND SHARED HELPERS
+# Minimal dependencies used directly by this executable workflow script.
+# =============================================================================
 
 using Dates
 using Logging
@@ -35,34 +39,37 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 # User-editable preprocessing settings live in `config/workflow_config.jl`.
 # =============================================================================
 
+config = WORKFLOW_CONFIG
+preprocessing = config.preprocessing
+filters = preprocessing.filters
+gold_standard = preprocessing.gold_standard
+datasets = resolve_dataset_configs(config, preprocessing.dataset_keys)
+
 # =============================================================================
 # INPUT PATHS
 # Files and folders loaded by this run.
 # =============================================================================
+
+data_root = config.paths.data_root
 
 # =============================================================================
 # OUTPUT PATHS
 # Files and folders produced by this run.
 # =============================================================================
 
+preprocessing_output_dirs = (cohorts=preprocessing.output_dir,)
+
 # =============================================================================
 # DERIVED SETTINGS
 # Values derived from settings and paths. No heavy side effects here.
 # =============================================================================
 
-# =============================================================================
-# PIPELINE
-# Main readable execution flow.
-# =============================================================================
-
-config = WORKFLOW_CONFIG
-preprocessing = config.preprocessing
-filters = preprocessing.filters
-datasets = resolve_dataset_configs(config, preprocessing.dataset_keys)
-preprocessing_output_dirs = (cohorts=preprocessing.output_dir,)
-
 train_percent_label = round(Int, preprocessing.train_fraction * 100)
 test_percent_label = 100 - train_percent_label
+
+# =============================================================================
+# PIPELINE
+# =============================================================================
 
 @info "═══ Preprocessing pipeline started $(now()) ═══"
 log_workflow_context(config;
@@ -92,7 +99,7 @@ for dataset in datasets
         report_dir=preprocessing.output_dir,
         train_fraction=preprocessing.train_fraction,
         split_seed=preprocessing.split_seed,
-        data_root=config.paths.data_root,
+        data_root=data_root,
     )
 
     results[dataset.dataset_name] = dataset_result
@@ -104,6 +111,57 @@ for dataset in datasets
         report_path=dataset_result.report_path,
     )
     log_output_paths(dataset_output_paths; header="$(dataset.dataset_name) saved output paths")
+end
+
+mimic_dataset = config.datasets[gold_standard.mimic_dataset_key].dataset_name
+external_dataset = config.datasets[gold_standard.external_dataset_key].dataset_name
+
+if haskey(results, mimic_dataset) && haskey(results, external_dataset)
+    @info "Writing gold-standard cohort artifacts for $(gold_standard.run_dataset_name)."
+
+    mimic_validation_id_set = Set(patient.id for patient in results[mimic_dataset].test)
+    mimic_gold_candidates = [
+        patient for patient in results[mimic_dataset].all_eligible_patients
+        if patient.id in mimic_validation_id_set
+    ]
+
+    mimic_validation_ids = save_validation_patient_ids!(
+        mimic_dataset,
+        results[mimic_dataset].test,
+        preprocessing.output_dir;
+        suffix="val",
+    )
+
+    gold_outputs = save_gold_standard_artifacts!(
+        (
+            (
+                dataset_name=mimic_dataset,
+                dataset_tag=gold_standard.mimic_tag,
+                patients=mimic_gold_candidates,
+                raw_n=results[mimic_dataset].raw_n,
+            ),
+            (
+                dataset_name=external_dataset,
+                dataset_tag=gold_standard.external_tag,
+                patients=results[external_dataset].all_eligible_patients,
+                raw_n=results[external_dataset].raw_n,
+            ),
+        ),
+        preprocessing.output_dir;
+        run_dataset_name=gold_standard.run_dataset_name,
+        filters=gold_standard.filters,
+    )
+
+    log_output_paths(
+        (
+            mimic_validation_ids=mimic_validation_ids,
+            gold_ids=gold_outputs.ids_path,
+            gold_report=gold_outputs.report_path,
+        );
+        header="Gold-standard preprocessing artifacts",
+    )
+else
+    @warn "Gold-standard artifacts were not written because one or more required datasets were not processed." required=(mimic_dataset, external_dataset) available=collect(keys(results))
 end
 
 @info "═══ Preprocessing pipeline completed ═══"
