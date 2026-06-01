@@ -41,6 +41,4 @@ Manifest.toml
 # .ForRefactor/
 
 data/
-res/
-results/
-results_test/
+res*/

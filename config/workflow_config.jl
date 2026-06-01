@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=true,
+    test_mode=false,
     progress_bars=true,
 )
 
@@ -183,7 +183,7 @@ const CUDE_TRAINING_SETTINGS = (
     n_params=5,
     n_conditional=1,
     lower=log.([0.001, 0.001, 0.001, 0.001, 0.001]),
-    upper=log.([10.0, 10.0, 500.0, 500.0, 1.0]),
+    upper=log.([5.0, 5.0, 500.0, 500.0, 1.0]),
     initial_guesses=25000,
     selected_initials=4,
     reuse_existing_initials=false,
@@ -419,6 +419,8 @@ const SYSTEMATIC_TRUNCATION_SETTINGS = (
     plotting=true,
     display_plots=false,
     overlay_legend=false,
+    # Save a mirrored overlay set without axis titles while preserving ticks.
+    overlay_no_labels=true,
     plot_style=(
         size=(1000, 650),
         left_margin_mm=12,
@@ -451,13 +453,13 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
     output_dir=joinpath(WORKFLOW_OUTPUT_DIRS.symbolic_surrogate, "04a_symbolic_regression"),
     input_dim=CUDE_EVALUATION_SETTINGS.input_dim,
     t_scale=WORKFLOW_MODEL_SETTINGS.t_scale,
-    tmax_sr_h=240.0,
-    # t_grid=unique(vcat(
-    #     collect(0.01:2.0:248.01),
-    #     collect(260.0:10.0:2100.0),
-    #     collect(2102.0:2.0:2400.0),
-    # )),
-    t_grid=collect(0.1:0.1:tmax_sr_h),
+    tmax_sr_h=2400.0,
+    t_grid=unique(vcat(
+        collect(0.01:2.0:248.01),
+        collect(260.0:10.0:2100.0),
+        collect(2102.0:2.0:2400.0),
+    )),
+    # t_grid=collect(0.1:0.1:240.0),
     beta_grid=collect(range(0.1, 1.0, length=18)),
     use_validation=false,
     t_validation_grid=unique(vcat(

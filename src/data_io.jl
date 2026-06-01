@@ -1004,6 +1004,7 @@ function systematic_truncation_output_paths(output_root::AbstractString)
         ode_dir=joinpath(output_root, "ode"),
         cude_dir=joinpath(output_root, "cude"),
         overlay_dir=joinpath(output_root, "truncation_overlay_comparison"),
+        overlay_no_labels_dir=joinpath(output_root, "truncation_overlay_comparison", "no_labels"),
         metrics_summary=joinpath(output_root, "trunc_metrics_summary.csv"),
         params_summary=joinpath(output_root, "trunc_params_summary.csv"),
     )

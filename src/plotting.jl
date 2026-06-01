@@ -1875,12 +1875,18 @@ function save_truncation_parameter_boxplot(
 end
 
 """
-    save_truncation_overlay_plot(record, output_dir; plot_legend=false)
+    save_truncation_overlay_plot(record, output_dir; plot_legend=false, axis_labels=true)
 
 Save one ODE-vs-cUDE systematic truncation overlay plot.
 """
 # Used by: scripts/03c_run_systematic_truncation.jl.
-function save_truncation_overlay_plot(record, output_dir::AbstractString; plot_legend::Bool=false, style=nothing)
+function save_truncation_overlay_plot(
+    record,
+    output_dir::AbstractString;
+    plot_legend::Bool=false,
+    axis_labels::Bool=true,
+    style=nothing,
+)
     mkpath(output_dir)
     section_upper = uppercase(record.section)
     budget_str = lpad(string(length(record.removed_idx)), 2, "0")
@@ -1892,8 +1898,8 @@ function save_truncation_overlay_plot(record, output_dir::AbstractString; plot_l
         color=:royalblue,
         linestyle=:solid,
         label="ODE  (sMAPE=$(record.ode_smape)%, RMSLE=$(record.ode_rmsle))",
-        xlabel="Time (h)",
-        ylabel="cTnT [ng/mL]",
+        xlabel=axis_labels ? "Time (h)" : "",
+        ylabel=axis_labels ? "cTnT [ng/mL]" : "",
         legend=plot_legend ? :best : false,
         legendfontsize=_style_value(style, :legendfontsize, 9),
         guidefontsize=_style_value(style, :guidefontsize, 12),

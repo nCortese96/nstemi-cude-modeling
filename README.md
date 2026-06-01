@@ -3,68 +3,58 @@
 MechanisticAI.jl is a Julia research codebase for mechanistic and hybrid
 modeling of cardiac troponin T (cTnT) trajectories.
 
-The project organizes a sequential workflow for preprocessing patient-level
-cTnT data, fitting mechanistic ODE models, training hybrid cUDE models,
-selecting models, and running downstream analyses such as diagnostics, profile
-likelihood analysis, systematic truncation, symbolic regression, and surrogate
-evaluation.
+The repository provides a sequential, config-driven workflow for:
 
-The current codebase is being consolidated into a reproducible, config-driven
-workflow while preserving the scientific equations, parameter bounds, metrics,
-and output conventions used by the original analyses.
+- preprocessing patient-level cTnT cohorts;
+- fitting a mechanistic ODE model;
+- training and evaluating cUDE hybrid models;
+- selecting the best cUDE candidate;
+- running comparison analyses such as diagnostics, profile likelihood analysis,
+  and systematic truncation;
+- fitting and evaluating a symbolic surrogate.
+
+The refactored workflow is designed to preserve the equations, parameter
+bounds, losses, metrics, patient ordering, and output conventions used by the
+original analyses.
 
 ## Repository Layout
 
 ```text
 .
 ├── config/
-│   └── workflow_config.jl        # Central settings for refactored workflow steps
-├── scripts/
-│   ├── 00_run_preprocessing.jl   # Cohort preprocessing and artifact export
-│   ├── 01_run_ode_tdsigmoid_fit.jl
-│   ├── 02a_run_cude_training.jl
-│   ├── 02b_evaluate_cude_nn.jl
-│   ├── 02c_grid_search.jl
-│   ├── 02d_evaluate_cude_nn_external_test.jl
-│   ├── 03a_run_model_diagnostics.jl
-│   ├── 03b_run_profile_likelihood.jl
-│   ├── 03c_run_systematic_truncation.jl
-│   ├── 04a_sym_reg_controlled.jl
-│   └── 04b_evaluate_symbolic_formula.jl
-├── src/
-│   ├── MechanisticAI.jl          # Shared include entrypoint
-│   ├── data_io.jl                # Workflow IO, patient data IO, cohort loading
-│   ├── preprocessing.jl          # Preprocessing, reporting, and cohort export
-│   ├── models.jl                 # Model definitions, metrics, and losses
-│   ├── fitting.jl                # Optimization and fitting helpers
-│   ├── model_selection.jl        # cUDE model-selection helpers
-│   ├── diagnostics.jl            # Model-comparison diagnostic helpers
-│   ├── profile_likelihood.jl     # Profile likelihood numerical helpers
-│   ├── plotting.jl               # Shared plotting helpers
-│   └── helpers.jl                # Remaining helpers pending full consolidation
-├── data/                         # Input datasets expected by workflow scripts
-├── results/                      # Official output tree for refactored runs
+│   └── workflow_config.jl        # Central user-editable workflow settings
+├── scripts/                      # Numbered executable workflow steps
+├── src/                          # Reusable Julia helpers
+├── data/                         # Input datasets expected by the workflow
+├── results/                      # Official output tree
 └── results_test/                 # Test-mode output tree
 ```
 
-## Workflow Overview
+Important helper files in `src/` include:
 
-The refactored workflow is represented by numbered scripts in `scripts/`.
-Numbers describe the intended execution order.
+```text
+data_io.jl                 # paths, artifact IO, cohort loading, CLI parsers
+preprocessing.jl           # preprocessing and cohort report generation
+models.jl                  # model definitions, metrics, losses, formula logic
+fitting.jl                 # optimization, ODE/cUDE/formula fitting
+model_selection.jl         # cUDE model-selection helpers
+diagnostics.jl             # model-comparison diagnostics
+profile_likelihood.jl      # profile likelihood numerical workflow
+systematic_truncation.jl   # systematic truncation numerical workflow
+symbolic_regression.jl     # symbolic regression helpers
+plotting.jl                # shared plotting helpers
+```
 
-| Step | Script | Purpose |
-| --- | --- | --- |
-| 00 | `00_run_preprocessing.jl` | Load raw datasets, collapse duplicate timepoints, trim by time, apply eligibility filters, write reports and cohort artifacts. |
-| 01 | `01_run_ode_tdsigmoid_fit.jl` | Fit the mechanistic ODE model with Td-sigmoid release on preprocessed cohorts. |
-| 02a | `02a_run_cude_training.jl` | Train cUDE models. |
-| 02b | `02b_evaluate_cude_nn.jl` | Evaluate cUDE models during validation. |
-| 02c | `02c_grid_search.jl` | Select candidate models from validation summaries. |
-| 02d | `02d_evaluate_cude_nn_external_test.jl` | Evaluate the selected cUDE model on an external dataset. |
-| 03a | `03a_run_model_diagnostics.jl` | Model diagnostics, including parameter, residual, metric-comparison, and profile-selection analyses. |
-| 03b | `03b_run_profile_likelihood.jl` | Profile likelihood analysis for ODE and cUDE models. |
-| 03c | `03c_run_systematic_truncation.jl` | Systematic truncation analysis. |
-| 04a | `04a_sym_reg_controlled.jl` | Symbolic regression based on the selected cUDE model. |
-| 04b | `04b_evaluate_symbolic_formula.jl` | Surrogate formula fitting and evaluation. |
+## Installation
+
+Run commands from the repository root.
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+```
+
+Input datasets are expected under `data/`. Some patient-level datasets may be
+restricted and are not necessarily distributed with the public repository.
 
 ## Configuration
 
@@ -74,112 +64,201 @@ Workflow settings live in:
 config/workflow_config.jl
 ```
 
-The central configuration object is `WORKFLOW_CONFIG`. It includes:
+The central object is `WORKFLOW_CONFIG`. The most frequently edited settings
+are:
 
-```julia
-WORKFLOW_CONFIG.paths
-WORKFLOW_CONFIG.run
-WORKFLOW_CONFIG.outputs
-WORKFLOW_CONFIG.datasets
-WORKFLOW_CONFIG.model
-WORKFLOW_CONFIG.preprocessing
-WORKFLOW_CONFIG.ode_tdsigmoid
-WORKFLOW_CONFIG.cude_training
-WORKFLOW_CONFIG.cude_evaluation
-WORKFLOW_CONFIG.cude_model_selection
-WORKFLOW_CONFIG.cude_external_test
-WORKFLOW_CONFIG.model_diagnostics
-WORKFLOW_CONFIG.profile_likelihood
+- `WORKFLOW_CONFIG.run.test_mode`: when `true`, outputs are written to
+  `results_test/`; when `false`, outputs are written to `results/`.
+- `WORKFLOW_CONFIG.run.progress_bars`: enables or disables progress bars in
+  supported long-running steps.
+- `WORKFLOW_CONFIG.model.t_scale`: shared analysis/model time scale in hours.
+- `WORKFLOW_CONFIG.datasets`: dataset registry.
+- Step-specific settings such as `cude_training`, `cude_evaluation`,
+  `profile_likelihood`, `systematic_truncation`, and
+  `symbolic_formula_evaluation`.
+
+The `results/` and `results_test/` trees are intentionally mirrored. Use
+`results_test/` for trial runs and validation; use `results/` for official
+outputs.
+
+## CLI Convention
+
+All refactored workflow scripts are executable from the command line.
+
+The plain command runs the full step:
+
+```bash
+julia --project=. scripts/<step_script>.jl
 ```
 
-Important settings include:
+For computationally expensive scripts, use Julia threads:
 
-- `WORKFLOW_CONFIG.run.test_mode`: writes outputs to `results_test/` when
-  enabled.
-- `WORKFLOW_CONFIG.run.progress_bars`: enables or disables progress bars in
-  long-running steps that support them.
-- `WORKFLOW_CONFIG.outputs.cohorts`: step 00 cohort output directory.
-- `WORKFLOW_CONFIG.outputs.ode_evaluation`: step 01 ODE evaluation output
-  directory.
-- `WORKFLOW_CONFIG.model.t_scale`: model-domain time scale in hours.
-- `WORKFLOW_CONFIG.datasets`: dataset registry used by workflow scripts.
+```bash
+JULIA_NUM_THREADS=auto julia --project=. scripts/<step_script>.jl
+JULIA_NUM_THREADS=8 julia --project=. scripts/<step_script>.jl
+```
 
-The `t_scale` setting is shared by preprocessing and model code. It defines the
-analysis window during preprocessing and is also used by cUDE models to
-normalize time.
+For scripts that support plot-only regeneration, use:
 
-## Running The Workflow
+```bash
+julia --project=. scripts/<step_script>.jl plots
+```
 
-Run commands from the repository root with the project environment active.
+Plot-only modes reuse existing CSV/JLD2 artifacts and do not rerun fitting,
+training, profile likelihood computation, or truncation optimization. If a full
+step is rerun, plots are regenerated and overwritten as part of the workflow.
 
-### Step 00: Preprocessing
+## Workflow Steps
+
+Run the scripts in numerical order when building results from scratch.
+
+| Step | Script | Purpose |
+| --- | --- | --- |
+| 00 | `scripts/00_run_preprocessing.jl` | Build preprocessed cohorts, reports, split artifacts, and gold-standard IDs. |
+| 01 | `scripts/01_run_ode_tdsigmoid_fit.jl` | Fit the mechanistic ODE Td-sigmoid model. |
+| 02a | `scripts/02a_run_cude_training.jl` | Train cUDE candidates. |
+| 02b | `scripts/02b_evaluate_cude_nn.jl` | Evaluate cUDE candidates on MIMIC-IV validation/test data. |
+| 02c | `scripts/02c_grid_search.jl` | Select the cUDE model from validation summaries. |
+| 02d | `scripts/02d_evaluate_cude_nn_external_test.jl` | Evaluate the selected cUDE model on the external UMG cohort. |
+| 03a | `scripts/03a_run_model_diagnostics.jl` | Generate ODE/cUDE diagnostics and comparison figures. |
+| 03b | `scripts/03b_run_profile_likelihood.jl` | Run profile likelihood analysis for ODE and cUDE targets. |
+| 03c | `scripts/03c_run_systematic_truncation.jl` | Run systematic truncation stress tests and overlays. |
+| 04a | `scripts/04a_run_symbolic_regression.jl` | Fit a symbolic surrogate for the selected cUDE correction function. |
+| 04b | `scripts/04b_evaluate_symbolic_formula.jl` | Evaluate the fixed symbolic surrogate formula on test cohorts. |
+
+## Command Reference
+
+### Core Pipeline
 
 ```bash
 julia --project=. scripts/00_run_preprocessing.jl
-```
-
-This step reads raw Excel datasets from `data/`, writes preprocessing reports,
-exports all-eligible patient IDs, and saves JLD2 cohort artifacts under the
-configured cohort output directory.
-
-When `WORKFLOW_CONFIG.run.test_mode=true`, outputs are written under
-`results_test/00_cohorts`. Otherwise they are written under
-`results/00_cohorts`.
-
-### Step 01: ODE Td-Sigmoid Fit
-
-```bash
-julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
-```
-
-This step loads the preprocessed cohorts produced by step 00 and fits one
-mechanistic ODE model per patient. Outputs are written under
-`results*/01_ode_evaluation`.
-
-For threaded execution, start Julia with a thread count before running the
-script:
-
-```bash
 JULIA_NUM_THREADS=auto julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/02a_run_cude_training.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/02b_evaluate_cude_nn.jl
+julia --project=. scripts/02c_grid_search.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl
 ```
 
-or:
+### Comparison Analyses
 
 ```bash
-JULIA_NUM_THREADS=8 julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/03a_run_model_diagnostics.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/03b_run_profile_likelihood.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/03c_run_systematic_truncation.jl
 ```
 
-Progress bars and plotting behavior are controlled from
-`config/workflow_config.jl`.
+Plot-only regeneration:
+
+```bash
+julia --project=. scripts/03a_run_model_diagnostics.jl plots
+julia --project=. scripts/03b_run_profile_likelihood.jl plots
+julia --project=. scripts/03c_run_systematic_truncation.jl plots
+```
+
+Current 03a plot-only mode regenerates residual diagnostic plots from existing
+residual CSV files.
+
+### PLA Targets And Plot Modes
+
+Profile likelihood analysis supports target and plot-mode arguments.
+
+Targets:
+
+```text
+all
+cude_mimic
+cude_umg
+ode_mimic
+ode_umg
+```
+
+Plot-only modes:
+
+```text
+plots
+plots_patients
+plots_aggregate
+```
+
+Examples:
+
+```bash
+JULIA_NUM_THREADS=auto julia --project=. scripts/03b_run_profile_likelihood.jl cude_mimic
+julia --project=. scripts/03b_run_profile_likelihood.jl plots_aggregate
+julia --project=. scripts/03b_run_profile_likelihood.jl cude_mimic plots
+julia --project=. scripts/03b_run_profile_likelihood.jl plots ode_umg
+```
+
+### Systematic Truncation Targets
+
+Systematic truncation supports:
+
+```text
+all
+ode
+cude
+summary
+overlay
+plots
+```
+
+Examples:
+
+```bash
+JULIA_NUM_THREADS=auto julia --project=. scripts/03c_run_systematic_truncation.jl ode
+JULIA_NUM_THREADS=auto julia --project=. scripts/03c_run_systematic_truncation.jl cude
+julia --project=. scripts/03c_run_systematic_truncation.jl summary
+julia --project=. scripts/03c_run_systematic_truncation.jl overlay
+julia --project=. scripts/03c_run_systematic_truncation.jl plots
+```
+
+The `plots` target regenerates patient-level truncation figures and ODE-vs-cUDE
+overlays from existing truncation CSV artifacts. Overlay generation also writes
+an axis-title-free mirror under `truncation_overlay_comparison/no_labels/`,
+while preserving numeric tick labels.
+
+### Symbolic Surrogate
+
+```bash
+JULIA_NUM_THREADS=auto julia --project=. scripts/04a_run_symbolic_regression.jl
+JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
+```
+
+Symbolic regression can be computationally expensive and stochastic. The fixed
+surrogate formula evaluated by step 04b is defined explicitly in `src/models.jl`
+for reproducibility.
 
 ## Output Trees
 
-Refactored runs use two mirrored output roots:
+Canonical output roots:
 
 ```text
 results/
 results_test/
 ```
 
-Use `results/` for official outputs and `results_test/` for exploratory or
-validation runs. The active root is selected by `WORKFLOW_CONFIG.run.test_mode`.
-
-Current step-level output directories include:
+Current step-level directories:
 
 ```text
 results*/00_cohorts
 results*/01_ode_evaluation
 results*/02_cude_workflow
 results*/03_comparison_analyses
+results*/04_symbolic_surrogate
 ```
 
-## Notes
+The active root is selected by `WORKFLOW_CONFIG.run.test_mode`.
 
-The repository is still being consolidated. Numbered workflow scripts are the
-active execution path, while helper code in `src/` is being progressively split
-into focused modules.
+## Reproducibility Notes
 
-Later workflow steps may still contain code inherited from the original
-analysis scripts and will be cleaned as their steps are refactored.
+The workflow is intended to preserve the scientific behavior of the original
+analysis code. Exact numerical reproduction can still depend on:
 
-The repository provides the code and configuration files required to reproduce the analysis workflow. Exact numerical reproduction of the trained cUDE instance may depend on stochastic initialization, software versions, and access to restricted patient-level data. Aggregate outputs corresponding to the manuscript tables are provided where they do not contain patient-level information.
+- access to the same patient-level input datasets;
+- Julia and package versions;
+- stochastic initialization in cUDE training and symbolic regression;
+- whether previously saved initial parameters are reused where supported.
+
+For long-running steps, run from a clean terminal with an explicit
+`JULIA_NUM_THREADS` value and keep `config/workflow_config.jl` under version
+control for the run being reproduced.

@@ -119,6 +119,7 @@ ensure_output_dirs!(
         ode=paths.ode_dir,
         cude=paths.cude_dir,
         overlay=paths.overlay_dir,
+        overlay_no_labels=paths.overlay_no_labels_dir,
     );
     header="Ensured systematic truncation output directories",
 )
@@ -130,6 +131,7 @@ log_output_paths(
         metrics_summary=paths.metrics_summary,
         params_summary=paths.params_summary,
         overlay_dir=paths.overlay_dir,
+        overlay_no_labels_dir=paths.overlay_no_labels_dir,
     );
     header="Systematic truncation output paths",
 )
@@ -358,6 +360,7 @@ if (:overlay in target_keys) || (:plots in target_keys)
     neural_params = Vector{Float64}(cude_artifacts.neural_network_parameters[selected_model.model_idx])
 
     saved_overlay_paths = String[]
+    saved_overlay_no_labels_paths = String[]
     for patient in gold.patients
         ode_patient_dir = joinpath(paths.ode_dir, patient.id)
         cude_patient_dir = joinpath(paths.cude_dir, patient.id)
@@ -365,6 +368,7 @@ if (:overlay in target_keys) || (:plots in target_keys)
         isdir(cude_patient_dir) || error("Missing cUDE truncation patient directory: $(cude_patient_dir)")
 
         patient_overlay_dir = joinpath(paths.overlay_dir, patient.id)
+        patient_overlay_no_labels_dir = joinpath(paths.overlay_no_labels_dir, patient.id)
         records = build_truncation_overlay_records(ode_patient_dir, cude_patient_dir, chain, neural_params)
 
         for record in records
@@ -375,12 +379,23 @@ if (:overlay in target_keys) || (:plots in target_keys)
                 style=settings.plot_style,
             )
             push!(saved_overlay_paths, saved_path)
+
+            if settings.overlay_no_labels
+                no_labels_path = save_truncation_overlay_plot(
+                    record,
+                    patient_overlay_no_labels_dir;
+                    plot_legend=settings.overlay_legend,
+                    axis_labels=false,
+                    style=settings.plot_style,
+                )
+                push!(saved_overlay_no_labels_paths, no_labels_path)
+            end
         end
 
-        @info "Saved overlay plots for $(patient.id)." n=length(records)
+        @info "Saved overlay plots for $(patient.id)." n=length(records) no_labels=settings.overlay_no_labels
     end
 
-    @info "Completed overlay plot generation." total=length(saved_overlay_paths)
+    @info "Completed overlay plot generation." total=length(saved_overlay_paths) no_labels_total=length(saved_overlay_no_labels_paths)
 end
 
 @info "Systematic truncation workflow completed at $(now())."
