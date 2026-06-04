@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=true,
+    test_mode=false,
     progress_bars=true,
 )
 
