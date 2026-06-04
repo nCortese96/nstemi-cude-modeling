@@ -7,6 +7,7 @@ Sections:
 - Math Utilities: stable transforms, shared constants, and metrics.
 - ODE Models: mechanistic Td-sigmoid model and cUDE model containers.
 - Loss Functions: patient-level and cohort-level objectives.
+- Promoted Symbolic Surrogate: manually promoted formula used by step 04b.
 """
 
 using Base.Threads
@@ -361,72 +362,6 @@ function ctntCUDEModel(θ, chain::SimpleChain, pat_times::Vector{Float64}=Float6
     return ctntUDEModel(ode, chain)
 end
 
-# =============================================================================
-# Symbolic Surrogate Formula Model
-# =============================================================================
-
-const OFFICIAL_SYMBOLIC_SURROGATE_C1 = 0.0007780399162888297
-const OFFICIAL_SYMBOLIC_SURROGATE_C2 = 1.0553531103104006
-const OFFICIAL_SYMBOLIC_SURROGATE_C = 1 / OFFICIAL_SYMBOLIC_SURROGATE_C2
-const OFFICIAL_SYMBOLIC_SURROGATE_C_BETA = OFFICIAL_SYMBOLIC_SURROGATE_C2 * OFFICIAL_SYMBOLIC_SURROGATE_C1
-
-"""
-    symbolic_surrogate_effective_time(beta)
-
-Return the official symbolic surrogate effective-time term for a natural-scale
-`beta` parameter.
-"""
-# Used by: src/models.jl, src/plotting.jl, scripts/04b_evaluate_symbolic_formula.jl.
-symbolic_surrogate_effective_time(beta) = beta^2 / OFFICIAL_SYMBOLIC_SURROGATE_C_BETA
-
-"""
-    symbolic_surrogate_correction(t_norm, beta)
-
-Evaluate the fixed official symbolic surrogate correction function at
-normalized time `t_norm` and natural-scale `beta`.
-"""
-# Used by: src/models.jl, src/plotting.jl, scripts/04b_evaluate_symbolic_formula.jl.
-function symbolic_surrogate_correction(t_norm, beta)
-    t_eff = symbolic_surrogate_effective_time(beta)
-    t4 = t_norm^4
-    return (OFFICIAL_SYMBOLIC_SURROGATE_C * t4) / (t4 + t_eff)
-end
-
-"""
-    symbolic_formula_ode!(du, u, p, t)
-
-Official symbolic-surrogate ODE used by step 04b. Parameters are log-scale and
-ordered as `[a, b, Cs0, Cc0, beta]`.
-"""
-# Used by: scripts/04b_evaluate_symbolic_formula.jl through src/fitting.jl and src/diagnostics.jl.
-function symbolic_formula_ode!(du, u, p, t)
-    Cs = u[1]
-    Cc = u[2]
-    Cp = u[3]
-
-    a = exp(p[1])
-    b = exp(p[2])
-    beta = exp(p[5])
-    t_norm = t / T_SCALE
-    correction = symbolic_surrogate_correction(t_norm, beta)
-
-    du[1] = -(Cs - Cc) * correction
-    du[2] = (Cs - Cc) * correction - a * (Cc - Cp)
-    du[3] = a * (Cc - Cp) - b * Cp
-end
-
-"""
-    symbolic_formula_problem(pguess, patient)
-
-Build the patient-specific ODEProblem for the fixed symbolic surrogate formula.
-"""
-# Used by: src/fitting.jl and src/diagnostics.jl for step 04b.
-function symbolic_formula_problem(pguess::AbstractVector, patient::PatientData)
-    u0 = initial_conditions_from_log_params(pguess)
-    tspan = (0.0, patient.timepoints[end] + 10.0)
-    return ODEProblem(symbolic_formula_ode!, u0, tspan)
-end
-
 function neural_network_model(depth::Int, width::Int; input_dims::Int=7)
     layers = []
     append!(layers, [TurboDense{true}(tanh, width) for _ in 1:depth])
@@ -540,4 +475,111 @@ function par_training_loss(p, (models, training_dataset);
     end
 
     return sum(partial) / n
+end
+
+# =============================================================================
+# Promoted Symbolic Surrogate Formula
+# =============================================================================
+
+"""
+Promoted symbolic-surrogate formula used by workflow step 04b.
+
+Workflow step 04a generates a candidate equation from the selected cUDE neural
+correction. For a reproducible manual promotion, simplify that equation and
+update the constants, effective-time expression, and
+`symbolic_surrogate_correction` below. The mechanistic structure implemented by
+`symbolic_formula_ode!` should normally remain unchanged.
+
+Step 04b intentionally uses only this manually promoted formula. Inspect and
+simplify the candidate produced by step 04a before changing this section:
+symbolic-regression expressions can contain removable singularities that are
+not numerically stable inside an ODE solve starting at normalized time zero.
+"""
+
+# -----------------------------------------------------------------------------
+# USER-EDITABLE PROMOTED SYMBOLIC FORMULA
+#
+# Edit this subsection after inspecting step 04a outputs. The promoted formula
+# must be numerically stable at `t_norm = 0`, where `t_norm = t / T_SCALE`.
+#
+# Usually editable:
+# - constants defining the simplified symbolic formula;
+# - `symbolic_surrogate_effective_time(beta)`;
+# - `symbolic_surrogate_correction(t_norm, beta)`.
+#
+# `beta` is expected on the natural scale, not on the log scale.
+# -----------------------------------------------------------------------------
+
+const OFFICIAL_SYMBOLIC_SURROGATE_C1 = 0.0007780399162888297
+const OFFICIAL_SYMBOLIC_SURROGATE_C2 = 1.0553531103104006
+const OFFICIAL_SYMBOLIC_SURROGATE_C = 1 / OFFICIAL_SYMBOLIC_SURROGATE_C2
+const OFFICIAL_SYMBOLIC_SURROGATE_C_BETA = OFFICIAL_SYMBOLIC_SURROGATE_C2 * OFFICIAL_SYMBOLIC_SURROGATE_C1
+
+"""
+    symbolic_surrogate_effective_time(beta)
+
+Return the promoted surrogate effective-time term for a natural-scale `beta`
+parameter.
+"""
+# Used by: src/models.jl and src/plotting.jl.
+symbolic_surrogate_effective_time(beta) = beta^2 / OFFICIAL_SYMBOLIC_SURROGATE_C_BETA
+
+"""
+    symbolic_surrogate_correction(t_norm, beta)
+
+Evaluate the promoted manual symbolic-surrogate correction function at
+normalized time `t_norm = t / T_SCALE` and natural-scale `beta`.
+"""
+# Used by: src/models.jl and scripts/04b_evaluate_symbolic_formula.jl.
+function symbolic_surrogate_correction(t_norm, beta)
+    t_eff = symbolic_surrogate_effective_time(beta)
+    t4 = t_norm^4
+    return (OFFICIAL_SYMBOLIC_SURROGATE_C * t4) / (t4 + t_eff)
+end
+
+# -----------------------------------------------------------------------------
+# SYMBOLIC FORMULA ODE RUNTIME
+#
+# This subsection should normally remain unchanged. It defines how the promoted
+# correction enters the mechanistic ODE and how patient-specific ODE problems are
+# built for step 04b. Do not change the RHS structure unless the mechanistic
+# model itself is intentionally being changed.
+# -----------------------------------------------------------------------------
+
+"""
+    symbolic_formula_ode!(du, u, p, t)
+
+Symbolic-surrogate ODE used by step 04b. Parameters are log-scale and ordered
+as `[a, b, Cs0, Cc0, beta]`.
+"""
+# Used by: scripts/04b_evaluate_symbolic_formula.jl through src/fitting.jl and src/diagnostics.jl.
+function symbolic_formula_ode!(du, u, p, t)
+    Cs = u[1]
+    Cc = u[2]
+    Cp = u[3]
+
+    a = exp(p[1])
+    b = exp(p[2])
+    beta = exp(p[5])
+    correction_value = symbolic_surrogate_correction(t / T_SCALE, beta)
+
+    du[1] = -(Cs - Cc) * correction_value
+    du[2] = (Cs - Cc) * correction_value - a * (Cc - Cp)
+    du[3] = a * (Cc - Cp) - b * Cp
+end
+
+"""
+    symbolic_formula_problem(pguess, patient; tpad=10.0)
+
+Build the patient-specific ODEProblem for the promoted symbolic surrogate.
+"""
+# Used by: src/fitting.jl and src/diagnostics.jl for step 04b.
+function symbolic_formula_problem(
+    pguess::AbstractVector,
+    patient::PatientData;
+    tpad::Real=10.0,
+)
+    u0 = initial_conditions_from_log_params(pguess)
+    tspan = (0.0, patient.timepoints[end] + tpad)
+    return ODEProblem(symbolic_formula_ode!, u0, tspan, pguess)
 end

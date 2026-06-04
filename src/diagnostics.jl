@@ -167,7 +167,7 @@ end
 """
     compute_symbolic_formula_residuals(patients, params_list; edges=EDGES, ...)
 
-Compute canonical step 04b residuals for the fixed symbolic surrogate formula.
+Compute canonical step 04b residuals for the promoted symbolic surrogate.
 Parameters are log-scale and ordered patient-major.
 """
 # Used by: scripts/04b_evaluate_symbolic_formula.jl.
@@ -194,7 +194,7 @@ function compute_symbolic_formula_residuals(
     residuals_out = DataFrame(id=String[], t=Float64[], y=Float64[], yhat=Float64[], res=Float64[])
 
     for (patient, params_log) in zip(patients, parameter_vectors)
-        prob = ODEProblem(symbolic_formula_ode!, initial_conditions_from_log_params(params_log), (0.0, patient.timepoints[end] + tpad))
+        prob = symbolic_formula_problem(params_log, patient; tpad=tpad)
         pred = solve(prob, Tsit5(); p=params_log, saveat=patient.timepoints, abstol=abstol, reltol=reltol)
 
         if !successful_retcode(pred)

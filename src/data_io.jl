@@ -1204,6 +1204,24 @@ function save_symbolic_regression_tables(paths; teacher::DataFrame, frontier::Da
 end
 
 """
+    load_symbolic_regression_tables(paths)
+
+Load the stable step 04a CSV artifacts without rerunning symbolic regression.
+"""
+# Used by: scripts/04a_run_symbolic_regression.jl (`report` mode).
+function load_symbolic_regression_tables(paths)
+    isfile(paths.teacher_dataset) ||
+        error("Missing symbolic-regression teacher dataset: $(paths.teacher_dataset)")
+    isfile(paths.pareto_frontier) ||
+        error("Missing symbolic-regression Pareto frontier: $(paths.pareto_frontier)")
+
+    return (
+        teacher=CSV.read(paths.teacher_dataset, DataFrame),
+        frontier=CSV.read(paths.pareto_frontier, DataFrame),
+    )
+end
+
+"""
     write_symbolic_regression_report(path, selection, metrics; ...)
 
 Write a compact report describing the selected symbolic surrogate.
@@ -1216,6 +1234,7 @@ function write_symbolic_regression_report(
     selected_model,
     settings,
     output_paths,
+    teacher_summary,
 )
     mkpath(dirname(path))
 
@@ -1230,10 +1249,9 @@ function write_symbolic_regression_report(
         println(io)
         println(io, "Teacher grid")
         println(io, "------------")
-        println(io, "Time points: $(length(settings.t_grid))")
-        println(io, "Beta points: $(length(settings.beta_grid))")
-        println(io, "Training points: $(length(settings.t_grid) * length(settings.beta_grid))")
-        println(io, "Validation enabled: $(settings.use_validation)")
+        println(io, "Time points: $(length(teacher_summary.t_grid))")
+        println(io, "Beta points: $(length(teacher_summary.beta_grid))")
+        println(io, "Training points: $(teacher_summary.training_points)")
         println(io)
         println(io, "Symbolic regression")
         println(io, "-------------------")
@@ -1248,9 +1266,15 @@ function write_symbolic_regression_report(
         println(io, "------------------------")
         println(io, "Frontier index: $(selection.best_idx)")
         println(io, "Complexity: $(selection.complexity)")
-        println(io, "Validation loss: $(selection.validation_loss)")
+        println(io, "Teacher-grid MSE: $(selection.teacher_mse)")
         println(io, "Equation:")
         println(io, selection.equation)
+        println(io)
+        println(io, "Manual promotion required")
+        println(io, "-------------------------")
+        println(io, "Inspect and simplify this candidate before editing the promoted")
+        println(io, "symbolic-surrogate section at the end of src/models.jl.")
+        println(io, "Step 04b intentionally does not execute raw SR equations.")
         println(io)
         println(io, "Synthetic grid metrics")
         println(io, "----------------------")
@@ -1294,8 +1318,12 @@ function symbolic_formula_output_paths(output_root::AbstractString, dataset_name
         patients_params=joinpath(dataset_dir, "patients_params_val_formula.csv"),
         residuals_csv=joinpath(dataset_dir, "residuals_$(dataset_label).csv"),
         parameter_boxplot=joinpath(dataset_dir, "boxplots_$(dataset_label).png"),
-        correction_surrogate=joinpath(dataset_dir, "correction_surrogate.svg"),
-        correction_surrogate_with_title=joinpath(dataset_dir, "correction_surrogate_with_title.svg"),
+        correction_surrogate_beta=joinpath(dataset_dir, "correction_surrogate_beta.svg"),
+        correction_surrogate_beta_with_title=joinpath(dataset_dir, "correction_surrogate_beta_with_title.svg"),
+        correction_surrogate_teff=joinpath(dataset_dir, "correction_surrogate_teff.svg"),
+        correction_surrogate_teff_with_title=joinpath(dataset_dir, "correction_surrogate_teff_with_title.svg"),
+        legacy_correction_surrogate=joinpath(dataset_dir, "correction_surrogate.svg"),
+        legacy_correction_surrogate_with_title=joinpath(dataset_dir, "correction_surrogate_with_title.svg"),
         residuals_vs_time=joinpath(residuals_dir, "residuals_vs_time_$(dataset_label).png"),
         residuals_vs_fitted=joinpath(residuals_dir, "residuals_vs_fitted_$(dataset_label).png"),
     )

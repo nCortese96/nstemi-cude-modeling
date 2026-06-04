@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=false,
+    test_mode=true,
     progress_bars=true,
 )
 
@@ -313,7 +313,7 @@ const MODEL_DIAGNOSTICS_SETTINGS = (
     profile_comparison=true,
     residual_plot_style=(
         figure_fontsize=18,
-        bin_label_fontsize=12,
+        bin_label_fontsize=18,
         scatter_markersize=5,
         summary_linewidth=2.5,
     ),
@@ -365,13 +365,21 @@ const PROFILE_LIKELIHOOD_SETTINGS = (
         legend_title_fontsize=20,
         legend_label_fontsize=15,
         legend_note_fontsize=13,
-        subplot_legend_fontsize=10,
-        subplot_tickfontsize=10,
-        subplot_guidefontsize=12,
+        subplot_legend_fontsize=15,
+        subplot_tickfontsize=12,
+        subplot_guidefontsize=14,
+        subplot_legend_position=:topright,
+        subplot_profile_linewidth=2.0,
+        subplot_profile_alpha=0.85,
+        subplot_threshold_linewidth=2.2,
+        subplot_png_dpi=300,
         subplot_left_margin_mm=4,
         subplot_bottom_margin_mm=5,
         subplot_right_margin_mm=3,
         subplot_top_margin_mm=3,
+        # Use `nothing` to hide the combined aggregate title, `:default` to
+        # restore the dataset-specific legacy title, or a string for a custom title.
+        combined_title=nothing,
         combined_title_fontsize=20,
         combined_left_margin_mm=4,
         combined_right_margin_mm=4,
@@ -454,28 +462,24 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
     input_dim=CUDE_EVALUATION_SETTINGS.input_dim,
     t_scale=WORKFLOW_MODEL_SETTINGS.t_scale,
     tmax_sr_h=2400.0,
+    # tmax_sr_h=6500.0, #2400.0,
     t_grid=unique(vcat(
         collect(0.01:2.0:248.01),
         collect(260.0:10.0:2100.0),
         collect(2102.0:2.0:2400.0),
     )),
-    # t_grid=collect(0.1:0.1:240.0),
-    beta_grid=collect(range(0.1, 1.0, length=18)),
-    use_validation=false,
-    t_validation_grid=unique(vcat(
-        collect(0.51:1.0:120.51),
-        collect(122.0:2.0:500.0),
-        collect(507.5:5.0:1502.5),
-        collect(1530.0:20.0:2400.0),
-    )),
-    beta_validation_grid=collect(exp.(range(log(0.035), log(0.98), length=8))),
+    # t_grid=collect(0.01:10.0:6500.0),
+    beta_grid=collect(range(0.1, 1.0, length=20)),
+    # beta_grid=collect(range(0.2, 0.8, length=20)), #Default=18, Last=#20
     plot_beta_grid=collect(0.1:0.1:1.0),
     variable_names=("t_norm", "β"),
     binary_operators=(+, *),
     unary_operators=(inv,),
     maxsize=20,
+    # maxsize=16, #20
     populations=24,
     parsimony=5e-4,
+    # parsimony=1e-3, #5e-4
     complexity_of_constants=2,
     batching=true,
     batch_size=512,
@@ -486,7 +490,7 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
     niterations_warmup=300,
     niterations_main=25000,
     seed=42,
-    validation_loss_tolerance=1.02,
+    teacher_mse_tolerance=1.02,
     plotting=true,
     display_plots=false,
     progress_bars=WORKFLOW_RUN_MODE.progress_bars,
@@ -496,9 +500,8 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
 # SYMBOLIC FORMULA EVALUATION SETTINGS
 # Settings controlling workflow step 04b.
 #
-# This step evaluates the fixed official symbolic surrogate formula on the
-# canonical step 00 test cohorts. The formula itself is hard-coded in
-# `src/models.jl` to keep the published surrogate reproducible.
+# This step evaluates the manually promoted formula defined at the end of
+# `src/models.jl`.
 # =============================================================================
 
 const SYMBOLIC_FORMULA_EVALUATION_SETTINGS = (

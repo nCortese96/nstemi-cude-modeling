@@ -124,7 +124,7 @@ Run the scripts in numerical order when building results from scratch.
 | 03b | `scripts/03b_run_profile_likelihood.jl` | Run profile likelihood analysis for ODE and cUDE targets. |
 | 03c | `scripts/03c_run_systematic_truncation.jl` | Run systematic truncation stress tests and overlays. |
 | 04a | `scripts/04a_run_symbolic_regression.jl` | Fit a symbolic surrogate for the selected cUDE correction function. |
-| 04b | `scripts/04b_evaluate_symbolic_formula.jl` | Evaluate the fixed symbolic surrogate formula on test cohorts. |
+| 04b | `scripts/04b_evaluate_symbolic_formula.jl` | Evaluate the manually promoted symbolic surrogate formula on test cohorts. |
 
 ## Command Reference
 
@@ -135,9 +135,15 @@ julia --project=. scripts/00_run_preprocessing.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/02a_run_cude_training.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/02b_evaluate_cude_nn.jl
+julia --project=. scripts/02b_evaluate_cude_nn.jl plots
 julia --project=. scripts/02c_grid_search.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl
 ```
+
+The step 02b `plots` mode regenerates correction-function plots, patient
+profiles, and training/validation parameter-distribution plots from existing
+02a/02b artifacts. It does not rerun cUDE fitting and does not modify the
+stable CSV/JLD2 outputs.
 
 ### Comparison Analyses
 
@@ -221,12 +227,51 @@ while preserving numeric tick labels.
 
 ```bash
 JULIA_NUM_THREADS=auto julia --project=. scripts/04a_run_symbolic_regression.jl
+julia --project=. scripts/04a_run_symbolic_regression.jl inspection
+julia --project=. scripts/04a_run_symbolic_regression.jl inspection 2400 18
+julia --project=. scripts/04a_run_symbolic_regression.jl report
 JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
 ```
 
-Symbolic regression can be computationally expensive and stochastic. The fixed
-surrogate formula evaluated by step 04b is defined explicitly in `src/models.jl`
-for reproducibility.
+Symbolic regression can be computationally expensive and stochastic. Step 04a
+writes the teacher dataset, Pareto frontier, figures, and a human-readable
+selected-model report. The `report` mode regenerates only this report from the
+stable teacher and Pareto CSVs; it does not rerun symbolic regression or
+regenerate plots.
+
+The `inspection` mode plots only the selected trained cUDE neural correction
+function. It does not create the symbolic-regression teacher dataset and does
+not read or write the stable 04a CSVs. Use it to inspect how far the time grid
+should extend and how many beta values are useful before editing
+`config/workflow_config.jl` and running the full 04a command without arguments.
+With no extra arguments, `inspection` uses the configured `t_grid` and
+`plot_beta_grid`; optional arguments override the inspection time horizon and
+number of plotted beta values.
+
+After step 04a, inspect these artifacts before using the surrogate in step 04b:
+
+- `results*/04_symbolic_surrogate/04a_symbolic_regression/selected_symbolic_model.txt`
+- `results*/04_symbolic_surrogate/04a_symbolic_regression/sr_pareto_frontier_direct.csv`
+- `results*/04_symbolic_surrogate/04a_symbolic_regression/figs/nn_vs_sr_direct.png`
+- `results*/04_symbolic_surrogate/04a_symbolic_regression/figs/sr_direct.png`
+
+The selected equation is intentionally not executed automatically in step 04b.
+A symbolic-regression candidate can be algebraically valid on the teacher grid
+while remaining numerically unstable inside an ODE solve starting at
+`t_norm = 0`, for example because it contains a removable `inv(t_norm)`
+singularity.
+
+Before running step 04b:
+
+1. Run `scripts/04a_run_symbolic_regression.jl`.
+2. Inspect the selected equation, Pareto frontier, and comparison figures.
+3. Simplify the selected equation into a numerically stable form.
+4. Update the user-editable promoted symbolic-surrogate section at the end of
+   `src/models.jl`.
+5. Run `scripts/04b_evaluate_symbolic_formula.jl`.
+
+Step 04b evaluates only this manually promoted formula and writes both
+beta-labelled and normalized `T_eff`-labelled correction plots.
 
 ## Output Trees
 

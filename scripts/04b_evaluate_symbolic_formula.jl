@@ -1,21 +1,33 @@
 """
 04b_evaluate_symbolic_formula.jl
 
-Evaluate the fixed official symbolic surrogate formula on the canonical step 00
-test cohorts.
+Evaluate the manually promoted symbolic surrogate formula on the canonical
+step 00 test cohorts.
 
 Pipeline:
 1. Read workflow settings from `config/workflow_config.jl`.
 2. Load the configured preprocessed test cohorts from step 00.
-3. Fit patient-level ODE parameters for the fixed symbolic formula.
+3. Fit patient-level ODE parameters for the promoted symbolic formula.
 4. Save optimized parameters, metrics, residuals, and patient profile plots.
-5. Save the symbolic correction plots used to document the surrogate.
+5. Save beta-labelled and T_eff-labelled correction plots.
 
 Command line:
     JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change optimizer settings, or disable plots/progress bars.
+
+Before running:
+1. Run `scripts/04a_run_symbolic_regression.jl`.
+2. Inspect the selected equation, Pareto frontier, and NN-vs-SR figures from
+   `results*/04_symbolic_surrogate/04a_symbolic_regression/`.
+3. Simplify the selected equation into an ODE-stable expression, especially
+   near `t_norm = 0`.
+4. Promote the formula manually in the final
+   `USER-EDITABLE PROMOTED SYMBOLIC FORMULA` section of `src/models.jl`.
+
+This script does not read step 04a outputs at runtime. It fits patient-level
+parameters using only the promoted formula currently defined in `src/models.jl`.
 """
 
 # =============================================================================
@@ -46,7 +58,7 @@ dataset_configs = resolve_dataset_configs(config, settings.dataset_keys)
 
 # =============================================================================
 # INPUT PATHS
-# Step 04b consumes only step 00 preprocessed cohorts.
+# Step 04b consumes step 00 cohorts.
 # =============================================================================
 
 cohort_dir = settings.cohort_dir
@@ -87,6 +99,7 @@ log_workflow_context(
 @info "Julia threads: $(nthreads())"
 
 ensure_output_dirs!(output_root; header="Ensured step 04b output root")
+@info "Using manually promoted symbolic formula from src/models.jl."
 
 for dataset_config in dataset_configs
     dataset_name = dataset_config.dataset_name
@@ -110,6 +123,10 @@ for dataset_config in dataset_configs
             residuals=paths.residuals_csv,
             parameter_boxplot=paths.parameter_boxplot,
             profiles=paths.profiles_dir,
+            correction_surrogate_beta=paths.correction_surrogate_beta,
+            correction_surrogate_beta_with_title=paths.correction_surrogate_beta_with_title,
+            correction_surrogate_teff=paths.correction_surrogate_teff,
+            correction_surrogate_teff_with_title=paths.correction_surrogate_teff_with_title,
         );
         header="Symbolic formula output files for $(dataset_name)",
     )
@@ -179,7 +196,7 @@ for dataset_config in dataset_configs
     )
 
     save_symbolic_formula_correction_plots(
-        paths;
+        paths,
         t_grid=settings.correction_t_grid,
         beta_values=settings.correction_beta_grid,
         plotting=settings.plotting,

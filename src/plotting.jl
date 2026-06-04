@@ -107,7 +107,9 @@ function save_cude_patient_plots(
     end
 
     savefig(pl, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name).svg"))
+    savefig(pl, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name).png"))
     savefig(pl_plasm, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name)_plasm.svg"))
+    savefig(pl_plasm, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name)_plasm.png"))
 
     return (full=pl, plasma=pl_plasm)
 end
@@ -554,6 +556,7 @@ function params_extraction(
     show_outliers::Bool=false,
     savefigure::Bool=false,
     show_progress::Bool=true,
+    output_basename=nothing,
 )
     length(ode_params_val) == length(patients) * N_params ||
         error("Expected $(length(patients) * N_params) parameters for $(length(patients)) patients, got $(length(ode_params_val)).")
@@ -589,9 +592,13 @@ function params_extraction(
 
     if savefigure
         mkpath(figsave_path)
-        output_path = joinpath(figsave_path, "$(data_label)_params_distribution_$(dataset).svg")
-        CairoMakie.save(output_path, fig)
-        @info "Figure saved at: $(output_path)"
+        basename = output_basename === nothing ? "$(data_label)_params_distribution_$(dataset)" : String(output_basename)
+        svg_path = joinpath(figsave_path, "$(basename).svg")
+        png_path = joinpath(figsave_path, "$(basename).png")
+        CairoMakie.save(svg_path, fig)
+        CairoMakie.save(png_path, fig, px_per_unit=3)
+        @info "Figure saved at: $(svg_path)"
+        @info "Figure saved at: $(png_path)"
     end
 
     return a, b, Cs0, Cc0, β, fig
@@ -636,7 +643,8 @@ end
 """
     save_symbolic_formula_correction_plots(paths; t_grid, beta_values, plotting=true, display_plots=false)
 
-Save the official symbolic-surrogate correction curves used by step 04b.
+Save beta-labelled and effective-time-labelled correction curves for the
+promoted symbolic surrogate used by step 04b.
 """
 # Used by: scripts/04b_evaluate_symbolic_formula.jl.
 function save_symbolic_formula_correction_plots(
@@ -646,40 +654,78 @@ function save_symbolic_formula_correction_plots(
     plotting::Bool=true,
     display_plots::Bool=false,
 )
-    plotting || return nothing
+    stale_candidates = [
+        paths.legacy_correction_surrogate,
+        paths.legacy_correction_surrogate_with_title,
+    ]
+    stale_paths = filter(isfile, stale_candidates)
+    isempty(stale_paths) ||
+        @warn "Existing correction plots were not updated by this run and may not represent the applied symbolic formula." paths=stale_paths
+
+    plotting || return (beta=nothing, teff=nothing, stale_paths=stale_paths)
     mkpath(paths.dataset_dir)
 
     t_values = Float64.(collect(t_grid))
     beta_grid = Float64.(collect(beta_values))
-    t_eff_values = [symbolic_surrogate_effective_time(beta) for beta in beta_grid]
 
-    with_title = Plots.plot()
-    for (beta, t_eff) in zip(beta_grid, t_eff_values)
+    beta_with_title = Plots.plot()
+    for beta in beta_grid
         y = [symbolic_surrogate_correction(t / T_SCALE, beta) for t in t_values]
-        Plots.plot!(with_title, t_values, y; label="T_eff = $(round(t_eff, digits=2))", linewidth=2)
+        Plots.plot!(beta_with_title, t_values, y; label="β = $(round(beta, digits=2))", linewidth=2)
     end
     Plots.plot!(
-        with_title;
+        beta_with_title;
+        xlabel="Time (h)",
+        ylabel="SR(τ,β)",
+        title="Learned sarcomere rupture function",
+        legend=:bottomright,
+    )
+
+    beta_no_title = Plots.plot()
+    for beta in beta_grid
+        y = [symbolic_surrogate_correction(t / T_SCALE, beta) for t in t_values]
+        Plots.plot!(beta_no_title, t_values, y; label="β = $(round(beta, digits=2))", linewidth=2)
+    end
+    Plots.plot!(beta_no_title; xlabel="Time (h)", legend=false)
+
+    display_plots && display(beta_with_title)
+    display_plots && display(beta_no_title)
+
+    savefig(beta_with_title, paths.correction_surrogate_beta_with_title)
+    savefig(beta_no_title, paths.correction_surrogate_beta)
+
+    t_eff_values = [symbolic_surrogate_effective_time(beta) for beta in beta_grid]
+    teff_with_title = Plots.plot()
+    for (beta, t_eff) in zip(beta_grid, t_eff_values)
+        y = [symbolic_surrogate_correction(t / T_SCALE, beta) for t in t_values]
+        Plots.plot!(teff_with_title, t_values, y; label="T_eff = $(round(t_eff, digits=2))", linewidth=2)
+    end
+    Plots.plot!(
+        teff_with_title;
         xlabel="Time (h)",
         ylabel="SR(τ,T_eff)",
         title="Learned sarcomere rupture function",
         legend=:bottomright,
     )
 
-    no_title = Plots.plot()
+    teff_no_title = Plots.plot()
     for (beta, t_eff) in zip(beta_grid, t_eff_values)
         y = [symbolic_surrogate_correction(t / T_SCALE, beta) for t in t_values]
-        Plots.plot!(no_title, t_values, y; label="T_eff = $(round(t_eff, digits=2))", linewidth=2)
+        Plots.plot!(teff_no_title, t_values, y; label="T_eff = $(round(t_eff, digits=2))", linewidth=2)
     end
-    Plots.plot!(no_title; xlabel="Time (h)", legend=false)
+    Plots.plot!(teff_no_title; xlabel="Time (h)", legend=false)
 
-    display_plots && display(with_title)
-    display_plots && display(no_title)
+    display_plots && display(teff_with_title)
+    display_plots && display(teff_no_title)
 
-    savefig(with_title, paths.correction_surrogate_with_title)
-    savefig(no_title, paths.correction_surrogate)
+    savefig(teff_with_title, paths.correction_surrogate_teff_with_title)
+    savefig(teff_no_title, paths.correction_surrogate_teff)
 
-    return (with_title=with_title, no_title=no_title)
+    return (
+        beta=(with_title=beta_with_title, no_title=beta_no_title),
+        teff=(with_title=teff_with_title, no_title=teff_no_title),
+        stale_paths=stale_paths,
+    )
 end
 
 """
@@ -1518,18 +1564,25 @@ function build_profile_likelihood_aggregate_parameter_plot(
     pname_plot::AbstractString;
     threshold::Real,
     style=nothing,
+    legend_mode::Symbol=:full,
 )
+    legend_mode in (:full, :counts_only) ||
+        error("Unsupported PLA aggregate legend mode: $(legend_mode).")
+
     summary_param = summary[summary.param_name.==pname, :]
     profiles_param = profiles[profiles.param_name.==pname, :]
 
     n_identifiable = sum(summary_param.class_label .== "Identifiable")
     n_practical = sum(summary_param.class_label .== "Practically identifiable")
     n_unidentifiable = sum(summary_param.class_label .== "Unidentifiable")
+    profile_linewidth = _style_value(style, :subplot_profile_linewidth, 1.6)
+    profile_alpha = _style_value(style, :subplot_profile_alpha, 0.75)
+    threshold_linewidth = _style_value(style, :subplot_threshold_linewidth, 2)
 
     plot_obj = Plots.plot(
         xlabel="Δ$(pname_plot)",
         ylabel="",
-        legend=:best,
+        legend=_style_value(style, :subplot_legend_position, :topright),
         gridalpha=0.15,
         title="",
         lw=1.8,
@@ -1537,22 +1590,34 @@ function build_profile_likelihood_aggregate_parameter_plot(
         legendfontsize=_style_value(style, :subplot_legend_fontsize, 8),
         tickfontsize=_style_value(style, :subplot_tickfontsize, 10),
         guidefontsize=_style_value(style, :subplot_guidefontsize, 12),
+        dpi=_style_value(style, :subplot_png_dpi, 300),
         left_margin=_plots_margin(style, :subplot_left_margin_mm, 2),
         bottom_margin=_plots_margin(style, :subplot_bottom_margin_mm, 3),
         right_margin=_plots_margin(style, :subplot_right_margin_mm, 2),
         top_margin=_plots_margin(style, :subplot_top_margin_mm, 2),
     )
 
-    Plots.plot!(plot_obj, [NaN], [NaN]; color=:green, ls=:dash, lw=2, label="95% threshold")
-    Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Unidentifiable"], lw=5, label="Unidentifiable (n=$(n_unidentifiable))")
-    Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Practically identifiable"], lw=5, label="Practically identifiable (n=$(n_practical))")
-    Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Identifiable"], lw=5, label="Identifiable (n=$(n_identifiable))")
-    Plots.hline!(plot_obj, [threshold], color=:green, ls=:dash, lw=2, label=nothing)
+    if legend_mode == :full
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=:green, ls=:dash, lw=threshold_linewidth, label="95% threshold")
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Unidentifiable"], lw=5, label="Unidentifiable (n=$(n_unidentifiable))")
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Practically identifiable"], lw=5, label="Practically identifiable (n=$(n_practical))")
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Identifiable"], lw=5, label="Identifiable (n=$(n_identifiable))")
+    else
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Identifiable"], lw=5, label="n=$(n_identifiable)")
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Practically identifiable"], lw=5, label="n=$(n_practical)")
+        Plots.plot!(plot_obj, [NaN], [NaN]; color=PROFILE_LIKELIHOOD_CLASS_COLORS["Unidentifiable"], lw=5, label="n=$(n_unidentifiable)")
+    end
+    Plots.hline!(plot_obj, [threshold], color=:green, ls=:dash, lw=threshold_linewidth, label=nothing)
 
     x_focus = Float64[]
     y_focus = Float64[]
+    profile_draw_order = (
+        "Unidentifiable",
+        "Practically identifiable",
+        "Identifiable",
+    )
 
-    for class_label in PROFILE_LIKELIHOOD_CLASS_ORDER
+    for class_label in profile_draw_order
         summary_class = summary_param[summary_param.class_label.==class_label, :]
         nrow(summary_class) == 0 && continue
 
@@ -1571,8 +1636,8 @@ function build_profile_likelihood_aggregate_parameter_plot(
                 x_centered,
                 y_plr;
                 color=PROFILE_LIKELIHOOD_CLASS_COLORS[class_label],
-                lw=1.6,
-                alpha=0.75,
+                lw=profile_linewidth,
+                alpha=profile_alpha,
                 label=nothing,
             )
 
@@ -1602,6 +1667,40 @@ function build_profile_likelihood_aggregate_parameter_plot(
     end
 
     return plot_obj
+end
+
+"""
+    save_profile_likelihood_aggregate_formats(plot_obj, base_path)
+
+Save one PLA aggregate plot in SVG, PNG, and EPS format.
+"""
+# Used by: src/plotting.jl (save_profile_likelihood_aggregate_plots).
+function save_profile_likelihood_aggregate_formats(plot_obj, base_path::AbstractString)
+    Plots.savefig(plot_obj, "$(base_path).svg")
+    Plots.savefig(plot_obj, "$(base_path).png")
+
+    eps_path = "$(base_path).eps"
+    try
+        Plots.savefig(plot_obj, eps_path)
+        return nothing
+    catch eps_err
+        pdf_path = "$(base_path)_tmp_for_eps.pdf"
+        try
+            Plots.savefig(plot_obj, pdf_path)
+            pdftops = Sys.which("pdftops")
+            if pdftops === nothing
+                @warn "Skipping EPS output because Plots.savefig failed and pdftops is not available." path=eps_path error=eps_err
+            else
+                run(`$pdftops -eps $pdf_path $eps_path`)
+            end
+        catch fallback_err
+            @warn "Skipping EPS output because PDF-to-EPS conversion failed." path=eps_path savefig_error=eps_err conversion_error=fallback_err
+        finally
+            rm(pdf_path; force=true)
+        end
+    end
+
+    return nothing
 end
 
 """
@@ -1684,26 +1783,55 @@ function save_profile_likelihood_aggregate_plots(
             pname_plot;
             threshold=threshold,
             style=style,
+            legend_mode=:full,
         )
-        push!(aggregate_panels, plot_obj)
-        Plots.savefig(plot_obj, joinpath(paths.aggregate_fig_dir, "aggregate_$(pname)_delta_theta_plr.svg"))
+        save_profile_likelihood_aggregate_formats(
+            plot_obj,
+            joinpath(paths.aggregate_fig_dir, "aggregate_$(pname)_delta_theta_plr"),
+        )
+
+        combined_panel = build_profile_likelihood_aggregate_parameter_plot(
+            profiles,
+            summary,
+            pname,
+            pname_plot;
+            threshold=threshold,
+            style=style,
+            legend_mode=:counts_only,
+        )
+        push!(aggregate_panels, combined_panel)
     end
 
     push!(aggregate_panels, build_profile_likelihood_aggregate_legend_panel(; style=style))
+
+    combined_title = _style_value(
+        style,
+        :combined_title,
+        "Aggregate profile likelihood by parameter | dataset $(dataset_name)",
+    )
+    resolved_combined_title =
+        combined_title === :default ? "Aggregate profile likelihood by parameter | dataset $(dataset_name)" :
+        combined_title === nothing ? "" :
+        combined_title isa AbstractString ? combined_title :
+        error("Unsupported PLA aggregate combined_title=$(combined_title). Use nothing, :default, or a string.")
 
     aggregate = Plots.plot(
         aggregate_panels...;
         layout=(2, 3),
         size=(1850, 1080),
-        plot_title="Aggregate profile likelihood by parameter | dataset $(dataset_name)",
+        plot_title=resolved_combined_title,
         plot_titlefontsize=_style_value(style, :combined_title_fontsize, 18),
+        dpi=_style_value(style, :subplot_png_dpi, 300),
         left_margin=_plots_margin(style, :combined_left_margin_mm, 2),
         right_margin=_plots_margin(style, :combined_right_margin_mm, 2),
         bottom_margin=_plots_margin(style, :combined_bottom_margin_mm, 4),
         top_margin=_plots_margin(style, :combined_top_margin_mm, 4),
     )
 
-    Plots.savefig(aggregate, joinpath(paths.aggregate_fig_dir, "aggregate_profile_by_parameter.svg"))
+    save_profile_likelihood_aggregate_formats(
+        aggregate,
+        joinpath(paths.aggregate_fig_dir, "aggregate_profile_by_parameter"),
+    )
     return paths.aggregate_fig_dir
 end
 
@@ -1877,7 +2005,7 @@ end
 """
     save_truncation_overlay_plot(record, output_dir; plot_legend=false, axis_labels=true)
 
-Save one ODE-vs-cUDE systematic truncation overlay plot.
+Save one ODE-vs-cUDE systematic truncation overlay plot as SVG and PNG.
 """
 # Used by: scripts/03c_run_systematic_truncation.jl.
 function save_truncation_overlay_plot(
@@ -1948,12 +2076,15 @@ function save_truncation_overlay_plot(
         )
     end
 
-    save_path = joinpath(
+    base_path = joinpath(
         output_dir,
-        "overlay_$(record.patient_id)_$(section_upper)_S$(record.set_id)_B$(budget_str).svg",
+        "overlay_$(record.patient_id)_$(section_upper)_S$(record.set_id)_B$(budget_str)",
     )
-    savefig(plot_obj, save_path)
-    return save_path
+    svg_path = "$(base_path).svg"
+    png_path = "$(base_path).png"
+    savefig(plot_obj, svg_path)
+    savefig(plot_obj, png_path)
+    return svg_path
 end
 
 # =============================================================================

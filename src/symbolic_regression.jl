@@ -200,31 +200,30 @@ function symbolic_sr_eval(tree, X)
 end
 
 """
-    select_symbolic_regression_model(hof, X_val, y_val, settings, options)
+    select_symbolic_regression_model(hof, X_teacher, y_teacher, settings, options)
 
-Select the Pareto member with minimum validation loss, tie-breaking among
-near-identical losses by lower complexity.
+Select the simplest Pareto member whose teacher-grid MSE is within the
+configured tolerance of the minimum teacher-grid MSE.
 """
 # Used by: scripts/04a_run_symbolic_regression.jl.
-function select_symbolic_regression_model(hof, X_val, y_val, settings, options)
+function select_symbolic_regression_model(hof, X_teacher, y_teacher, settings, options)
     frontier = calculate_pareto_frontier(hof)
     isempty(frontier) && error("Symbolic regression produced an empty Pareto frontier.")
 
-    val_losses = Float64[]
+    teacher_mses = Float64[]
     complexities = Int[]
 
     for member in frontier
-        y_hat_val = symbolic_sr_eval(member.tree, X_val)
-        push!(val_losses, mean((y_val .- y_hat_val) .^ 2))
+        y_hat_teacher = symbolic_sr_eval(member.tree, X_teacher)
+        push!(teacher_mses, mean((y_teacher .- y_hat_teacher) .^ 2))
         push!(complexities, compute_complexity(member, options))
     end
 
-    best_idx = argmin(val_losses)
-    near_best = findall(val_losses .<= settings.validation_loss_tolerance * val_losses[best_idx])
-
-    if !isempty(near_best)
-        best_idx = near_best[argmin(complexities[near_best])]
-    end
+    best_idx = select_symbolic_regression_index(
+        teacher_mses,
+        complexities;
+        tolerance=settings.teacher_mse_tolerance,
+    )
 
     best = frontier[best_idx]
     equation = string_tree(best.tree; variable_names=collect(settings.variable_names))
@@ -234,10 +233,108 @@ function select_symbolic_regression_model(hof, X_val, y_val, settings, options)
         best=best,
         best_idx=best_idx,
         equation=equation,
-        validation_loss=val_losses[best_idx],
+        teacher_mse=teacher_mses[best_idx],
         complexity=complexities[best_idx],
-        val_losses=val_losses,
+        teacher_mses=teacher_mses,
         complexities=complexities,
+    )
+end
+
+"""
+    select_symbolic_regression_index(teacher_mses, complexities; tolerance)
+
+Return the least-complex candidate whose teacher-grid MSE is within `tolerance`
+of the minimum MSE.
+"""
+# Used by: src/symbolic_regression.jl.
+function select_symbolic_regression_index(teacher_mses, complexities; tolerance::Real)
+    isempty(teacher_mses) && error("Cannot select a symbolic surrogate from an empty candidate set.")
+    length(teacher_mses) == length(complexities) ||
+        error("Symbolic surrogate MSE and complexity vectors must have the same length.")
+
+    minimum_mse_idx = argmin(teacher_mses)
+    near_best = findall(teacher_mses .<= tolerance * teacher_mses[minimum_mse_idx])
+    return near_best[argmin(complexities[near_best])]
+end
+
+"""
+    symbolic_equation_eval(equation, X)
+
+Evaluate a trusted symbolic equation on a `2 x N` teacher grid.
+"""
+# Used by: src/symbolic_regression.jl (report-only symbolic selection).
+function symbolic_equation_eval(equation::AbstractString, X)
+    body = Meta.parse(equation; raise=true)
+    correction = Core.eval(@__MODULE__, :((t_norm, β) -> $body))
+    # Report mode evaluates a newly compiled callable immediately. invokelatest
+    # is intentionally confined here: candidate equations are never injected
+    # into the step 04b ODE solve.
+    return [Float64(Base.invokelatest(correction, X[1, idx], X[2, idx])) for idx in axes(X, 2)]
+end
+
+"""
+    symbolic_teacher_arrays(teacher_table; t_scale)
+
+Reconstruct the teacher matrix and target vector from the stable step 04a CSV.
+"""
+# Used by: scripts/04a_run_symbolic_regression.jl.
+function symbolic_teacher_arrays(teacher_table::DataFrame; t_scale::Real)
+    required = (:t_h, :t_norm, :beta, :y_nn)
+    missing_columns = setdiff(required, propertynames(teacher_table))
+    isempty(missing_columns) ||
+        error("Symbolic teacher table is missing columns: $(join(missing_columns, ", ")).")
+
+    t_h = Float64.(teacher_table.t_h)
+    t_norm = Float64.(teacher_table.t_norm)
+    beta = Float64.(teacher_table.beta)
+    y = Float64.(teacher_table.y_nn)
+
+    all(isapprox.(t_norm, t_h ./ t_scale)) ||
+        error("Symbolic teacher table is inconsistent with t_scale=$(t_scale).")
+
+    return (
+        X=[t_norm'; beta'],
+        y=y,
+        t_grid=unique(t_h),
+        beta_grid=unique(beta),
+        training_points=length(y),
+    )
+end
+
+"""
+    select_symbolic_regression_model(frontier_table, X_teacher, y_teacher, settings)
+
+Select a trusted equation from the stable Pareto-frontier CSV without rerunning
+symbolic regression.
+"""
+# Used by: scripts/04a_run_symbolic_regression.jl (`report` mode).
+function select_symbolic_regression_model(frontier_table::DataFrame, X_teacher, y_teacher, settings)
+    required = (:idx, :complexity, :equation)
+    missing_columns = setdiff(required, propertynames(frontier_table))
+    isempty(missing_columns) ||
+        error("Symbolic frontier table is missing columns: $(join(missing_columns, ", ")).")
+    isempty(frontier_table.idx) && error("Symbolic frontier table is empty.")
+
+    teacher_mses = [
+        mean((y_teacher .- symbolic_equation_eval(String(equation), X_teacher)) .^ 2)
+        for equation in frontier_table.equation
+    ]
+    complexities = Int.(frontier_table.complexity)
+    position = select_symbolic_regression_index(
+        teacher_mses,
+        complexities;
+        tolerance=settings.teacher_mse_tolerance,
+    )
+    symbolic_target = symbolic_equation_eval(String(frontier_table.equation[position]), X_teacher)
+
+    return (
+        best_idx=Int(frontier_table.idx[position]),
+        equation=String(frontier_table.equation[position]),
+        teacher_mse=teacher_mses[position],
+        complexity=complexities[position],
+        teacher_mses=teacher_mses,
+        complexities=complexities,
+        symbolic_target=symbolic_target,
     )
 end
 

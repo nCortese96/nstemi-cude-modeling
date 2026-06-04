@@ -177,6 +177,31 @@ function predict_patient_curve(problem::ODEProblem, theta; saveat=1.0, abstol=1e
     return sol
 end
 
+"""
+    predict_cude_patient_curve(patient, log_params, chain, nn_params; saveat=1.0)
+
+Reconstruct a cUDE patient trajectory from saved log-scale ODE parameters and
+fixed neural-network parameters without running a new fit.
+"""
+# Used by: scripts/02b_evaluate_cude_nn.jl (`plots` mode).
+function predict_cude_patient_curve(
+    patient::PatientData,
+    log_params::AbstractVector,
+    chain::SimpleChain,
+    nn_params;
+    saveat=1.0,
+    abstol::Real=1e-8,
+    reltol::Real=1e-6,
+)
+    model = ctntCUDEModel(log_params, chain, patient.timepoints)
+    component_params = ComponentArray(ode=Vector(log_params), neural=nn_params)
+    u0 = initial_conditions_from_log_params(log_params)
+    prob = remake(model.problem; u0=u0, p=component_params)
+    sol = solve(prob, Tsit5(); p=component_params, saveat=saveat, abstol=abstol, reltol=reltol)
+    successful_retcode(sol) || error("cUDE prediction solve failed with retcode=$(sol.retcode)")
+    return sol
+end
+
 # =============================================================================
 # cUDE Training
 # =============================================================================
@@ -646,8 +671,8 @@ end
 """
     fit_symbolic_formula_patient(patient, pguess, lower, upper, settings; rng)
 
-Fit one patient's ODE parameters for the fixed symbolic surrogate formula using
-the same patient loss and multi-start strategy as the legacy formula script.
+Fit one patient's ODE parameters for the promoted symbolic surrogate using the
+same patient loss and multi-start strategy as the legacy formula script.
 """
 # Used by: src/fitting.jl (evaluate_symbolic_formula_dataset).
 function fit_symbolic_formula_patient(
@@ -716,7 +741,7 @@ end
 """
     evaluate_symbolic_formula_dataset(patients, settings; dataset_name)
 
-Evaluate the official symbolic surrogate formula on an ordered patient cohort.
+Evaluate the promoted symbolic surrogate formula on an ordered patient cohort.
 The shared RNG is advanced patient-by-patient to match the legacy multi-start
 evaluation pattern.
 """

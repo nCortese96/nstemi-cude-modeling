@@ -13,9 +13,12 @@ Pipeline:
 
 Command line:
     JULIA_NUM_THREADS=auto julia --project=. scripts/02b_evaluate_cude_nn.jl
+    julia --project=. scripts/02b_evaluate_cude_nn.jl plots
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change widths/model indices, or disable progress bars.
+Use `plots` to regenerate figures from existing 02a/02b artifacts without
+running patient-level fitting or modifying CSV/JLD2 outputs.
 """
 
 # =============================================================================
@@ -42,6 +45,9 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 config = WORKFLOW_CONFIG
 settings = config.cude_evaluation
 dataset_config = config.datasets[settings.dataset_key]
+execution_mode = isempty(ARGS) ? :run :
+                 length(ARGS) == 1 && lowercase(strip(ARGS[1])) == "plots" ? :plots :
+                 error("Usage: julia --project=. scripts/02b_evaluate_cude_nn.jl [plots]")
 
 # =============================================================================
 # INPUT PATHS
@@ -103,6 +109,7 @@ training_ids = [patient.id for patient in training_dataset]
 @info "Validation/test patients: $(length(validation_dataset))"
 @info "Configured widths: $(collect(widths))"
 @info "Configured model indices: $(collect(model_indices))"
+@info "Execution mode: $(execution_mode)"
 @info "Julia threads: $(nthreads())"
 
 for width in widths
@@ -173,6 +180,76 @@ for width in widths
             savefigure=settings.plotting,
             show_progress=settings.progress_bars,
         )
+        params_extraction(
+            training_dataset,
+            training_log_params;
+            N_params=settings.n_params,
+            data_label="training",
+            dataset=dataset_name,
+            figsave_path=paths.eval_dir,
+            show_outliers=false,
+            savefigure=settings.plotting,
+            show_progress=settings.progress_bars,
+            output_basename="training_params_distribution_$(dataset_name)_no_outliers",
+        )
+
+        if execution_mode === :plots
+            for required_path in (paths.best_params, paths.patients_params_train, paths.patients_params_val)
+                isfile(required_path) || error("Missing required 02b artifact for plots mode: $(required_path)")
+            end
+
+            validation_df = CSV.read(paths.patients_params_val, DataFrame)
+            validation_log_params = Vector{Float64}(JLD2.load(paths.best_params, "ode_params_val"))
+            nrow(validation_df) * settings.n_params == length(validation_log_params) ||
+                error(
+                    "Mismatch between patients_params_val.csv rows ($(nrow(validation_df))) and " *
+                    "JLD2 parameter count ($(length(validation_log_params))) for width=$(width), model=$(model_idx).",
+                )
+
+            validation_lookup = Dict(String(patient.id) => patient for patient in validation_dataset)
+            successful_patients = PatientData[]
+            for patient_id in validation_df.patient_id
+                patient_key = String(patient_id)
+                haskey(validation_lookup, patient_key) ||
+                    error("Patient $(patient_key) from $(paths.patients_params_val) was not found in the validation cohort.")
+                push!(successful_patients, validation_lookup[patient_key])
+            end
+
+            params_extraction(
+                successful_patients,
+                validation_log_params;
+                N_params=settings.n_params,
+                data_label="validation",
+                dataset=dataset_name,
+                figsave_path=paths.eval_dir,
+                show_outliers=true,
+                savefigure=settings.plotting,
+                show_progress=settings.progress_bars,
+            )
+
+            for i in eachindex(successful_patients)
+                patient = successful_patients[i]
+                log_params_i = validation_log_params[settings.n_params * (i - 1) + 1:settings.n_params * i]
+                sol = predict_cude_patient_curve(
+                    patient,
+                    log_params_i,
+                    chain,
+                    neural_params;
+                    saveat=1.0,
+                )
+                save_cude_patient_plots(
+                    sol,
+                    patient,
+                    dataset_name,
+                    paths.profiles_dir;
+                    plotting=settings.plotting,
+                    display_plots=settings.display_plots,
+                )
+            end
+
+            @info "Regenerated cUDE evaluation plots without refitting." width=width model_idx=model_idx patients=length(successful_patients)
+            continue
+        end
 
         evaluation = evaluate_cude_model(
             validation_dataset,
@@ -242,8 +319,10 @@ for width in widths
         @info "Saved cUDE evaluation width=$(width), model=$(model_idx): $(nrow(saved.metrics)) patient rows."
     end
 
-    summary_df = write_cude_model_summary(width_paths.summary_csv, summary_rows)
-    @info "Saved cUDE model summary for $(dataset_name), width=$(width): $(nrow(summary_df)) rows."
+    if execution_mode === :run
+        summary_df = write_cude_model_summary(width_paths.summary_csv, summary_rows)
+        @info "Saved cUDE model summary for $(dataset_name), width=$(width): $(nrow(summary_df)) rows."
+    end
     @info "Completed cUDE evaluation for $(dataset_name), width=$(width)."
 end
 
