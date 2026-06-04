@@ -28,6 +28,15 @@ _style_value(style, key::Symbol, default) =
 _plots_margin(style, key::Symbol, default_mm::Real) =
     _style_value(style, key, default_mm) * Plots.mm
 
+function _savefig_with_png_companion(plot_obj, output_path::AbstractString)
+    savefig(plot_obj, output_path)
+    base, ext = splitext(output_path)
+    if lowercase(ext) == ".svg"
+        savefig(plot_obj, "$(base).png")
+    end
+    return output_path
+end
+
 # =============================================================================
 # Patient Fit Plots
 # =============================================================================
@@ -70,8 +79,8 @@ function save_ode_patient_plots(sol, patient::PatientData, dataset_name::Abstrac
         display(pl_plasm)
     end
 
-    savefig(pl, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name).svg"))
-    savefig(pl_plasm, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name)_plasm.svg"))
+    _savefig_with_png_companion(pl, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name).svg"))
+    _savefig_with_png_companion(pl_plasm, joinpath(fig_dir, "patient_$(patient.id)_$(dataset_name)_plasm.svg"))
 
     return (full=pl, plasma=pl_plasm)
 end
@@ -145,8 +154,8 @@ function save_symbolic_formula_patient_plots(
         display(pl_plasm)
     end
 
-    savefig(pl, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name).svg"))
-    savefig(pl_plasm, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name)_plasm.svg"))
+    _savefig_with_png_companion(pl, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name).svg"))
+    _savefig_with_png_companion(pl_plasm, joinpath(profiles_dir, "patient_$(patient.id)$(dataset_name)_plasm.svg"))
 
     return (full=pl, plasma=pl_plasm)
 end
@@ -544,7 +553,7 @@ end
 Legacy-compatible parameter extraction helper returning natural-scale vectors
 and an optional saved distribution figure.
 """
-# Used by: scripts/02b_evaluate_cude_nn.jl and legacy-compatible scripts through MechanisticAI.jl.
+# Used by: scripts/02b_evaluate_cude_nn.jl and plotting-only regeneration helpers.
 function params_extraction(
     patients::Vector{PatientData},
     ode_params_val::Vector{Float64};
@@ -691,8 +700,8 @@ function save_symbolic_formula_correction_plots(
     display_plots && display(beta_with_title)
     display_plots && display(beta_no_title)
 
-    savefig(beta_with_title, paths.correction_surrogate_beta_with_title)
-    savefig(beta_no_title, paths.correction_surrogate_beta)
+    _savefig_with_png_companion(beta_with_title, paths.correction_surrogate_beta_with_title)
+    _savefig_with_png_companion(beta_no_title, paths.correction_surrogate_beta)
 
     t_eff_values = [symbolic_surrogate_effective_time(beta) for beta in beta_grid]
     teff_with_title = Plots.plot()
@@ -718,8 +727,8 @@ function save_symbolic_formula_correction_plots(
     display_plots && display(teff_with_title)
     display_plots && display(teff_no_title)
 
-    savefig(teff_with_title, paths.correction_surrogate_teff_with_title)
-    savefig(teff_no_title, paths.correction_surrogate_teff)
+    _savefig_with_png_companion(teff_with_title, paths.correction_surrogate_teff_with_title)
+    _savefig_with_png_companion(teff_no_title, paths.correction_surrogate_teff)
 
     return (
         beta=(with_title=beta_with_title, no_title=beta_no_title),
@@ -1193,6 +1202,7 @@ function save_metric_comparison_paper_plots(
     elem_ode = PolyElement(color=:royalblue, strokecolor=:transparent)
     Legend(fig_violin[1, 3], [elem_cude, elem_ode], ["cUDE", "ODE"], "Models", framevisible=false)
     CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "violin_metrics_cUDE_vs_ODE.svg"), fig_violin)
+    CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "violin_metrics_cUDE_vs_ODE.png"), fig_violin, px_per_unit=3)
 
     groups = [metrics_cude_mimic, metrics_ode_mimic, metrics_cude_umg, metrics_ode_umg]
     group_datasets = [1, 1, 2, 2]
@@ -1279,7 +1289,7 @@ function save_ode_quartile_profile_plots(selections, patient_lookup, out_dir::Ab
             t_ode, y_ode = _diagnostic_solve_ode(params_log, tmax)
             plt = _diagnostic_profile_base(patient)
             Plots.plot!(plt, t_ode, y_ode; lw=2, color=:blue)
-            Plots.savefig(plt, joinpath(out_dir, "ODE_Q$(quartile)_$(patient_id).svg"))
+            _savefig_with_png_companion(plt, joinpath(out_dir, "ODE_Q$(quartile)_$(patient_id).svg"))
         end
     end
 
@@ -1306,7 +1316,7 @@ function save_cude_quartile_profile_plots(selections, patient_lookup, nn_params,
             t_cude, y_cude = _diagnostic_solve_cude(params_natural, nn_params, chain, tmax)
             plt = _diagnostic_profile_base(patient)
             Plots.plot!(plt, t_cude, y_cude; lw=2, color=:darkorange, linestyle=:dash)
-            Plots.savefig(plt, joinpath(out_dir, "cUDE_Q$(quartile)_$(patient_id).svg"))
+            _savefig_with_png_companion(plt, joinpath(out_dir, "cUDE_Q$(quartile)_$(patient_id).svg"))
         end
     end
 
@@ -1346,7 +1356,7 @@ function save_overlap_profile_plots(groups, patient_lookup, nn_params, chain, ou
             Plots.plot!(plt, t_cude, y_cude; lw=2, color=:darkorange, linestyle=:dash, label="cUDE")
             delta_label = "Delta sMAPE: $(round(row.delta_smape, digits=2))%"
             Plots.plot!(plt; legend=:best, legendtitle=delta_label, legendtitlefontsize=9)
-            Plots.savefig(plt, joinpath(out_dir, "Overlap_$(group_prefix)_$(patient_id).svg"))
+            _savefig_with_png_companion(plt, joinpath(out_dir, "Overlap_$(group_prefix)_$(patient_id).svg"))
         end
     end
 
@@ -1738,7 +1748,7 @@ function save_profile_likelihood_patient_plots(
                 param_names=param_names,
                 pnames_plot=pnames_plot,
             )
-            Plots.savefig(plot_obj, joinpath(paths.composite_fig_dir, "$(patient_tag)_pla.svg"))
+            _savefig_with_png_companion(plot_obj, joinpath(paths.composite_fig_dir, "$(patient_tag)_pla.svg"))
         catch err
             @warn "Skipping PLA patient plot because CSVs could not be loaded." patient=patient_id error=err
         end
@@ -1872,7 +1882,7 @@ function save_truncation_initial_scatter(
         right_margin=_plots_margin(style, :right_margin_mm, 4),
         top_margin=_plots_margin(style, :top_margin_mm, 5),
     )
-    savefig(plot_obj, save_path)
+    _savefig_with_png_companion(plot_obj, save_path)
     display_plots && display(plot_obj)
     return plot_obj
 end
@@ -1934,7 +1944,7 @@ function save_truncation_fit_plot(
         label="Used measurements",
     )
 
-    savefig(plot_obj, save_path)
+    _savefig_with_png_companion(plot_obj, save_path)
     display_plots && display(plot_obj)
     return plot_obj
 end
@@ -2244,7 +2254,7 @@ function save_cude_training_loss_plots(
             )
         end
 
-        savefig(plt, joinpath(paths.fig_dir, "loss_model_$(k).svg"))
+        _savefig_with_png_companion(plt, joinpath(paths.fig_dir, "loss_model_$(k).svg"))
         progress !== nothing && next!(progress)
     end
 

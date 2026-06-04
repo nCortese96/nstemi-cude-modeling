@@ -13,6 +13,11 @@ Pipeline:
 
 Command line:
     JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
+    julia --project=. scripts/04b_evaluate_symbolic_formula.jl plots
+
+The optional `plots` mode regenerates patient profile and correction figures
+from existing step 04b artifacts. It does not refit patients and does not write
+CSV/JLD2 numerical outputs.
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change optimizer settings, or disable plots/progress bars.
@@ -37,8 +42,12 @@ parameters using only the promoted formula currently defined in `src/models.jl`.
 
 using Base.Threads: nthreads
 using CSV
+using DataFrames: DataFrame
 using Dates
+using JLD2
 using Logging
+using OrdinaryDiffEq: Tsit5
+using SciMLBase: solve, successful_retcode
 
 include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
 include(joinpath(@__DIR__, "..", "src", "models.jl"))
@@ -55,6 +64,9 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 config = WORKFLOW_CONFIG
 settings = config.symbolic_formula_evaluation
 dataset_configs = resolve_dataset_configs(config, settings.dataset_keys)
+execution_mode = isempty(ARGS) ? :run :
+                 length(ARGS) == 1 && lowercase(strip(ARGS[1])) == "plots" ? :plots :
+                 error("Usage: julia --project=. scripts/04b_evaluate_symbolic_formula.jl [plots]")
 
 # =============================================================================
 # INPUT PATHS
@@ -97,6 +109,7 @@ log_workflow_context(
 
 @info "Configured datasets: $([dataset.dataset_name for dataset in dataset_configs])"
 @info "Julia threads: $(nthreads())"
+@info "Execution mode: $(execution_mode)"
 
 ensure_output_dirs!(output_root; header="Ensured step 04b output root")
 @info "Using manually promoted symbolic formula from src/models.jl."
@@ -136,6 +149,64 @@ for dataset_config in dataset_configs
     test_dataset = cohort.test
 
     @info "Loaded $(length(test_dataset)) test patients for $(dataset_name)."
+
+    if execution_mode === :plots
+        validate_existing_paths(
+            (
+                best_params=paths.best_params,
+                patients_params=paths.patients_params,
+            );
+            header="Required step 04b plot artifacts for $(dataset_name)",
+        )
+
+        params_df = CSV.read(paths.patients_params, DataFrame)
+        patient_lookup = Dict(string(patient.id) => patient for patient in test_dataset)
+        patient_ids = string.(params_df.patient_id)
+        successful_patients = [get(patient_lookup, patient_id, nothing) for patient_id in patient_ids]
+
+        missing_ids = patient_ids[isnothing.(successful_patients)]
+        isempty(missing_ids) ||
+            error("Cannot regenerate symbolic formula profiles for $(dataset_name): patient IDs missing from step 00 cohort: $(missing_ids)")
+
+        patients_for_plots = PatientData[patient for patient in successful_patients]
+
+        flat_log_params = JLD2.load(paths.best_params, "params_list_flat")
+        expected = length(patients_for_plots) * settings.n_params
+        length(flat_log_params) == expected ||
+            error("Unexpected parameter length in $(paths.best_params): got $(length(flat_log_params)), expected $(expected).")
+
+        for (i, patient) in enumerate(patients_for_plots)
+            idx1 = settings.n_params * (i - 1) + 1
+            idx2 = settings.n_params * i
+            prob = symbolic_formula_problem(flat_log_params[idx1:idx2], patient)
+            sol = solve(prob, Tsit5(); saveat=1.0, abstol=1e-8, reltol=1e-6)
+
+            if successful_retcode(sol)
+                save_symbolic_formula_patient_plots(
+                    sol,
+                    patient,
+                    dataset_name,
+                    paths.profiles_dir;
+                    plotting=settings.plotting,
+                    display_plots=settings.display_plots,
+                )
+            else
+                @warn "Skipping symbolic formula plot for $(dataset_name) patient $(patient.id): solver retcode $(sol.retcode)"
+            end
+        end
+
+        save_symbolic_formula_correction_plots(
+            paths,
+            t_grid=settings.correction_t_grid,
+            beta_values=settings.correction_beta_grid,
+            plotting=settings.plotting,
+            display_plots=settings.display_plots,
+        )
+
+        @info "Regenerated symbolic formula plots without refitting for $(dataset_name)."
+        continue
+    end
+
     @info "Fitting symbolic formula for $(dataset_name)." n_multistart=settings.n_multistart maxiters=settings.maxiters maxtime=settings.maxtime
 
     evaluation = evaluate_symbolic_formula_dataset(

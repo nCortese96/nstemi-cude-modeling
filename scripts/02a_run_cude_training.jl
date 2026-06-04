@@ -13,10 +13,12 @@ Pipeline:
 
 Command line:
     JULIA_NUM_THREADS=auto julia --project=. scripts/02a_run_cude_training.jl
+    julia --project=. scripts/02a_run_cude_training.jl plots
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change widths, disable progress bars, or reuse existing
-`init_params.jld2` files as selected training starts.
+`init_params.jld2` files as selected training starts. Use `plots` to
+regenerate loss figures from existing `losses.jld2` artifacts without training.
 """
 
 # =============================================================================
@@ -27,6 +29,7 @@ Use `config/workflow_config.jl` to switch between `results/` and
 using Dates
 using Logging
 using Base.Threads: nthreads
+using JLD2
 
 include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
 include(joinpath(@__DIR__, "..", "src", "models.jl"))
@@ -67,6 +70,9 @@ config.model.t_scale == T_SCALE ||
     error("cUDE training currently requires config.model.t_scale=$(config.model.t_scale) to match models.jl T_SCALE=$(T_SCALE).")
 
 widths = settings.widths
+execution_mode = isempty(ARGS) ? :run :
+                 length(ARGS) == 1 && lowercase(strip(ARGS[1])) == "plots" ? :plots :
+                 error("Usage: julia --project=. scripts/02a_run_cude_training.jl [plots]")
 
 # =============================================================================
 # PIPELINE
@@ -79,21 +85,41 @@ log_workflow_context(
     output_paths=(cohort_dir=cohort_dir, output_root=output_root),
 )
 
-@info "Loading preprocessed $(dataset_name) cohort from step 00."
-cohort = load_preprocessed_cohort(dataset_name, cohort_dir)
-training_dataset = cohort.training
-
 @info "Dataset: $(dataset_name)"
-@info "Training patients: $(length(training_dataset))"
 @info "Configured widths: $(collect(widths))"
 @info "Julia threads: $(nthreads())"
+@info "Execution mode: $(execution_mode)"
+
+training_dataset = nothing
+if execution_mode === :run
+    @info "Loading preprocessed $(dataset_name) cohort from step 00."
+    cohort = load_preprocessed_cohort(dataset_name, cohort_dir)
+    training_dataset = cohort.training
+    @info "Training patients: $(length(training_dataset))"
+end
 
 ensure_output_dirs!(output_root; header="Ensured step 02a output root")
 
 for width in widths
+    paths = cude_training_output_paths(output_root, width)
+
+    if execution_mode === :plots
+        isfile(paths.losses) || error("Missing cUDE training losses artifact for plots mode: $(paths.losses)")
+        ensure_output_dirs!(paths.fig_dir; header="Ensured cUDE training figure directory for width $(width)")
+        losses_per_model = JLD2.load(paths.losses, "losses_per_model")
+        save_cude_training_loss_plots(
+            paths,
+            losses_per_model;
+            adam_maxiters=settings.adam_maxiters,
+            plotting=settings.plotting,
+            show_progress=settings.progress_bars,
+        )
+        @info "Regenerated cUDE training loss plots without training." width=width losses=paths.losses
+        continue
+    end
+
     @info "Starting cUDE training for $(dataset_name), width=$(width)."
 
-    paths = cude_training_output_paths(output_root, width)
     ensure_output_dirs!(
         (width_dir=paths.width_dir, fig_dir=paths.fig_dir);
         header="Ensured cUDE training output directories for width $(width)",
