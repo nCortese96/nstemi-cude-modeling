@@ -313,7 +313,7 @@ const MODEL_DIAGNOSTICS_SETTINGS = (
     profile_comparison=true,
     residual_plot_style=(
         figure_fontsize=18,
-        bin_label_fontsize=18,
+        bin_label_fontsize=20,
         scatter_markersize=5,
         summary_linewidth=2.5,
     ),

@@ -15,9 +15,12 @@ Pipeline:
 
 Command line:
     JULIA_NUM_THREADS=auto julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl
+    julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl plots
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change optimizer settings, or disable plots/progress bars.
+Use `plots` to regenerate figures from existing 02a/02d artifacts without
+running patient-level fitting or modifying CSV/JLD2 outputs.
 """
 
 # =============================================================================
@@ -25,8 +28,10 @@ Use `config/workflow_config.jl` to switch between `results/` and
 # Minimal dependencies used directly by this executable workflow script.
 # =============================================================================
 
+using CSV
 using Dates
-using DataFrames: nrow
+using DataFrames: DataFrame, nrow
+using JLD2
 using Logging
 using Base.Threads: nthreads
 
@@ -46,6 +51,9 @@ settings = config.cude_external_test
 training_dataset_config = config.datasets[settings.training_dataset_key]
 external_dataset_config = config.datasets[settings.external_dataset_key]
 selection_dataset_config = config.datasets[settings.model_selection_dataset_key]
+execution_mode = isempty(ARGS) ? :run :
+                 length(ARGS) == 1 && lowercase(strip(ARGS[1])) == "plots" ? :plots :
+                 error("Usage: julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl [plots]")
 
 # =============================================================================
 # INPUT PATHS
@@ -98,6 +106,7 @@ log_workflow_context(
 @info "Training dataset: $(training_dataset_name)"
 @info "External dataset: $(external_dataset_name)"
 @info "Selection dataset: $(selection_dataset_name)"
+@info "Execution mode: $(execution_mode)"
 @info "Julia threads: $(nthreads())"
 
 ensure_output_dirs!(
@@ -110,6 +119,9 @@ log_output_paths(
         patients_params_train=paths.patients_params_train,
         patients_params_val=paths.patients_params_val,
         patients_metrics_val=paths.patients_metrics_val,
+        correction_function=paths.correction_function,
+        training_params_distribution=paths.training_params_distribution,
+        validation_params_distribution=paths.validation_params_distribution,
         profiles=paths.profiles_dir,
     );
     header="cUDE external-test output files",
@@ -151,6 +163,105 @@ pguess = pguess_stats.pguess
 @info "Selected external-test pguess for width=$(width), model=$(model_idx): $(exp.(pguess))"
 @info "Training parameter median [Q1-Q3] for width=$(width), model=$(model_idx): $(pguess_stats.median_natural) [$(pguess_stats.q1_natural), $(pguess_stats.q3_natural)]"
 
+if execution_mode === :plots
+    validate_existing_paths(
+        (
+            best_params=paths.best_params,
+            patients_params_train=paths.patients_params_train,
+            patients_params_val=paths.patients_params_val,
+        );
+        header="Required step 02d plot artifacts",
+    )
+end
+
+save_cude_correction_function_plot(
+    paths.correction_function,
+    chain,
+    neural_params;
+    t_scale=config.model.t_scale,
+    plotting=settings.plotting,
+    display_plot=settings.display_plots,
+)
+
+params_extraction(
+    training_dataset,
+    training_log_params;
+    N_params=settings.n_params,
+    data_label="training",
+    dataset=external_dataset_name,
+    figsave_path=paths.eval_dir,
+    show_outliers=true,
+    savefigure=settings.plotting,
+    show_progress=settings.progress_bars,
+)
+params_extraction(
+    training_dataset,
+    training_log_params;
+    N_params=settings.n_params,
+    data_label="training",
+    dataset=external_dataset_name,
+    figsave_path=paths.eval_dir,
+    show_outliers=false,
+    savefigure=settings.plotting,
+    show_progress=settings.progress_bars,
+    output_basename="training_params_distribution_$(external_dataset_name)_no_outliers",
+)
+
+if execution_mode === :plots
+    validation_df = CSV.read(paths.patients_params_val, DataFrame)
+    validation_log_params = Vector{Float64}(JLD2.load(paths.best_params, "ode_params_val"))
+    nrow(validation_df) * settings.n_params == length(validation_log_params) ||
+        error(
+            "Mismatch between patients_params_val.csv rows ($(nrow(validation_df))) and " *
+            "JLD2 parameter count ($(length(validation_log_params))) for $(external_dataset_name).",
+        )
+
+    validation_lookup = Dict(String(patient.id) => patient for patient in external_dataset)
+    successful_patients = PatientData[]
+    for patient_id in validation_df.patient_id
+        patient_key = String(patient_id)
+        haskey(validation_lookup, patient_key) ||
+            error("Patient $(patient_key) from $(paths.patients_params_val) was not found in the external-test cohort.")
+        push!(successful_patients, validation_lookup[patient_key])
+    end
+
+    params_extraction(
+        successful_patients,
+        validation_log_params;
+        N_params=settings.n_params,
+        data_label="validation",
+        dataset=external_dataset_name,
+        figsave_path=paths.eval_dir,
+        show_outliers=true,
+        savefigure=settings.plotting,
+        show_progress=settings.progress_bars,
+    )
+
+    for i in eachindex(successful_patients)
+        patient = successful_patients[i]
+        log_params_i = validation_log_params[settings.n_params * (i - 1) + 1:settings.n_params * i]
+        sol = predict_cude_patient_curve(
+            patient,
+            log_params_i,
+            chain,
+            neural_params;
+            saveat=1.0,
+        )
+        save_cude_patient_plots(
+            sol,
+            patient,
+            external_dataset_name,
+            paths.profiles_dir;
+            plotting=settings.plotting,
+            display_plots=settings.display_plots,
+        )
+    end
+
+    @info "Regenerated cUDE external-test plots without refitting." patients=length(successful_patients)
+    @info "cUDE external-test workflow completed at $(now())."
+    exit(0)
+end
+
 evaluation = evaluate_cude_model(
     external_dataset,
     chain,
@@ -175,6 +286,18 @@ for (patient, result) in zip(evaluation.successful_patients, evaluation.results)
         display_plots=settings.display_plots,
     )
 end
+
+params_extraction(
+    evaluation.successful_patients,
+    evaluation.ode_params_val;
+    N_params=settings.n_params,
+    data_label="validation",
+    dataset=external_dataset_name,
+    figsave_path=paths.eval_dir,
+    show_outliers=true,
+    savefigure=settings.plotting,
+    show_progress=settings.progress_bars,
+)
 
 saved = save_cude_evaluation_artifacts(
     paths;

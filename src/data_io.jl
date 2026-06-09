@@ -379,6 +379,9 @@ function cude_external_test_output_paths(output_root::AbstractString, dataset_na
         patients_params_train=joinpath(output_root, "patients_params_train.csv"),
         patients_params_val=joinpath(output_root, "patients_params_val.csv"),
         patients_metrics_val=joinpath(output_root, "patients_metrics_val.csv"),
+        correction_function=joinpath(output_root, "correction_function.png"),
+        training_params_distribution=joinpath(output_root, "training_params_distribution_$(dataset_name).svg"),
+        validation_params_distribution=joinpath(output_root, "validation_params_distribution_$(dataset_name).svg"),
     )
 end
 

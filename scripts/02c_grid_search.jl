@@ -12,9 +12,12 @@ Pipeline:
 
 Command line:
     julia --project=. scripts/02c_grid_search.jl
+    julia --project=. scripts/02c_grid_search.jl plots
 
 Use `config/workflow_config.jl` to switch between `results/` and
 `results_test/`, change widths, disable plots, or change the selection rule.
+Use `plots` to regenerate model-selection PNG figures from existing step 02c
+CSV artifacts without recomputing the selected model.
 """
 
 # =============================================================================
@@ -22,6 +25,8 @@ Use `config/workflow_config.jl` to switch between `results/` and
 # Minimal dependencies used directly by this executable workflow script.
 # =============================================================================
 
+using CSV
+using DataFrames: DataFrame
 using Logging
 
 include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
@@ -37,6 +42,9 @@ include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 config = WORKFLOW_CONFIG
 settings = config.cude_model_selection
 dataset_config = config.datasets[settings.dataset_key]
+execution_mode = isempty(ARGS) ? :run :
+                 length(ARGS) == 1 && lowercase(strip(ARGS[1])) == "plots" ? :plots :
+                 error("Usage: julia --project=. scripts/02c_grid_search.jl [plots]")
 
 # =============================================================================
 # INPUT PATHS
@@ -78,6 +86,7 @@ log_workflow_context(
 @info "Widths: $(collect(widths))"
 @info "Selection rule: $(selection_rule)"
 @info "Ranking columns: $(ranking_columns)"
+@info "Execution mode: $(execution_mode)"
 
 ensure_output_dirs!(output_root; header="Ensured step 02c output root")
 log_output_paths(
@@ -90,6 +99,28 @@ log_output_paths(
     );
     header="cUDE model-selection output files",
 )
+
+if execution_mode === :plots
+    validate_existing_paths(
+        (
+            general_summary=paths.general_summary,
+            selected_model=paths.selected_model,
+            best_by_width=paths.best_by_width,
+        );
+        header="Required step 02c plot artifacts",
+    )
+
+    selection = (
+        general_summary=CSV.read(paths.general_summary, DataFrame),
+        selected_model=CSV.read(paths.selected_model, DataFrame),
+        best_by_width=CSV.read(paths.best_by_width, DataFrame),
+    )
+    save_model_selection_plots(paths, selection; plotting=settings.plotting)
+
+    @info "Regenerated cUDE model-selection plots without recomputing selection." figures=paths.fig_dir
+    @info "cUDE model-selection workflow completed."
+    exit(0)
+end
 
 @info "Loading step 02b model summaries."
 general_summary = load_cude_model_summaries(input_dir, widths, dataset_name)

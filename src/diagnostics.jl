@@ -165,6 +165,45 @@ function compute_residuals_long_unified(
 end
 
 """
+    diagnostic_parameter_table_from_fit_params(params_df; model_type)
+
+Build the natural-scale parameter table used by diagnostic boxplots from
+already-saved ODE or cUDE patient parameter CSVs, without solving trajectories.
+"""
+# Used by: scripts/03a_run_model_diagnostics.jl plot-only modes.
+function diagnostic_parameter_table_from_fit_params(params_df::DataFrame; model_type::Symbol)
+    model_type in (:ode, :cude) || error("model_type must be :ode or :cude.")
+
+    if model_type == :ode
+        required = [:patient, :p1, :p2, :p3, :p4, :p5]
+        missing = setdiff(required, Symbol.(names(params_df)))
+        isempty(missing) || error("Missing ODE parameter columns for diagnostics: $(missing)")
+
+        return DataFrame(
+            patient_id=string.(params_df.patient),
+            a=exp.(Float64.(params_df.p1)),
+            b=exp.(Float64.(params_df.p2)),
+            Cs0=exp.(Float64.(params_df.p3)),
+            Cc0=exp.(Float64.(params_df.p4)),
+            p5=exp.(Float64.(params_df.p5)),
+        )
+    end
+
+    required = [:patient_id, :a, :b, :Cs0, :Cc0, :beta]
+    missing = setdiff(required, Symbol.(names(params_df)))
+    isempty(missing) || error("Missing cUDE parameter columns for diagnostics: $(missing)")
+
+    return DataFrame(
+        patient_id=string.(params_df.patient_id),
+        a=Float64.(params_df.a),
+        b=Float64.(params_df.b),
+        Cs0=Float64.(params_df.Cs0),
+        Cc0=Float64.(params_df.Cc0),
+        p5=Float64.(params_df.beta),
+    )
+end
+
+"""
     compute_symbolic_formula_residuals(patients, params_list; edges=EDGES, ...)
 
 Compute canonical step 04b residuals for the promoted symbolic surrogate.

@@ -133,17 +133,33 @@ Run the scripts in numerical order when building results from scratch.
 ```bash
 julia --project=. scripts/00_run_preprocessing.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl
+julia --project=. scripts/01_run_ode_tdsigmoid_fit.jl plots
 JULIA_NUM_THREADS=auto julia --project=. scripts/02a_run_cude_training.jl
 JULIA_NUM_THREADS=auto julia --project=. scripts/02b_evaluate_cude_nn.jl
 julia --project=. scripts/02b_evaluate_cude_nn.jl plots
 julia --project=. scripts/02c_grid_search.jl
+julia --project=. scripts/02c_grid_search.jl plots
 JULIA_NUM_THREADS=auto julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl
+julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl plots
 ```
+
+The step 01 `plots` mode regenerates ODE patient profiles from existing
+`params_out.csv` files and step 00 cohorts. It does not refit ODE parameters or
+modify step 01 CSV outputs.
 
 The step 02b `plots` mode regenerates correction-function plots, patient
 profiles, and training/validation parameter-distribution plots from existing
 02a/02b artifacts. It does not rerun cUDE fitting and does not modify the
 stable CSV/JLD2 outputs.
+
+The step 02c `plots` mode regenerates model-selection figures from the existing
+step 02c summary and selected-model CSV files. It does not reload step 02b
+summaries or recompute the selected model.
+
+The step 02d `plots` mode regenerates external-test cUDE patient profiles,
+correction-function plots, and parameter-distribution plots from existing
+02a/02d artifacts. It does not rerun external-test fitting and does not modify
+CSV/JLD2 outputs.
 
 ### Comparison Analyses
 
@@ -157,12 +173,18 @@ Plot-only regeneration:
 
 ```bash
 julia --project=. scripts/03a_run_model_diagnostics.jl plots
+julia --project=. scripts/03a_run_model_diagnostics.jl plots_metrics
+julia --project=. scripts/03a_run_model_diagnostics.jl plots_profiles
 julia --project=. scripts/03b_run_profile_likelihood.jl plots
 julia --project=. scripts/03c_run_systematic_truncation.jl plots
 ```
 
-Current 03a plot-only mode regenerates residual diagnostic plots from existing
-residual CSV files.
+The step 03a `plots` mode regenerates all available diagnostic figures from
+existing artifacts: residual plots, parameter boxplots, metric-comparison plots,
+and selected patient profile comparisons. Use `plots_metrics` to regenerate only
+parameter/metric figures, and `plots_profiles` to regenerate only
+`profiles_comparison`. These modes do not rewrite diagnostic CSVs or
+`delta_smape_report.txt`.
 
 ### PLA Targets And Plot Modes
 
@@ -296,8 +318,8 @@ The active root is selected by `WORKFLOW_CONFIG.run.test_mode`.
 
 ## Reproducibility Notes
 
-The workflow is intended to preserve the scientific behavior of the original
-analysis code. Exact numerical reproduction can still depend on:
+The workflow is intended to preserve the scientific behavior reported in the
+paper. Exact numerical reproduction can still depend on:
 
 - access to the same patient-level input datasets;
 - Julia and package versions;
