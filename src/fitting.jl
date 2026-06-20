@@ -234,8 +234,8 @@ end
 """
     cude_local_training_models(training_dataset, chain, theta, n_params)
 
-Build reusable cUDE ODE problem containers for the training cohort using the
-legacy patient-specific time spans and the shared neural chain.
+Build reusable cUDE ODE problem containers for the training cohort using
+patient-specific time spans and the shared neural chain.
 """
 # Used by: src/fitting.jl (select_cude_initial_candidates, train_cude_width).
 function cude_local_training_models(training_dataset::AbstractVector{PatientData}, chain::SimpleChain, theta, n_params::Integer)
@@ -252,8 +252,8 @@ end
 """
     generate_cude_initial_candidates(training_dataset, chain, settings; rng)
 
-Generate neural and patient-level ODE initial candidates with the same sampling
-order used by the legacy cUDE training script.
+Generate neural and patient-level ODE initial candidates with deterministic
+sampling order.
 """
 # Used by: src/fitting.jl (train_cude_width).
 function generate_cude_initial_candidates(training_dataset::AbstractVector{PatientData}, chain::SimpleChain, settings; rng::AbstractRNG)
@@ -327,8 +327,8 @@ end
 """
     train_cude_initialization(theta_init, local_models, training_dataset, settings; model_index, show_progress)
 
-Train one selected cUDE initialization through the legacy ADAM phase followed by
-the legacy LBFGS phase.
+Train one selected cUDE initialization through the configured ADAM phase followed
+by the configured LBFGS phase.
 """
 # Used by: src/fitting.jl (train_cude_width).
 function train_cude_initialization(
@@ -672,7 +672,7 @@ end
     fit_symbolic_formula_patient(patient, pguess, lower, upper, settings; rng)
 
 Fit one patient's ODE parameters for the promoted symbolic surrogate using the
-same patient loss and multi-start strategy as the legacy formula script.
+configured patient loss and multi-start strategy.
 """
 # Used by: src/fitting.jl (evaluate_symbolic_formula_dataset).
 function fit_symbolic_formula_patient(
@@ -742,8 +742,8 @@ end
     evaluate_symbolic_formula_dataset(patients, settings; dataset_name)
 
 Evaluate the promoted symbolic surrogate formula on an ordered patient cohort.
-The shared RNG is advanced patient-by-patient to match the legacy multi-start
-evaluation pattern.
+The shared RNG is advanced patient-by-patient to keep multi-start evaluation
+deterministic in cohort order.
 """
 # Used by: scripts/04b_evaluate_symbolic_formula.jl.
 function evaluate_symbolic_formula_dataset(

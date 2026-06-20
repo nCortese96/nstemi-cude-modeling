@@ -28,6 +28,8 @@ _style_value(style, key::Symbol, default) =
 _plots_margin(style, key::Symbol, default_mm::Real) =
     _style_value(style, key, default_mm) * Plots.mm
 
+_parameter_plot_label(name::AbstractString) = name == "beta" ? "β" : name
+
 function _savefig_with_png_companion(plot_obj, output_path::AbstractString)
     savefig(plot_obj, output_path)
     base, ext = splitext(output_path)
@@ -519,7 +521,7 @@ function parameter_distribution_figure(
     for p_name in par_names
         ax = CairoMakie.Axis(
             fig[1, length(axes) + 1],
-            title=p_name,
+            title=_parameter_plot_label(p_name),
             xticklabelsvisible=false,
             xticksvisible=false,
         )
@@ -550,8 +552,8 @@ end
 """
     params_extraction(patients, flat_log_params; ...)
 
-Legacy-compatible parameter extraction helper returning natural-scale vectors
-and an optional saved distribution figure.
+Extract natural-scale parameter vectors and optionally save a distribution
+figure.
 """
 # Used by: scripts/02b_evaluate_cude_nn.jl and plotting-only regeneration helpers.
 function params_extraction(
@@ -616,7 +618,7 @@ end
 """
     save_cude_correction_function_plot(path, chain, nn_params; t_scale, plotting=true, display_plot=false)
 
-Save the learned cUDE correction function over the legacy time/beta grid.
+Save the learned cUDE correction function over the configured time/beta grid.
 """
 # Used by: scripts/02b_evaluate_cude_nn.jl.
 function save_cude_correction_function_plot(
@@ -664,8 +666,8 @@ function save_symbolic_formula_correction_plots(
     display_plots::Bool=false,
 )
     stale_candidates = [
-        paths.legacy_correction_surrogate,
-        paths.legacy_correction_surrogate_with_title,
+        paths.previous_correction_surrogate,
+        paths.previous_correction_surrogate_with_title,
     ]
     stale_paths = filter(isfile, stale_candidates)
     isempty(stale_paths) ||
@@ -972,7 +974,7 @@ function _diagnostic_param_boxplot_per_model(par_df_ds1, par_df_ds2, par_names)
         groups = vcat(fill(1, nrow(par_df_ds1)), fill(2, nrow(par_df_ds2)))
         colors = [g == 1 ? colors_dataset["MIMIC-IV"] : colors_dataset["UMG"] for g in groups]
 
-        ax = Axis(fig[1, i], title=pname)
+        ax = Axis(fig[1, i], title=_parameter_plot_label(pname))
         CairoMakie.boxplot!(ax, groups, vals; color=colors, whiskerwidth=0.4, strokewidth=0.5)
         ax.xticks = (1:2, ["MIMIC-IV", "UMG"])
         ax.xticklabelrotation = pi / 5
@@ -993,7 +995,7 @@ function _diagnostic_param_boxplot_cross_model(par_ode, par_cude; complete_plot:
             vals = vcat(par_ode[!, col], par_cude[!, col])
             groups = vcat(fill(1, nrow(par_ode)), fill(2, nrow(par_cude)))
             colors = [g == 1 ? colors_model["ODE"] : colors_model["cUDE"] for g in groups]
-            ax = Axis(fig[1, i], title=pname)
+            ax = Axis(fig[1, i], title=_parameter_plot_label(pname))
             CairoMakie.boxplot!(ax, groups, vals; color=colors, whiskerwidth=0.4, strokewidth=0.5)
             ax.xticks = (1:2, ["ODE", "cUDE"])
             ax.xticklabelrotation = pi / 5
@@ -1004,7 +1006,7 @@ function _diagnostic_param_boxplot_cross_model(par_ode, par_cude; complete_plot:
         ax_td.xticks = ([1], ["ODE"])
         ax_td.xticklabelrotation = pi / 5
 
-        ax_beta = Axis(fig[1, 6], title="beta (cUDE)")
+        ax_beta = Axis(fig[1, 6], title="β (cUDE)")
         CairoMakie.boxplot!(ax_beta, fill(1, nrow(par_cude)), par_cude.p5; color=colors_model["cUDE"], whiskerwidth=0.4, strokewidth=0.5)
         ax_beta.xticks = ([1], ["cUDE"])
         ax_beta.xticklabelrotation = pi / 5
@@ -1016,7 +1018,7 @@ function _diagnostic_param_boxplot_cross_model(par_ode, par_cude; complete_plot:
             vals = vcat(par_ode[!, col], par_cude[!, col])
             groups = vcat(fill(1, nrow(par_ode)), fill(2, nrow(par_cude)))
             colors = [g == 1 ? colors_model["ODE"] : colors_model["cUDE"] for g in groups]
-            ax = Axis(fig_shared[1, i], title=pname)
+            ax = Axis(fig_shared[1, i], title=_parameter_plot_label(pname))
             CairoMakie.boxplot!(ax, groups, vals; color=colors, whiskerwidth=0.4, strokewidth=0.5)
             ax.xticks = (1:2, ["ODE", "cUDE"])
             ax.xticklabelrotation = pi / 5
@@ -1028,7 +1030,7 @@ function _diagnostic_param_boxplot_cross_model(par_ode, par_cude; complete_plot:
         CairoMakie.boxplot!(ax_td_pair, fill(1, nrow(par_ode)), par_ode.p5; color=colors_model["ODE"], whiskerwidth=0.4, strokewidth=0.5)
         ax_td_pair.xticks = ([1], ["ODE"])
         ax_td_pair.xticklabelrotation = pi / 5
-        ax_beta_pair = Axis(fig_pair[1, 2], title="beta (cUDE)")
+        ax_beta_pair = Axis(fig_pair[1, 2], title="β (cUDE)")
         CairoMakie.boxplot!(ax_beta_pair, fill(1, nrow(par_cude)), par_cude.p5; color=colors_model["cUDE"], whiskerwidth=0.4, strokewidth=0.5)
         ax_beta_pair.xticks = ([1], ["cUDE"])
         ax_beta_pair.xticklabelrotation = pi / 5
@@ -1042,7 +1044,7 @@ function _diagnostic_param_boxplot_cross_model(par_ode, par_cude; complete_plot:
         push!(figs, fig_td)
 
         fig_beta = CairoMakie.Figure(size=(300, 550), fontsize=14)
-        ax_beta = Axis(fig_beta[1, 1], title="beta (cUDE)")
+        ax_beta = Axis(fig_beta[1, 1], title="β (cUDE)")
         CairoMakie.boxplot!(ax_beta, fill(1, nrow(par_cude)), par_cude.p5; color=colors_model["cUDE"], whiskerwidth=0.4, strokewidth=0.5)
         ax_beta.xticks = ([1], ["cUDE"])
         ax_beta.xticklabelrotation = pi / 5
@@ -1382,7 +1384,7 @@ const PROFILE_LIKELIHOOD_CLASS_ORDER = [
 """
     profile_likelihood_empirical_quantile(values, q)
 
-Return the empirical quantile used by legacy PLA plot cropping.
+Return the empirical quantile used by PLA plot cropping.
 """
 # Used by: src/plotting.jl PLA plotting helpers.
 function profile_likelihood_empirical_quantile(values::AbstractVector{<:Real}, q::Real)
@@ -1588,6 +1590,7 @@ function build_profile_likelihood_aggregate_parameter_plot(
     profile_linewidth = _style_value(style, :subplot_profile_linewidth, 1.6)
     profile_alpha = _style_value(style, :subplot_profile_alpha, 0.75)
     threshold_linewidth = _style_value(style, :subplot_threshold_linewidth, 2)
+    legend_fontsize = legend_mode == :full ? 10 : _style_value(style, :subplot_legend_fontsize, 8)
 
     plot_obj = Plots.plot(
         xlabel="Δ$(pname_plot)",
@@ -1597,7 +1600,7 @@ function build_profile_likelihood_aggregate_parameter_plot(
         title="",
         lw=1.8,
         size=(900, 650),
-        legendfontsize=_style_value(style, :subplot_legend_fontsize, 8),
+        legendfontsize=legend_fontsize,
         tickfontsize=_style_value(style, :subplot_tickfontsize, 10),
         guidefontsize=_style_value(style, :subplot_guidefontsize, 12),
         dpi=_style_value(style, :subplot_png_dpi, 300),
@@ -1993,7 +1996,7 @@ function save_truncation_parameter_boxplot(
     for (idx, label) in enumerate(param_labels)
         axis = CairoMakie.Axis(
             fig[1, idx],
-            title=label,
+            title=_parameter_plot_label(label),
             xticklabelsvisible=false,
             xticksvisible=false,
         )

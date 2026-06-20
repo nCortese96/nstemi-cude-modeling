@@ -29,8 +29,8 @@ using Statistics: mean, median, quantile, std
 """
     build_systematic_truncation_model_runtime(model_key, settings; selected_model, cude_artifacts)
 
-Build the fixed model runtime used by step 03c without changing legacy bounds,
-guesses, or fixed-NN behavior.
+Build the fixed model runtime used by step 03c with the configured bounds,
+initial guesses, and fixed-NN behavior.
 """
 # Used by: scripts/03c_run_systematic_truncation.jl.
 function build_systematic_truncation_model_runtime(
@@ -105,7 +105,7 @@ end
 """
     systematic_truncation_patient_loss(theta, carrier, patient; lambda_back)
 
-Evaluate the legacy patient loss for ODE or fixed-NN cUDE truncation fits.
+Evaluate the patient loss for ODE or fixed-NN cUDE truncation fits.
 """
 # Used by: src/systematic_truncation.jl.
 function systematic_truncation_patient_loss(θ, carrier, patient::PatientData; lambda_back::Float64=1.0)
@@ -237,7 +237,7 @@ end
 """
     truncation_budgets(n_obs; min_keep, levels)
 
-Compute the two legacy truncation budgets for one patient.
+Compute the two configured truncation budgets for one patient.
 """
 # Used by: src/systematic_truncation.jl.
 function truncation_budgets(n_obs::Int; min_keep::Int, levels)
@@ -302,7 +302,7 @@ end
 """
     generate_systematic_truncations(base_patient, base_patient_id; ...)
 
-Generate the six legacy truncation scenarios for one base patient.
+Generate the configured systematic truncation scenarios for one base patient.
 """
 # Used by: src/systematic_truncation.jl and test checks.
 function generate_systematic_truncations(
@@ -376,7 +376,7 @@ end
 """
     fit_truncation_patient_multistart(carrier, patient, model_cfg, settings; rng)
 
-Fit one full or truncated patient using the legacy step 03c multi-start setup.
+Fit one full or truncated patient using the step 03c multi-start setup.
 """
 # Used by: src/systematic_truncation.jl.
 function fit_truncation_patient_multistart(

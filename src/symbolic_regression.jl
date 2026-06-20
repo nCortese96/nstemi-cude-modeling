@@ -97,7 +97,7 @@ end
 """
     smooth_relu_fast(x; eps_value=1e-5)
 
-Smooth positive-part approximation used by the legacy SR bounded loss.
+Smooth positive-part approximation used by the bounded symbolic-regression loss.
 """
 # Used by: src/symbolic_regression.jl (build_symbolic_regression_loss).
 smooth_relu_fast(x; eps_value::Real=1e-5) = 0.5 * (x + sqrt(x * x + eps_value * eps_value))
@@ -105,7 +105,7 @@ smooth_relu_fast(x; eps_value::Real=1e-5) = 0.5 * (x + sqrt(x * x + eps_value * 
 """
     build_symbolic_regression_loss(settings)
 
-Return the legacy bounded elementwise loss used during symbolic regression.
+Return the bounded elementwise loss used during symbolic regression.
 """
 # Used by: src/symbolic_regression.jl (build_symbolic_regression_options).
 function build_symbolic_regression_loss(settings)
@@ -182,7 +182,7 @@ end
     symbolic_sr_eval(tree, X)
 
 Evaluate one SymbolicRegression tree and replace non-finite outputs with the
-legacy large penalty value.
+configured large penalty value.
 """
 # Used by: scripts/04a_run_symbolic_regression.jl and src/symbolic_regression.jl.
 function symbolic_sr_eval(tree, X)

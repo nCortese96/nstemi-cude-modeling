@@ -23,8 +23,8 @@ Use `config/workflow_config.jl` to switch between `results/` and
 bars. Plot-only modes read existing CSV artifacts and regenerate figures without
 rewriting diagnostic tables or `delta_smape_report.txt`. `plots` regenerates all
 available diagnostic plots, while `plots_metrics` and `plots_profiles` restrict
-the regeneration to those plot families. The legacy `residual_plots` alias maps
-to `plots`.
+the regeneration to those plot families. The `residual_plots` alias is accepted
+for backward compatibility and maps to `plots`.
 """
 
 # =============================================================================
@@ -95,6 +95,12 @@ mimic_dataset_name = mimic_dataset_config.dataset_name
 external_dataset_name = external_dataset_config.dataset_name
 selection_dataset_name = selection_dataset_config.dataset_name
 time_edges = collect(settings.time_edges)
+ode_mimic_quartile_profile_source = settings.ode_mimic_quartile_profile_source
+
+ode_mimic_quartile_profile_source in (:validation, :full_fit) ||
+    error("WORKFLOW_CONFIG.model_diagnostics.ode_mimic_quartile_profile_source must be :validation or :full_fit.")
+
+ode_mimic_full_params_path = ode_dataset_output_paths(settings.ode_input_dir, mimic_dataset_name).params_csv
 
 config.model.t_scale == T_SCALE ||
     error("Model diagnostics require config.model.t_scale=$(config.model.t_scale) to match models.jl T_SCALE=$(T_SCALE).")
@@ -118,6 +124,7 @@ log_workflow_context(
 @info "External dataset: $(external_dataset_name)"
 @info "Selection dataset: $(selection_dataset_name)"
 @info "Requested model diagnostics mode: $(diagnostic_mode)"
+@info "ODE MIMIC quartile profile source: $(ode_mimic_quartile_profile_source)"
 @info "Julia threads: $(nthreads())"
 
 ensure_output_dirs!(
@@ -141,6 +148,14 @@ validate_existing_paths(
     header="Required model diagnostics input files",
 )
 
+if (plot_only_mode ? run_profile_plots : settings.profile_comparison) &&
+   ode_mimic_quartile_profile_source === :full_fit
+    validate_existing_paths(
+        (ode_mimic_quartile_params=ode_mimic_full_params_path,);
+        header="Required ODE MIMIC quartile-profile input file",
+    )
+end
+
 @info "Loading step 00 cohorts."
 mimic_cohort = load_preprocessed_cohort(mimic_dataset_name, cohort_dir)
 external_cohort = load_preprocessed_cohort(external_dataset_name, cohort_dir)
@@ -148,6 +163,9 @@ mimic_patients = mimic_cohort.test
 external_patients = external_cohort.test
 mimic_patient_lookup = Dict(patient.id => patient for patient in mimic_patients)
 external_patient_lookup = Dict(patient.id => patient for patient in external_patients)
+mimic_quartile_patient_lookup = ode_mimic_quartile_profile_source === :full_fit ?
+                                Dict(patient.id => patient for patient in mimic_cohort.patients) :
+                                mimic_patient_lookup
 
 @info "Loaded $(length(mimic_patients)) MIMIC-IV validation/test patients."
 @info "Loaded $(length(external_patients)) UMG external-test patients."
@@ -159,11 +177,15 @@ df_cude_mimic_params = CSV.read(input_paths.cude_mimic_params, DataFrame)
 df_cude_umg_params = CSV.read(input_paths.cude_external_params, DataFrame)
 df_cude_mimic_metrics = CSV.read(input_paths.cude_mimic_metrics, DataFrame)
 df_cude_umg_metrics = CSV.read(input_paths.cude_external_metrics, DataFrame)
+df_ode_mimic_quartile_profiles = ode_mimic_quartile_profile_source === :full_fit ?
+                                  CSV.read(ode_mimic_full_params_path, DataFrame) :
+                                  df_ode_mimic
 
 @info "Loaded ODE MIMIC rows: $(nrow(df_ode_mimic))"
 @info "Loaded ODE UMG rows: $(nrow(df_ode_umg))"
 @info "Loaded cUDE MIMIC rows: $(nrow(df_cude_mimic_params))"
 @info "Loaded cUDE UMG rows: $(nrow(df_cude_umg_params))"
+@info "Loaded ODE MIMIC quartile-profile rows: $(nrow(df_ode_mimic_quartile_profiles))"
 
 @info "Loading selected cUDE neural-network parameters."
 artifacts = load_cude_training_artifacts(settings.cude_training_input_dir, selected_model.nn_width)
@@ -252,7 +274,7 @@ if plot_only_mode
         @info "Regenerating selected patient profile comparisons from existing CSV artifacts."
 
         ode_mimic_quartiles = select_metric_quartile_rows(
-            df_ode_mimic,
+            df_ode_mimic_quartile_profiles,
             :smape;
             n_per_quartile=settings.profile_rows_per_group,
             seed=settings.profile_selection_seed,
@@ -285,7 +307,7 @@ if plot_only_mode
         overlap_umg_groups = select_overlap_profile_rows(overlap_umg; n_per_group=settings.profile_rows_per_group)
 
         profile_root = output_paths.profiles_comparison_dir
-        save_ode_quartile_profile_plots(ode_mimic_quartiles, mimic_patient_lookup, joinpath(profile_root, "ODE_Q_MIMIC"); plotting=settings.plotting)
+        save_ode_quartile_profile_plots(ode_mimic_quartiles, mimic_quartile_patient_lookup, joinpath(profile_root, "ODE_Q_MIMIC"); plotting=settings.plotting)
         save_ode_quartile_profile_plots(ode_umg_quartiles, external_patient_lookup, joinpath(profile_root, "ODE_Q_UMG"); plotting=settings.plotting)
         save_cude_quartile_profile_plots(cude_mimic_quartiles, mimic_patient_lookup, neural_params, chain, joinpath(profile_root, "cUDE_Q_MIMIC"); plotting=settings.plotting)
         save_cude_quartile_profile_plots(cude_umg_quartiles, external_patient_lookup, neural_params, chain, joinpath(profile_root, "cUDE_Q_UMG"); plotting=settings.plotting)
@@ -411,7 +433,7 @@ if settings.profile_comparison
     @info "Generating selected patient profile comparisons."
 
     ode_mimic_quartiles = select_metric_quartile_rows(
-        df_ode_mimic,
+        df_ode_mimic_quartile_profiles,
         :smape;
         n_per_quartile=settings.profile_rows_per_group,
         seed=settings.profile_selection_seed,
@@ -442,7 +464,7 @@ if settings.profile_comparison
     overlap_umg_groups = select_overlap_profile_rows(overlap_umg; n_per_group=settings.profile_rows_per_group)
 
     profile_root = output_paths.profiles_comparison_dir
-    save_ode_quartile_profile_plots(ode_mimic_quartiles, mimic_patient_lookup, joinpath(profile_root, "ODE_Q_MIMIC"); plotting=settings.plotting)
+    save_ode_quartile_profile_plots(ode_mimic_quartiles, mimic_quartile_patient_lookup, joinpath(profile_root, "ODE_Q_MIMIC"); plotting=settings.plotting)
     save_ode_quartile_profile_plots(ode_umg_quartiles, external_patient_lookup, joinpath(profile_root, "ODE_Q_UMG"); plotting=settings.plotting)
     save_cude_quartile_profile_plots(cude_mimic_quartiles, mimic_patient_lookup, neural_params, chain, joinpath(profile_root, "cUDE_Q_MIMIC"); plotting=settings.plotting)
     save_cude_quartile_profile_plots(cude_umg_quartiles, external_patient_lookup, neural_params, chain, joinpath(profile_root, "cUDE_Q_UMG"); plotting=settings.plotting)

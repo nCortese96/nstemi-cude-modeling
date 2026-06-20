@@ -71,12 +71,12 @@ function rank_cude_models(df::DataFrame, selection_rule::Symbol)
 end
 
 """
-    add_legacy_selection_columns!(df, selection_columns)
+    add_selection_metadata_columns!(df, selection_columns)
 
-Attach legacy-style selection metadata columns to the selected-model row.
+Attach selection metadata columns to the selected-model row.
 """
 # Used by: src/model_selection.jl.
-function add_legacy_selection_columns!(df::DataFrame, selection_columns)
+function add_selection_metadata_columns!(df::DataFrame, selection_columns)
     isempty(selection_columns) && return df
 
     df[!, :selection_primary] = fill(String(selection_columns[1]), nrow(df))
@@ -88,12 +88,12 @@ function add_legacy_selection_columns!(df::DataFrame, selection_columns)
 end
 
 """
-    legacy_best_by_width_table(general_summary, selection_rule)
+    robust_best_by_width_table(general_summary, selection_rule)
 
-Build the compact legacy `robust_best_by_width` table for step 02c.
+Build the compact `robust_best_by_width` table for step 02c.
 """
 # Used by: src/model_selection.jl.
-function legacy_best_by_width_table(general_summary::DataFrame, selection_rule::Symbol)
+function robust_best_by_width_table(general_summary::DataFrame, selection_rule::Symbol)
     rows = DataFrame[]
 
     for width_group in groupby(general_summary, :nn_width)
@@ -138,8 +138,8 @@ width.
 function select_cude_models(general_summary::DataFrame, selection_rule::Symbol)
     ranked = rank_cude_models(general_summary, selection_rule)
     selection_columns = cude_model_selection_sort_columns(selection_rule)
-    selected_model = add_legacy_selection_columns!(copy(ranked[1:1, :]), selection_columns)
-    best_by_width = legacy_best_by_width_table(general_summary, selection_rule)
+    selected_model = add_selection_metadata_columns!(copy(ranked[1:1, :]), selection_columns)
+    best_by_width = robust_best_by_width_table(general_summary, selection_rule)
 
     return (
         general_summary=ranked,

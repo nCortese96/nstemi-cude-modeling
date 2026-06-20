@@ -15,7 +15,7 @@ The repository provides a sequential, config-driven workflow for:
 
 The refactored workflow is designed to preserve the equations, parameter
 bounds, losses, metrics, patient ordering, and output conventions used by the
-original analyses.
+paper analyses.
 
 ## Repository Layout
 
@@ -185,6 +185,13 @@ and selected patient profile comparisons. Use `plots_metrics` to regenerate only
 parameter/metric figures, and `plots_profiles` to regenerate only
 `profiles_comparison`. These modes do not rewrite diagnostic CSVs or
 `delta_smape_report.txt`.
+
+For the ODE MIMIC-IV quartile profile plots only, the config field
+`WORKFLOW_CONFIG.model_diagnostics.ode_mimic_quartile_profile_source` controls
+whether `ODE_Q_MIMIC` is selected from the validation/test ODE CSV
+(`:validation`, default) or from the full fitted MIMIC-IV ODE CSV
+(`:full_fit`, selection across the complete fitted dataset). This setting does not affect
+overlap plots, residuals, metrics, summaries, or model-comparison tables.
 
 ### PLA Targets And Plot Modes
 

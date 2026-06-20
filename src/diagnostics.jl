@@ -457,8 +457,8 @@ end
 """
     select_metric_quartile_rows(df, metric_col; n_per_quartile=10, seed=42)
 
-Select up to `n_per_quartile` rows from each metric quartile using the same
-global RNG reset pattern as the legacy patient-selection script.
+Select up to `n_per_quartile` rows from each metric quartile using a deterministic
+global RNG reset pattern.
 """
 # Used by: scripts/03a_run_model_diagnostics.jl.
 function select_metric_quartile_rows(

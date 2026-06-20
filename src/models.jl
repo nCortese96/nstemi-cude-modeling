@@ -161,7 +161,7 @@ end
 """
     median_log_parameter_guess(flat_log_params; n_params=5)
 
-Return the legacy cUDE evaluation parameter guess: the log of the natural-scale
+Return the cUDE evaluation parameter guess: the log of the natural-scale
 patient-wise median of training ODE parameters.
 """
 # Used by: scripts/02b_evaluate_cude_nn.jl.

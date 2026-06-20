@@ -29,8 +29,7 @@ using SciMLBase: ODEProblem, successful_retcode, solve, remake
 """
     profile_likelihood_threshold()
 
-Return the 95% chi-square threshold used by the legacy profile likelihood
-workflow.
+Return the 95% chi-square threshold used by the profile likelihood workflow.
 """
 # Used by: scripts/03b_run_profile_likelihood.jl and src/plotting.jl PLA helpers.
 profile_likelihood_threshold() = quantile(Chisq(1), 0.95)
@@ -38,8 +37,8 @@ profile_likelihood_threshold() = quantile(Chisq(1), 0.95)
 """
     patient_nll_log_gaussian(θ, data)
 
-Return the legacy concentrated log-Gaussian objective for one patient. The two
-methods dispatch between fixed-NN cUDE and mechanistic ODE targets.
+Return the concentrated log-Gaussian objective for one patient. The two methods
+dispatch between fixed-NN cUDE and mechanistic ODE targets.
 """
 # Used by: src/profile_likelihood.jl.
 function patient_nll_log_gaussian(
@@ -246,7 +245,7 @@ end
 """
     profile_score(pr)
 
-Return the legacy tuple score used to choose between retry profiles.
+Return the tuple score used to choose between retry profiles.
 """
 # Used by: src/profile_likelihood.jl.
 function profile_score(pr)
@@ -272,7 +271,7 @@ end
 """
     choose_better_profile(pr_old, pr_new)
 
-Return the better retry profile according to the legacy tuple score.
+Return the better retry profile according to the tuple score.
 """
 # Used by: src/profile_likelihood.jl.
 choose_better_profile(pr_old, pr_new) =
@@ -327,8 +326,7 @@ end
 """
     solve_profile_for_param(optprob, theta_hat, j, plb, pub; step_scale, maxiters)
 
-Run LikelihoodProfiler for one parameter. This path is kept for the legacy
-`separate=true` mode.
+Run LikelihoodProfiler for one parameter when `separate=true`.
 """
 # Used by: src/profile_likelihood.jl.
 function solve_profile_for_param(optprob, theta_hat, j::Integer, plb, pub; step_scale::Real, maxiters::Integer)

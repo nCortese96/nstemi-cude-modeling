@@ -308,6 +308,9 @@ const MODEL_DIAGNOSTICS_SETTINGS = (
     delta_smape_threshold=1.0,
     profile_selection_seed=42,
     profile_rows_per_group=10,
+    # Controls only ODE_Q_MIMIC profile selection. Use :full_fit to compute
+    # quartile ranges across the complete fitted MIMIC-IV ODE dataset.
+    ode_mimic_quartile_profile_source=:full_fit,
     plotting=true,
     metrics_paper_plots=true,
     profile_comparison=true,
@@ -327,7 +330,7 @@ const MODEL_DIAGNOSTICS_SETTINGS = (
 # This step runs profile likelihood analysis for the selected cUDE model and
 # the ODE baseline on the MIMIC-IV validation/test cohort and UMG external
 # cohort. The PLA numerical core intentionally keeps its own refit/profile
-# optimizer path to preserve legacy behavior.
+# optimizer path to preserve the configured profile-likelihood behavior.
 # =============================================================================
 
 const PROFILE_LIKELIHOOD_SETTINGS = (
@@ -368,7 +371,7 @@ const PROFILE_LIKELIHOOD_SETTINGS = (
         subplot_legend_fontsize=15,
         subplot_tickfontsize=12,
         subplot_guidefontsize=14,
-        subplot_legend_position=:topright,
+        subplot_legend_position=:bottomright,
         subplot_profile_linewidth=2.0,
         subplot_profile_alpha=0.85,
         subplot_threshold_linewidth=2.2,
@@ -378,7 +381,7 @@ const PROFILE_LIKELIHOOD_SETTINGS = (
         subplot_right_margin_mm=3,
         subplot_top_margin_mm=3,
         # Use `nothing` to hide the combined aggregate title, `:default` to
-        # restore the dataset-specific legacy title, or a string for a custom title.
+        # use the dataset-specific title, or a string for a custom title.
         combined_title=nothing,
         combined_title_fontsize=20,
         combined_left_margin_mm=4,
@@ -449,8 +452,8 @@ const SYSTEMATIC_TRUNCATION_SETTINGS = (
 # Settings controlling workflow step 04a.
 #
 # This step fits a symbolic surrogate to the selected cUDE neural correction
-# function. The default grid and symbolic-regression options mirror the current
-# legacy script.
+# function. The default grid and symbolic-regression options define the
+# reference symbolic-regression run.
 # =============================================================================
 
 const SYMBOLIC_REGRESSION_SETTINGS = (

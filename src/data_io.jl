@@ -718,7 +718,7 @@ end
     subset_results_by_patient_ids(df, ids)
 
 Return the subset of fit results whose patients are listed in `ids`, preserving
-the original order of `df`.
+the input row order of `df`.
 """
 # Used by: src/data_io.jl (save_ode_fit_results).
 function subset_results_by_patient_ids(df::DataFrame, ids::AbstractVector{<:AbstractString})
@@ -1325,8 +1325,8 @@ function symbolic_formula_output_paths(output_root::AbstractString, dataset_name
         correction_surrogate_beta_with_title=joinpath(dataset_dir, "correction_surrogate_beta_with_title.svg"),
         correction_surrogate_teff=joinpath(dataset_dir, "correction_surrogate_teff.svg"),
         correction_surrogate_teff_with_title=joinpath(dataset_dir, "correction_surrogate_teff_with_title.svg"),
-        legacy_correction_surrogate=joinpath(dataset_dir, "correction_surrogate.svg"),
-        legacy_correction_surrogate_with_title=joinpath(dataset_dir, "correction_surrogate_with_title.svg"),
+        previous_correction_surrogate=joinpath(dataset_dir, "correction_surrogate.svg"),
+        previous_correction_surrogate_with_title=joinpath(dataset_dir, "correction_surrogate_with_title.svg"),
         residuals_vs_time=joinpath(residuals_dir, "residuals_vs_time_$(dataset_label).png"),
         residuals_vs_fitted=joinpath(residuals_dir, "residuals_vs_fitted_$(dataset_label).png"),
     )
