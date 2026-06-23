@@ -1,6 +1,6 @@
-# MechanisticAI.jl
+# nstemi-cude-modeling
 
-MechanisticAI.jl is a Julia research codebase for mechanistic and hybrid
+nstemi-cude-modeling is a Julia research codebase for mechanistic and hybrid
 modeling of cardiac troponin T (cTnT) trajectories.
 
 The repository provides a sequential, config-driven workflow for:
