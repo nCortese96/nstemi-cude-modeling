@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=false,
+    test_mode=true,
     progress_bars=true,
 )
 
@@ -429,7 +429,9 @@ const SYSTEMATIC_TRUNCATION_SETTINGS = (
     input_dim=CUDE_EVALUATION_SETTINGS.input_dim,
     plotting=true,
     display_plots=false,
-    overlay_legend=false,
+    overlay_legend=true,
+    overlay_legend_position=:bottomright,
+    overlay_count_labels=false,
     # Save a mirrored overlay set without axis titles while preserving ticks.
     overlay_no_labels=true,
     plot_style=(
@@ -441,7 +443,7 @@ const SYSTEMATIC_TRUNCATION_SETTINGS = (
         guidefontsize=13,
         tickfontsize=11,
         titlefontsize=12,
-        legendfontsize=9,
+        legendfontsize=14,
     ),
     progress_bars=WORKFLOW_RUN_MODE.progress_bars,
     gold_standard=GOLD_STANDARD_SETTINGS,
@@ -472,13 +474,13 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
         collect(2102.0:2.0:2400.0),
     )),
     # t_grid=collect(0.01:10.0:6500.0),
-    beta_grid=collect(range(0.1, 1.0, length=20)),
+    beta_grid=collect(range(0.1, 1.0, length=18)), #default
     # beta_grid=collect(range(0.2, 0.8, length=20)), #Default=18, Last=#20
     plot_beta_grid=collect(0.1:0.1:1.0),
     variable_names=("t_norm", "β"),
     binary_operators=(+, *),
     unary_operators=(inv,),
-    maxsize=20,
+    maxsize=18,
     # maxsize=16, #20
     populations=24,
     parsimony=5e-4,

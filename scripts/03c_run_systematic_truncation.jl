@@ -120,6 +120,7 @@ ensure_output_dirs!(
         cude=paths.cude_dir,
         overlay=paths.overlay_dir,
         overlay_no_labels=paths.overlay_no_labels_dir,
+        overlay_legend_on=paths.overlay_legend_on_dir,
     );
     header="Ensured systematic truncation output directories",
 )
@@ -132,6 +133,7 @@ log_output_paths(
         params_summary=paths.params_summary,
         overlay_dir=paths.overlay_dir,
         overlay_no_labels_dir=paths.overlay_no_labels_dir,
+        overlay_legend_on_dir=paths.overlay_legend_on_dir,
     );
     header="Systematic truncation output paths",
 )
@@ -361,6 +363,7 @@ if (:overlay in target_keys) || (:plots in target_keys)
 
     saved_overlay_paths = String[]
     saved_overlay_no_labels_paths = String[]
+    saved_overlay_legend_on_paths = String[]
     for patient in gold.patients
         ode_patient_dir = joinpath(paths.ode_dir, patient.id)
         cude_patient_dir = joinpath(paths.cude_dir, patient.id)
@@ -369,6 +372,7 @@ if (:overlay in target_keys) || (:plots in target_keys)
 
         patient_overlay_dir = joinpath(paths.overlay_dir, patient.id)
         patient_overlay_no_labels_dir = joinpath(paths.overlay_no_labels_dir, patient.id)
+        patient_overlay_legend_on_dir = joinpath(paths.overlay_legend_on_dir, patient.id)
         records = build_truncation_overlay_records(ode_patient_dir, cude_patient_dir, chain, neural_params)
 
         for record in records
@@ -376,15 +380,29 @@ if (:overlay in target_keys) || (:plots in target_keys)
                 record,
                 patient_overlay_dir;
                 plot_legend=settings.overlay_legend,
+                legend_position=settings.overlay_legend_position,
+                show_count_labels=settings.overlay_count_labels,
                 style=settings.plot_style,
             )
             push!(saved_overlay_paths, saved_path)
+
+            legend_on_path = save_truncation_overlay_legend_png(
+                record,
+                patient_overlay_legend_on_dir;
+                legend_position=settings.overlay_legend_position,
+                show_count_labels=settings.overlay_count_labels,
+                axis_labels=true,
+                style=settings.plot_style,
+            )
+            push!(saved_overlay_legend_on_paths, legend_on_path)
 
             if settings.overlay_no_labels
                 no_labels_path = save_truncation_overlay_plot(
                     record,
                     patient_overlay_no_labels_dir;
                     plot_legend=settings.overlay_legend,
+                    legend_position=settings.overlay_legend_position,
+                    show_count_labels=settings.overlay_count_labels,
                     axis_labels=false,
                     style=settings.plot_style,
                 )
@@ -392,10 +410,10 @@ if (:overlay in target_keys) || (:plots in target_keys)
             end
         end
 
-        @info "Saved overlay plots for $(patient.id)." n=length(records) no_labels=settings.overlay_no_labels
+        @info "Saved overlay plots for $(patient.id)." n=length(records) no_labels=settings.overlay_no_labels legend_position=settings.overlay_legend_position count_labels=settings.overlay_count_labels
     end
 
-    @info "Completed overlay plot generation." total=length(saved_overlay_paths) no_labels_total=length(saved_overlay_no_labels_paths)
+    @info "Completed overlay plot generation." total=length(saved_overlay_paths) no_labels_total=length(saved_overlay_no_labels_paths) legend_on_total=length(saved_overlay_legend_on_paths)
 end
 
 @info "Systematic truncation workflow completed at $(now())."

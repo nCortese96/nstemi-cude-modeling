@@ -1008,6 +1008,7 @@ function systematic_truncation_output_paths(output_root::AbstractString)
         cude_dir=joinpath(output_root, "cude"),
         overlay_dir=joinpath(output_root, "truncation_overlay_comparison"),
         overlay_no_labels_dir=joinpath(output_root, "truncation_overlay_comparison", "no_labels"),
+        overlay_legend_on_dir=joinpath(output_root, "truncation_overlay_comparison", "legend_on"),
         metrics_summary=joinpath(output_root, "trunc_metrics_summary.csv"),
         params_summary=joinpath(output_root, "trunc_params_summary.csv"),
     )

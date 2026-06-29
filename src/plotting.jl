@@ -1154,6 +1154,68 @@ function _append_metric_distribution!(datasets, models, smapes, rmsles, df, data
     return nothing
 end
 
+function _metric_jitter_offsets(n::Integer; width::Real=0.09)
+    n <= 0 && return Float64[]
+    centered = collect(1:n) .- (n + 1) / 2
+    scale = maximum(abs.(centered))
+    scale == 0 && return zeros(Float64, n)
+    return width .* centered ./ scale
+end
+
+function _metric_boxplot_whisker_bounds(vals)
+    q1 = quantile(vals, 0.25)
+    q3 = quantile(vals, 0.75)
+    iqr = q3 - q1
+    lower_limit = q1 - 1.5 * iqr
+    upper_limit = q3 + 1.5 * iqr
+    lower_candidates = vals[vals .>= lower_limit]
+    upper_candidates = vals[vals .<= upper_limit]
+    lower = isempty(lower_candidates) ? minimum(vals) : minimum(lower_candidates)
+    upper = isempty(upper_candidates) ? maximum(vals) : maximum(upper_candidates)
+    return (q1=q1, q3=q3, lower=lower, upper=upper)
+end
+
+function _metric_dashed_whiskers!(ax, x_position, vals)
+    stats = _metric_boxplot_whisker_bounds(vals)
+    cap_width = 0.10
+    whisker_color = :black
+    CairoMakie.lines!(ax, [x_position, x_position], [stats.lower, stats.q1]; color=whisker_color, linewidth=1.8, linestyle=:dash)
+    CairoMakie.lines!(ax, [x_position, x_position], [stats.q3, stats.upper]; color=whisker_color, linewidth=1.8, linestyle=:dash)
+    CairoMakie.lines!(ax, [x_position - cap_width, x_position + cap_width], [stats.lower, stats.lower]; color=whisker_color, linewidth=1.8, linestyle=:dash)
+    CairoMakie.lines!(ax, [x_position - cap_width, x_position + cap_width], [stats.upper, stats.upper]; color=whisker_color, linewidth=1.8, linestyle=:dash)
+    return nothing
+end
+
+function _metric_boxplot_jitter_group!(ax, x_position, values, color)
+    vals = Float64.(collect(values))
+    isempty(vals) && return nothing
+
+    x = fill(Float64(x_position), length(vals))
+    CairoMakie.boxplot!(
+        ax,
+        x,
+        vals;
+        color=(color, 0.7),
+        strokecolor=:black,
+        whiskerlinewidth=0,
+        medianlinewidth=2.5,
+        mediancolor=:black,
+        show_outliers=false,
+        width=0.36,
+    )
+    _metric_dashed_whiskers!(ax, Float64(x_position), vals)
+    CairoMakie.scatter!(
+        ax,
+        x .+ _metric_jitter_offsets(length(vals)),
+        vals;
+        color=:gray35,
+        strokecolor=(:black, 0.25),
+        strokewidth=0.4,
+        markersize=5,
+    )
+    return nothing
+end
+
 """
     save_metric_comparison_paper_plots(paths; comparison and metric tables, plotting=true)
 
@@ -1226,6 +1288,25 @@ function save_metric_comparison_paper_plots(
     Legend(fig_bar[1, 3], [elem_cude, elem_ode], ["cUDE", "ODE"], "Models", framevisible=false)
     CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "barplot_mean_std_metrics_cUDE_vs_ODE.svg"), fig_bar)
     CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "barplot_mean_std_metrics_cUDE_vs_ODE.png"), fig_bar, px_per_unit=3)
+
+    fig_box = CairoMakie.Figure(size=(1000, 500), fontsize=18)
+    ax_box_smape = Axis(fig_box[1, 1], title="sMAPE Distribution", xticks=(1:2, ["MIMIC", "UMG"]), ylabel="sMAPE (%)")
+    ax_box_rmsle = Axis(fig_box[1, 2], title="RMSLE Distribution", xticks=(1:2, ["MIMIC", "UMG"]), ylabel="RMSLE")
+
+    box_specs = (
+        (dataset=1, model=1, color=:darkorange, table=metrics_cude_mimic),
+        (dataset=1, model=2, color=:royalblue, table=metrics_ode_mimic),
+        (dataset=2, model=1, color=:darkorange, table=metrics_cude_umg),
+        (dataset=2, model=2, color=:royalblue, table=metrics_ode_umg),
+    )
+    for spec in box_specs
+        xpos = Float64(spec.dataset) + (spec.model == 1 ? -0.2 : 0.2)
+        _metric_boxplot_jitter_group!(ax_box_smape, xpos, spec.table.smape_val, spec.color)
+        _metric_boxplot_jitter_group!(ax_box_rmsle, xpos, spec.table.rmsle_val, spec.color)
+    end
+    Legend(fig_box[1, 3], [elem_cude, elem_ode], ["cUDE", "ODE"], "Models", framevisible=false)
+    CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "boxplot_jitter_metrics_cUDE_vs_ODE.svg"), fig_box)
+    CairoMakie.save(joinpath(paths.metrics_comparison_fig_dir, "boxplot_jitter_metrics_cUDE_vs_ODE.png"), fig_box, px_per_unit=3)
 
     return paths.metrics_comparison_fig_dir
 end
@@ -1594,7 +1675,7 @@ function build_profile_likelihood_aggregate_parameter_plot(
 
     plot_obj = Plots.plot(
         xlabel="Δ$(pname_plot)",
-        ylabel="",
+        ylabel=legend_mode == :full ? "-2Δ" : "",
         legend=_style_value(style, :subplot_legend_position, :topright),
         gridalpha=0.15,
         title="",
@@ -2015,34 +2096,26 @@ function save_truncation_parameter_boxplot(
     return (values=values_by_param, figure=fig)
 end
 
-"""
-    save_truncation_overlay_plot(record, output_dir; plot_legend=false, axis_labels=true)
-
-Save one ODE-vs-cUDE systematic truncation overlay plot as SVG and PNG.
-"""
-# Used by: scripts/03c_run_systematic_truncation.jl.
-function save_truncation_overlay_plot(
+function _build_truncation_overlay_plot(
     record,
-    output_dir::AbstractString;
+    ;
     plot_legend::Bool=false,
+    legend_position::Symbol=:best,
+    show_count_labels::Bool=true,
     axis_labels::Bool=true,
     style=nothing,
 )
-    mkpath(output_dir)
-    section_upper = uppercase(record.section)
-    budget_str = lpad(string(length(record.removed_idx)), 2, "0")
-
     plot_obj = Plots.plot(
         record.ode_t,
         record.ode_plasma;
         lw=2,
         color=:royalblue,
         linestyle=:solid,
-        label="ODE  (sMAPE=$(record.ode_smape)%, RMSLE=$(record.ode_rmsle))",
+        label="ODE",
         xlabel=axis_labels ? "Time (h)" : "",
         ylabel=axis_labels ? "cTnT [ng/mL]" : "",
-        legend=plot_legend ? :best : false,
-        legendfontsize=_style_value(style, :legendfontsize, 9),
+        legend=plot_legend ? legend_position : false,
+        legendfontsize=_style_value(style, :legendfontsize, 12),
         guidefontsize=_style_value(style, :guidefontsize, 12),
         tickfontsize=_style_value(style, :tickfontsize, 10),
         titlefontsize=_style_value(style, :titlefontsize, 12),
@@ -2061,10 +2134,11 @@ function save_truncation_overlay_plot(
         lw=2,
         color=:darkorange,
         linestyle=:dash,
-        label="cUDE (sMAPE=$(record.cude_smape)%, RMSLE=$(record.cude_rmsle))",
+        label="cUDE",
     )
 
     if !isempty(record.removed_idx)
+        removed_label = show_count_labels ? "Removed (n=$(length(record.removed_idx)))" : "Removed"
         Plots.scatter!(
             plot_obj,
             record.base_times[record.removed_idx],
@@ -2073,11 +2147,12 @@ function save_truncation_overlay_plot(
             markerstrokewidth=2,
             ms=7,
             color=:crimson,
-            label="Removed (n=$(length(record.removed_idx)))",
+            label=removed_label,
         )
     end
 
     if !isempty(record.kept_idx)
+        kept_label = show_count_labels ? "Kept (n=$(length(record.kept_idx)))" : "Kept"
         Plots.scatter!(
             plot_obj,
             record.base_times[record.kept_idx],
@@ -2085,19 +2160,81 @@ function save_truncation_overlay_plot(
             markershape=:circle,
             ms=5,
             color=:dodgerblue,
-            label="Kept (n=$(length(record.kept_idx)))",
+            label=kept_label,
         )
     end
 
-    base_path = joinpath(
+    return plot_obj
+end
+
+function _truncation_overlay_base_path(record, output_dir::AbstractString)
+    section_upper = uppercase(record.section)
+    budget_str = lpad(string(length(record.removed_idx)), 2, "0")
+
+    return joinpath(
         output_dir,
         "overlay_$(record.patient_id)_$(section_upper)_S$(record.set_id)_B$(budget_str)",
     )
+end
+
+"""
+    save_truncation_overlay_plot(record, output_dir; plot_legend=false, axis_labels=true)
+
+Save one ODE-vs-cUDE systematic truncation overlay plot as SVG and PNG.
+"""
+# Used by: scripts/03c_run_systematic_truncation.jl.
+function save_truncation_overlay_plot(
+    record,
+    output_dir::AbstractString;
+    plot_legend::Bool=false,
+    legend_position::Symbol=:best,
+    show_count_labels::Bool=true,
+    axis_labels::Bool=true,
+    style=nothing,
+)
+    mkpath(output_dir)
+    plot_obj = _build_truncation_overlay_plot(
+        record;
+        plot_legend=plot_legend,
+        legend_position=legend_position,
+        show_count_labels=show_count_labels,
+        axis_labels=axis_labels,
+        style=style,
+    )
+    base_path = _truncation_overlay_base_path(record, output_dir)
     svg_path = "$(base_path).svg"
     png_path = "$(base_path).png"
     savefig(plot_obj, svg_path)
     savefig(plot_obj, png_path)
     return svg_path
+end
+
+"""
+    save_truncation_overlay_legend_png(record, output_dir; axis_labels=true)
+
+Save one additional PNG overlay with legend enabled.
+"""
+# Used by: scripts/03c_run_systematic_truncation.jl.
+function save_truncation_overlay_legend_png(
+    record,
+    output_dir::AbstractString;
+    legend_position::Symbol=:best,
+    show_count_labels::Bool=true,
+    axis_labels::Bool=true,
+    style=nothing,
+)
+    mkpath(output_dir)
+    plot_obj = _build_truncation_overlay_plot(
+        record;
+        plot_legend=true,
+        legend_position=legend_position,
+        show_count_labels=show_count_labels,
+        axis_labels=axis_labels,
+        style=style,
+    )
+    png_path = "$(_truncation_overlay_base_path(record, output_dir)).png"
+    savefig(plot_obj, png_path)
+    return png_path
 end
 
 # =============================================================================
