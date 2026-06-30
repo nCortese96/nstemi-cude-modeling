@@ -12,10 +12,12 @@ Sections:
 
 using ComponentArrays: ComponentArray
 using DataFrames
+using Distributions: TDist, cdf
 using OrdinaryDiffEq: Tsit5
 using Random
 using SciMLBase: ODEProblem, successful_retcode, solve
-using Statistics: mean, quantile, std
+using Statistics: cor, mean, quantile, std
+using StatsBase: tiedrank
 
 # =============================================================================
 # Residual Tables
@@ -372,6 +374,90 @@ function comparison_metrics_dataframe(ode_metrics::DataFrame, cude_metrics::Data
     )
 
     return innerjoin(ode, cude, on=:patient_id)
+end
+
+"""
+    cude_gain_dataframe(comparison)
+
+Add patient-level cUDE gain columns, defined as ODE error minus cUDE error.
+Positive gain means lower error for cUDE.
+"""
+# Used by: scripts/03a_run_model_diagnostics.jl.
+function cude_gain_dataframe(comparison::DataFrame)
+    out = copy(comparison)
+    all([:smape_ode, :smape_cude] .∈ Ref(Symbol.(names(out)))) ||
+        error("cUDE gain analysis requires smape_ode and smape_cude columns.")
+    out.smape_gain = out.smape_ode .- out.smape_cude
+
+    if all([:rmsle_ode, :rmsle_cude] .∈ Ref(Symbol.(names(out))))
+        out.rmsle_gain = out.rmsle_ode .- out.rmsle_cude
+    end
+
+    return out
+end
+
+function _spearman_summary(x, y)
+    valid = isfinite.(x) .& isfinite.(y)
+    x_valid = collect(Float64, x[valid])
+    y_valid = collect(Float64, y[valid])
+    n = length(x_valid)
+    n < 3 && return nothing
+
+    rho = cor(tiedrank(x_valid), tiedrank(y_valid))
+    p_value = if !isfinite(rho)
+        NaN
+    elseif abs(rho) >= 1
+        0.0
+    else
+        statistic = abs(rho) * sqrt((n - 2) / (1 - rho^2))
+        2 * (1 - cdf(TDist(n - 2), statistic))
+    end
+
+    return (n=n, rho=rho, p_value=p_value)
+end
+
+"""
+    cude_gain_correlation_summary(cohorts)
+
+Build the exploratory Spearman summary linking baseline ODE error to cUDE gain.
+"""
+# Used by: scripts/03a_run_model_diagnostics.jl.
+function cude_gain_correlation_summary(cohorts)
+    out = DataFrame(
+        cohort=String[],
+        metric=String[],
+        n=Int[],
+        spearman_rho=Float64[],
+        p_value=Float64[],
+    )
+
+    for item in cohorts
+        gained = cude_gain_dataframe(item.df)
+        for spec in (
+            (metric="sMAPE", baseline=:smape_ode, gain=:smape_gain),
+            (metric="RMSLE", baseline=:rmsle_ode, gain=:rmsle_gain),
+        )
+            all([spec.baseline, spec.gain] .∈ Ref(Symbol.(names(gained)))) || continue
+            summary = _spearman_summary(gained[!, spec.baseline], gained[!, spec.gain])
+            summary === nothing && continue
+            push!(out, (String(item.cohort), spec.metric, summary.n, summary.rho, summary.p_value))
+        end
+    end
+
+    return out
+end
+
+"""
+    log_cude_gain_correlation_summary(summary)
+
+Print exploratory Spearman summaries for manuscript reporting.
+"""
+# Used by: scripts/03a_run_model_diagnostics.jl.
+function log_cude_gain_correlation_summary(summary::DataFrame)
+    for row in eachrow(summary)
+        @info "cUDE gain vs ODE baseline correlation" cohort=row.cohort metric=row.metric n=row.n spearman_rho=round(row.spearman_rho, digits=4) p_value=round(row.p_value, sigdigits=4)
+    end
+    return nothing
 end
 
 """

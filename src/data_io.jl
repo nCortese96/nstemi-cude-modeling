@@ -415,6 +415,9 @@ function model_diagnostics_output_paths(output_root::AbstractString)
         metrics_cude_mimic=joinpath(output_root, "metrics_cUDE_MIMIC.csv"),
         metrics_cude_umg=joinpath(output_root, "metrics_cUDE_UMG.csv"),
         metrics_summary=joinpath(output_root, "metrics_summary.csv"),
+        cude_gain_correlation_summary=joinpath(output_root, "cude_gain_correlation_summary.csv"),
+        cude_gain_vs_ode_baseline_svg=joinpath(metrics_comparison_fig_dir, "cude_gain_vs_ode_baseline.svg"),
+        cude_gain_vs_ode_baseline_png=joinpath(metrics_comparison_fig_dir, "cude_gain_vs_ode_baseline.png"),
         parameter_summary=joinpath(output_root, "parameter_summary.csv"),
     )
 end
@@ -1326,6 +1329,8 @@ function symbolic_formula_output_paths(output_root::AbstractString, dataset_name
         correction_surrogate_beta_with_title=joinpath(dataset_dir, "correction_surrogate_beta_with_title.svg"),
         correction_surrogate_teff=joinpath(dataset_dir, "correction_surrogate_teff.svg"),
         correction_surrogate_teff_with_title=joinpath(dataset_dir, "correction_surrogate_teff_with_title.svg"),
+        correction_model_comparison_svg=joinpath(dataset_dir, "correction_model_comparison.svg"),
+        correction_model_comparison_png=joinpath(dataset_dir, "correction_model_comparison.png"),
         previous_correction_surrogate=joinpath(dataset_dir, "correction_surrogate.svg"),
         previous_correction_surrogate_with_title=joinpath(dataset_dir, "correction_surrogate_with_title.svg"),
         residuals_vs_time=joinpath(residuals_dir, "residuals_vs_time_$(dataset_label).png"),

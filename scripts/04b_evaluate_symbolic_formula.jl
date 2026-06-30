@@ -114,6 +114,23 @@ log_workflow_context(
 ensure_output_dirs!(output_root; header="Ensured step 04b output root")
 @info "Using manually promoted symbolic formula from src/models.jl."
 
+correction_comparison_chain = nothing
+correction_comparison_params = nothing
+if settings.correction_comparison
+    model_selection_dataset = config.datasets[settings.model_selection_dataset_key].dataset_name
+    selected_model_path = settings.selected_model_path === nothing ?
+                          cude_model_selection_output_paths(settings.model_selection_dir, model_selection_dataset).selected_model :
+                          settings.selected_model_path
+    @info "Loading selected cUDE model for correction comparison." path=selected_model_path
+    selected_model = load_selected_cude_model(selected_model_path)
+    cude_artifacts = load_cude_training_artifacts(settings.cude_training_input_dir, selected_model.nn_width)
+    1 <= selected_model.model_idx <= length(cude_artifacts.neural_network_parameters) ||
+        error("Selected model_idx=$(selected_model.model_idx) is outside available cUDE candidates.")
+    correction_comparison_chain = neural_network_model(selected_model.nn_depth, selected_model.nn_width; input_dims=settings.input_dim)
+    correction_comparison_params = Vector{Float64}(cude_artifacts.neural_network_parameters[selected_model.model_idx])
+    @info "Loaded cUDE correction comparison model: $(selected_model.model_id)." width=selected_model.nn_width model_idx=selected_model.model_idx
+end
+
 for dataset_config in dataset_configs
     dataset_name = dataset_config.dataset_name
     paths = symbolic_formula_output_paths(output_root, dataset_name)
@@ -140,6 +157,8 @@ for dataset_config in dataset_configs
             correction_surrogate_beta_with_title=paths.correction_surrogate_beta_with_title,
             correction_surrogate_teff=paths.correction_surrogate_teff,
             correction_surrogate_teff_with_title=paths.correction_surrogate_teff_with_title,
+            correction_model_comparison_svg=paths.correction_model_comparison_svg,
+            correction_model_comparison_png=paths.correction_model_comparison_png,
         );
         header="Symbolic formula output files for $(dataset_name)",
     )
@@ -202,6 +221,21 @@ for dataset_config in dataset_configs
             plotting=settings.plotting,
             display_plots=settings.display_plots,
         )
+        if settings.correction_comparison
+            save_symbolic_formula_correction_comparison_plot(
+                paths,
+                correction_comparison_chain,
+                correction_comparison_params;
+                t_grid=settings.correction_t_grid,
+                beta_values=settings.correction_beta_grid,
+                td_values=settings.correction_td_grid,
+                t_scale=config.model.t_scale,
+                colormap=settings.correction_comparison_colormap,
+                plotting=settings.plotting,
+                display_plots=settings.display_plots,
+                png_px_per_unit=settings.correction_comparison_png_px_per_unit,
+            )
+        end
 
         @info "Regenerated symbolic formula plots without refitting for $(dataset_name)."
         continue
@@ -273,6 +307,21 @@ for dataset_config in dataset_configs
         plotting=settings.plotting,
         display_plots=settings.display_plots,
     )
+    if settings.correction_comparison
+        save_symbolic_formula_correction_comparison_plot(
+            paths,
+            correction_comparison_chain,
+            correction_comparison_params;
+            t_grid=settings.correction_t_grid,
+            beta_values=settings.correction_beta_grid,
+            td_values=settings.correction_td_grid,
+            t_scale=config.model.t_scale,
+            colormap=settings.correction_comparison_colormap,
+            plotting=settings.plotting,
+            display_plots=settings.display_plots,
+            png_px_per_unit=settings.correction_comparison_png_px_per_unit,
+        )
+    end
 
     @info "Saved symbolic formula metrics for $(dataset_name): $(length(evaluation.patient_ids)) patient rows."
     @info "Saved symbolic formula parameter rows for $(dataset_name): $(length(saved.params.patient_id))."

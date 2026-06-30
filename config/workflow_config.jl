@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=true,
+    test_mode=false,
     progress_bars=true,
 )
 
@@ -313,6 +313,9 @@ const MODEL_DIAGNOSTICS_SETTINGS = (
     ode_mimic_quartile_profile_source=:full_fit,
     plotting=true,
     metrics_paper_plots=true,
+    cude_gain_trend_line=true,
+    cude_gain_zero_labels=false,
+    cude_gain_color=true,
     profile_comparison=true,
     residual_plot_style=(
         figure_fontsize=18,
@@ -512,7 +515,12 @@ const SYMBOLIC_REGRESSION_SETTINGS = (
 const SYMBOLIC_FORMULA_EVALUATION_SETTINGS = (
     dataset_keys=(:mimic_iv, :umg),
     cohort_dir=PREPROCESSING_SETTINGS.output_dir,
+    model_selection_dataset_key=:mimic_iv,
+    model_selection_dir=CUDE_MODEL_SELECTION_SETTINGS.output_dir,
+    cude_training_input_dir=CUDE_TRAINING_SETTINGS.output_dir,
+    selected_model_path=nothing,
     output_dir=joinpath(WORKFLOW_OUTPUT_DIRS.symbolic_surrogate, "04b_surrogate_optimization"),
+    input_dim=CUDE_EVALUATION_SETTINGS.input_dim,
     n_params=5,
     pguess=log.([0.005, 0.005, 0.1, 0.01, 0.5]),
     lower=log.([0.001, 0.001, 0.001, 0.001, 0.001]),
@@ -529,6 +537,10 @@ const SYMBOLIC_FORMULA_EVALUATION_SETTINGS = (
     progress_bars=WORKFLOW_RUN_MODE.progress_bars,
     correction_t_grid=collect(0.1:0.1:2400.0),
     correction_beta_grid=collect(0.1:0.1:1.0),
+    correction_td_grid=collect(range(20.0, 1000.0, length=10)),
+    correction_comparison=true,
+    correction_comparison_colormap=:viridis,
+    correction_comparison_png_px_per_unit=3,
 )
 
 const WORKFLOW_CONFIG = (

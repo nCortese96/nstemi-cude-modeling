@@ -243,6 +243,12 @@ if plot_only_mode
 
         comparison_mimic = comparison_metrics_dataframe(met_ode_mimic, met_cude_mimic)
         comparison_umg = comparison_metrics_dataframe(met_ode_umg, met_cude_umg)
+        cude_gain_summary = cude_gain_correlation_summary([
+            (cohort="MIMIC-IV", df=comparison_mimic),
+            (cohort="UMG", df=comparison_umg),
+        ])
+        CSV.write(output_paths.cude_gain_correlation_summary, cude_gain_summary)
+        log_cude_gain_correlation_summary(cude_gain_summary)
 
         save_parameter_diagnostic_boxplots(
             output_paths;
@@ -262,6 +268,16 @@ if plot_only_mode
             metrics_cude_mimic=met_cude_mimic,
             metrics_cude_umg=met_cude_umg,
             plotting=settings.metrics_paper_plots,
+        )
+        save_cude_gain_vs_baseline_plot(
+            output_paths;
+            comparison_mimic=comparison_mimic,
+            comparison_umg=comparison_umg,
+            summary=cude_gain_summary,
+            plotting=settings.metrics_paper_plots,
+            trend_line=settings.cude_gain_trend_line,
+            zero_labels=settings.cude_gain_zero_labels,
+            color=settings.cude_gain_color,
         )
         @info "Metric and parameter diagnostic plots regenerated." output_dir=output_paths.metrics_comparison_fig_dir
     end
@@ -386,6 +402,12 @@ comparison_mimic = comparison_metrics_dataframe(met_ode_mimic, met_cude_mimic)
 comparison_umg = comparison_metrics_dataframe(met_ode_umg, met_cude_umg)
 overlap_mimic = overlap_comparison_dataframe(df_ode_mimic, df_cude_mimic_metrics, df_cude_mimic_params)
 overlap_umg = overlap_comparison_dataframe(df_ode_umg, df_cude_umg_metrics, df_cude_umg_params)
+cude_gain_summary = cude_gain_correlation_summary([
+    (cohort="MIMIC-IV", df=comparison_mimic),
+    (cohort="UMG", df=comparison_umg),
+])
+CSV.write(output_paths.cude_gain_correlation_summary, cude_gain_summary)
+log_cude_gain_correlation_summary(cude_gain_summary)
 
 write_delta_smape_report(
     output_paths.delta_smape_report,
@@ -427,6 +449,16 @@ save_metric_comparison_paper_plots(
     metrics_cude_mimic=met_cude_mimic,
     metrics_cude_umg=met_cude_umg,
     plotting=settings.metrics_paper_plots,
+)
+save_cude_gain_vs_baseline_plot(
+    output_paths;
+    comparison_mimic=comparison_mimic,
+    comparison_umg=comparison_umg,
+    summary=cude_gain_summary,
+    plotting=settings.metrics_paper_plots,
+    trend_line=settings.cude_gain_trend_line,
+    zero_labels=settings.cude_gain_zero_labels,
+    color=settings.cude_gain_color,
 )
 
 if settings.profile_comparison

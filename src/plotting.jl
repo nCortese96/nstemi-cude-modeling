@@ -739,6 +739,89 @@ function save_symbolic_formula_correction_plots(
     )
 end
 
+function _correction_plot_colors(colormap, n::Integer)
+    cmap = CairoMakie.to_colormap(colormap)
+    n <= 0 && return eltype(cmap)[]
+    idxs = n == 1 ? [cld(length(cmap), 2)] : round.(Int, range(1, length(cmap), length=n))
+    return cmap[idxs]
+end
+
+_td_sigmoid_correction(t::Real, td::Real) = t^3 / (t^3 + td^3)
+
+function _plot_correction_family!(
+    ax,
+    t_values,
+    curves,
+    colors;
+    ylabel::AbstractString="Correction",
+    xlabel::AbstractString="τ",
+)
+    for (curve, color) in zip(curves, colors)
+        CairoMakie.lines!(ax, t_values, curve; color=color, linewidth=2.0)
+    end
+    ax.xlabel = xlabel
+    ax.ylabel = ylabel
+    CairoMakie.ylims!(ax, 0.0, 1.05)
+    return ax
+end
+
+"""
+    save_symbolic_formula_correction_comparison_plot(paths, chain, nn_params; ...)
+
+Save a composite correction-function comparison for cUDE, symbolic surrogate,
+and the ODE Td-sigmoid release function.
+"""
+# Used by: scripts/04b_evaluate_symbolic_formula.jl.
+function save_symbolic_formula_correction_comparison_plot(
+    paths,
+    chain,
+    nn_params;
+    t_grid=0.1:0.1:2400.0,
+    beta_values=0.1:0.1:1.0,
+    td_values=range(20.0, 1000.0, length=10),
+    t_scale::Real=T_SCALE,
+    colormap=:viridis,
+    plotting::Bool=true,
+    display_plots::Bool=false,
+    png_px_per_unit::Real=3,
+)
+    plotting || return nothing
+    mkpath(paths.dataset_dir)
+
+    t_values = Float64.(collect(t_grid))
+    beta_grid = Float64.(collect(beta_values))
+    td_grid = Float64.(collect(td_values))
+    teff_values = Float64.([symbolic_surrogate_effective_time(beta) for beta in beta_grid])
+
+    beta_colors = _correction_plot_colors(colormap, length(beta_grid))
+    teff_colors = _correction_plot_colors(colormap, length(teff_values))
+    td_colors = _correction_plot_colors(colormap, length(td_grid))
+
+    neural_curves = [[chain([t / t_scale, beta], nn_params)[1] for t in t_values] for beta in beta_grid]
+    symbolic_curves = [[symbolic_surrogate_correction(t / t_scale, beta) for t in t_values] for beta in beta_grid]
+    td_curves = [[_td_sigmoid_correction(t, td) for t in t_values] for td in td_grid]
+
+    fig = CairoMakie.Figure(size=(1500, 480), fontsize=18)
+    ax_nn = Axis(fig[1, 1], title="(a) cUDE neural correction")
+    ax_sr = Axis(fig[1, 3], title="(b) Symbolic surrogate")
+    ax_ode = Axis(fig[1, 5], title="(c) ODE Td-sigmoid")
+
+    _plot_correction_family!(ax_nn, t_values, neural_curves, beta_colors)
+    _plot_correction_family!(ax_sr, t_values, symbolic_curves, teff_colors)
+    _plot_correction_family!(ax_ode, t_values, td_curves, td_colors)
+
+    Colorbar(fig[1, 2]; limits=extrema(beta_grid), colormap=colormap, label="β")
+    Colorbar(fig[1, 4]; limits=extrema(teff_values), colormap=colormap, label=CairoMakie.rich("T", CairoMakie.subscript("eff")))
+    Colorbar(fig[1, 6]; limits=extrema(td_grid), colormap=colormap, label=CairoMakie.rich("T", CairoMakie.subscript("d")))
+
+    CairoMakie.colgap!(fig.layout, 18)
+    display_plots && display(fig)
+
+    CairoMakie.save(paths.correction_model_comparison_svg, fig)
+    CairoMakie.save(paths.correction_model_comparison_png, fig, px_per_unit=png_px_per_unit)
+    return paths.correction_model_comparison_svg
+end
+
 """
     save_symbolic_formula_parameter_boxplot(path, flat_log_params; n_params, dataset_label, plotting=true)
 
@@ -1175,10 +1258,9 @@ function _metric_boxplot_whisker_bounds(vals)
     return (q1=q1, q3=q3, lower=lower, upper=upper)
 end
 
-function _metric_dashed_whiskers!(ax, x_position, vals)
+function _metric_dashed_whiskers!(ax, x_position, vals, whisker_color)
     stats = _metric_boxplot_whisker_bounds(vals)
     cap_width = 0.10
-    whisker_color = :black
     CairoMakie.lines!(ax, [x_position, x_position], [stats.lower, stats.q1]; color=whisker_color, linewidth=1.8, linestyle=:dash)
     CairoMakie.lines!(ax, [x_position, x_position], [stats.q3, stats.upper]; color=whisker_color, linewidth=1.8, linestyle=:dash)
     CairoMakie.lines!(ax, [x_position - cap_width, x_position + cap_width], [stats.lower, stats.lower]; color=whisker_color, linewidth=1.8, linestyle=:dash)
@@ -1203,7 +1285,7 @@ function _metric_boxplot_jitter_group!(ax, x_position, values, color)
         show_outliers=false,
         width=0.36,
     )
-    _metric_dashed_whiskers!(ax, Float64(x_position), vals)
+    _metric_dashed_whiskers!(ax, Float64(x_position), vals, color)
     CairoMakie.scatter!(
         ax,
         x .+ _metric_jitter_offsets(length(vals)),
@@ -1214,6 +1296,143 @@ function _metric_boxplot_jitter_group!(ax, x_position, values, color)
         markersize=5,
     )
     return nothing
+end
+
+function _format_correlation_p_value(p)
+    !isfinite(p) && return "p-value = n/a"
+    p < 0.001 && return "p-value < 0.001"
+    return "p-value = $(round(p, digits=3))"
+end
+
+function _cude_gain_annotation(summary::DataFrame, cohort::AbstractString)
+    rows = summary[(summary.cohort .== cohort) .& (summary.metric .== "sMAPE"), :]
+    nrow(rows) == 0 && return "Spearman ρ = n/a\np-value = n/a\nn = 0"
+    row = rows[1, :]
+    return "Spearman ρ = $(round(row.spearman_rho, digits=2))\n$(_format_correlation_p_value(row.p_value))\nn = $(row.n)"
+end
+
+function _cude_gain_linear_trend(x, y)
+    x_mean = mean(x)
+    y_mean = mean(y)
+    denom = sum((x .- x_mean) .^ 2)
+    denom <= eps(Float64) && return nothing
+    slope = sum((x .- x_mean) .* (y .- y_mean)) / denom
+    intercept = y_mean - slope * x_mean
+    return (slope=slope, intercept=intercept)
+end
+
+function _plot_cude_gain_panel!(
+    ax,
+    comparison::DataFrame,
+    summary::DataFrame,
+    cohort::AbstractString;
+    trend_line::Bool=true,
+    zero_labels::Bool=true,
+    color::Bool=true,
+)
+    gained = cude_gain_dataframe(comparison)
+    point_color = color ? (:royalblue, 0.72) : (:black, 0.65)
+    trend_color = color ? (:darkorange, 0.85) : (:gray35, 0.8)
+    CairoMakie.scatter!(
+        ax,
+        gained.smape_ode,
+        gained.smape_gain;
+        color=point_color,
+        markersize=9,
+    )
+
+    x_min, x_max = extrema(gained.smape_ode)
+    y_min = min(minimum(gained.smape_gain), 0.0)
+    y_max = max(maximum(gained.smape_gain), 0.0)
+    x_pad = max(1e-6, 0.05 * (x_max - x_min))
+    y_pad = max(1e-6, 0.08 * (y_max - y_min))
+    CairoMakie.xlims!(ax, x_min - x_pad, x_max + x_pad)
+    CairoMakie.ylims!(ax, y_min - y_pad, y_max + y_pad)
+
+    if trend_line
+        trend = _cude_gain_linear_trend(gained.smape_ode, gained.smape_gain)
+        if trend !== nothing
+            xs = [x_min, x_max]
+            ys = trend.intercept .+ trend.slope .* xs
+            CairoMakie.lines!(ax, xs, ys; color=trend_color, linewidth=1.6)
+        end
+    end
+
+    CairoMakie.hlines!(ax, [0.0]; color=:black, linestyle=:dash, linewidth=2.8)
+
+    if zero_labels
+        y_offset = 0.035 * ((y_max + y_pad) - (y_min - y_pad))
+        label_x = x_max - x_pad
+        CairoMakie.text!(
+            ax,
+            label_x,
+            0.0 + y_offset;
+            text="cUDE lower error",
+            align=(:right, :bottom),
+            fontsize=13,
+            color=:gray20,
+        )
+        CairoMakie.text!(
+            ax,
+            label_x,
+            0.0 - y_offset;
+            text="ODE lower error",
+            align=(:right, :top),
+            fontsize=13,
+            color=:gray20,
+        )
+    end
+
+    CairoMakie.text!(
+        ax,
+        x_min + x_pad,
+        y_max + 0.5 * y_pad;
+        text=_cude_gain_annotation(summary, cohort),
+        align=(:left, :top),
+        fontsize=16,
+        color=:black,
+    )
+    return ax
+end
+
+"""
+    save_cude_gain_vs_baseline_plot(paths; comparison_mimic, comparison_umg, summary, plotting=true)
+
+Save the exploratory diagnostic plot linking baseline ODE sMAPE to cUDE gain.
+"""
+# Used by: scripts/03a_run_model_diagnostics.jl.
+function save_cude_gain_vs_baseline_plot(
+    paths;
+    comparison_mimic,
+    comparison_umg,
+    summary,
+    plotting::Bool=true,
+    trend_line::Bool=true,
+    zero_labels::Bool=true,
+    color::Bool=true,
+)
+    plotting || return nothing
+    mkpath(paths.metrics_comparison_fig_dir)
+
+    fig = CairoMakie.Figure(size=(1100, 500), fontsize=18)
+    ax_mimic = Axis(
+        fig[1, 1];
+        title="(a) MIMIC-IV",
+        xlabel="Baseline ODE sMAPE (%)",
+        ylabel="cUDE gain in sMAPE (%)",
+    )
+    ax_umg = Axis(
+        fig[1, 2];
+        title="(b) UMG",
+        xlabel="Baseline ODE sMAPE (%)",
+        ylabel="cUDE gain in sMAPE (%)",
+    )
+    _plot_cude_gain_panel!(ax_mimic, comparison_mimic, summary, "MIMIC-IV"; trend_line=trend_line, zero_labels=zero_labels, color=color)
+    _plot_cude_gain_panel!(ax_umg, comparison_umg, summary, "UMG"; trend_line=trend_line, zero_labels=zero_labels, color=color)
+
+    CairoMakie.save(paths.cude_gain_vs_ode_baseline_svg, fig)
+    CairoMakie.save(paths.cude_gain_vs_ode_baseline_png, fig, px_per_unit=3)
+    return paths.cude_gain_vs_ode_baseline_svg
 end
 
 """
