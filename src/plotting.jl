@@ -2581,9 +2581,11 @@ function save_neural_correction_bump_analysis_plot(
     png_px_per_unit::Real=3,
     time_scale=nothing,
     feature_window_tau=nothing,
-    bump_beta_split::Real=0.5,
-    low_beta_bump_color=:darkorange2,
-    high_beta_bump_color=:dodgerblue3,
+    use_bump_beta_threshold::Bool=false,
+    bump_beta_threshold::Real=0.5,
+    bump_color=:mediumpurple3,
+    low_beta_bump_color=:mediumpurple3,
+    high_beta_bump_color=:seagreen3,
     no_bump_point_color=:gray45,
     grid_curve_color=:gray70,
     grid_curve_alpha::Real=0.30,
@@ -2600,7 +2602,10 @@ function save_neural_correction_bump_analysis_plot(
     beta_values = sort(unique(Float64.(grid_df.beta)))
     use_tau_axis = time_scale !== nothing
     x_label = use_tau_axis ? "τ" : "τ̃"
-    bump_color(beta::Real) = Float64(beta) < Float64(bump_beta_split) ? low_beta_bump_color : high_beta_bump_color
+    is_low_beta(beta::Real) = Float64(beta) < Float64(bump_beta_threshold)
+    highlight_color(beta::Real) = use_bump_beta_threshold ?
+                                  (is_low_beta(beta) ? low_beta_bump_color : high_beta_bump_color) :
+                                  bump_color
     anchor_lookup = Dict{String,String}()
     if anchor_df !== nothing && :patient_id in propertynames(anchor_df) && :anchor_source in propertynames(anchor_df)
         for row in eachrow(anchor_df)
@@ -2648,7 +2653,7 @@ function save_neural_correction_bump_analysis_plot(
             sub_x,
             Float64.(sub.y_nn);
             color=(grid_curve_color, grid_curve_alpha),
-            linewidth=1.0,
+            linewidth=highlight_curve_linewidth,
         )
     end
 
@@ -2660,7 +2665,7 @@ function save_neural_correction_bump_analysis_plot(
             ax_curve,
             sub_x,
             Float64.(sub.y_nn);
-            color=(bump_color(beta_value), 0.95),
+            color=(highlight_color(beta_value), 0.95),
             linewidth=highlight_curve_linewidth,
         )
     end
@@ -2691,7 +2696,7 @@ function save_neural_correction_bump_analysis_plot(
         offsets = [jitter_width * sin(1.618 * point_idx) for point_idx in eachindex(vals)]
         for (point_idx, row) in enumerate(eachrow(sub))
             beta_value = Float64(row.beta)
-            point_color = Bool(row.bump_flag) ? bump_color(beta_value) : no_bump_point_color
+            point_color = Bool(row.bump_flag) ? highlight_color(beta_value) : no_bump_point_color
             CairoMakie.scatter!(
                 ax_beta,
                 [xpos + offsets[point_idx]],
@@ -2709,22 +2714,47 @@ function save_neural_correction_bump_analysis_plot(
     ax_beta.xticklabelalign = (:center, :top)
     CairoMakie.xlims!(ax_beta, minimum(x_positions) - 0.22, maximum(x_positions) + 0.22)
 
-    legend_elements = [
-        CairoMakie.LineElement(color=low_beta_bump_color, linewidth=highlight_curve_linewidth),
-        CairoMakie.LineElement(color=high_beta_bump_color, linewidth=highlight_curve_linewidth),
+    legend_elements = Any[]
+    legend_labels = String[]
+    if use_bump_beta_threshold
+        push!(legend_elements, [
+            CairoMakie.LineElement(color=low_beta_bump_color, linewidth=highlight_curve_linewidth),
+            CairoMakie.MarkerElement(color=low_beta_bump_color, marker=:circle, markersize=11),
+        ])
+        push!(legend_labels, "β < $(bump_beta_threshold) bump")
+        push!(legend_elements, [
+            CairoMakie.LineElement(color=high_beta_bump_color, linewidth=highlight_curve_linewidth),
+            CairoMakie.MarkerElement(color=high_beta_bump_color, marker=:circle, markersize=11),
+        ])
+        push!(legend_labels, "β ≥ $(bump_beta_threshold) bump")
+    else
+        push!(legend_elements, [
+            CairoMakie.LineElement(color=bump_color, linewidth=highlight_curve_linewidth),
+            CairoMakie.MarkerElement(color=bump_color, marker=:circle, markersize=11),
+        ])
+        push!(legend_labels, "bump")
+    end
+    push!(legend_elements, [
+        CairoMakie.LineElement(color=no_bump_point_color, linewidth=highlight_curve_linewidth),
         CairoMakie.MarkerElement(color=no_bump_point_color, marker=:circle, markersize=11),
+    ])
+    push!(legend_labels, "no bump")
+    append!(
+        legend_elements,
+        [
         CairoMakie.MarkerElement(color=:black, marker=:circle, markersize=11),
         CairoMakie.MarkerElement(color=:black, marker=:utriangle, markersize=11),
         CairoMakie.MarkerElement(color=:black, marker=:diamond, markersize=11),
-    ]
-    legend_labels = [
-        "β < $(bump_beta_split) bump",
-        "β ≥ $(bump_beta_split) bump",
-        "no bump",
-        "MIMIC-IV ED anchor",
-        "MIMIC-IV admission anchor",
+        ],
+    )
+    append!(
+        legend_labels,
+        [
+        "MIMIC-IV ED",
+        "MIMIC-IV admission",
         "UMG",
-    ]
+        ],
+    )
     CairoMakie.Legend(fig[1, 3], legend_elements, legend_labels; framevisible=false, tellheight=false)
 
     CairoMakie.colgap!(fig.layout, 18)

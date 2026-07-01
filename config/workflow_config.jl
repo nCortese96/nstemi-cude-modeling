@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=true,
+    test_mode=false,
     progress_bars=true,
 )
 
@@ -584,9 +584,11 @@ const NEURAL_CORRECTION_BUMP_ANALYSIS_SETTINGS = (
     mimic_anchor_patient_file=joinpath(WORKFLOW_PATHS.data_root, WORKFLOW_DATASETS.mimic_iv.dataset_path),
     mimic_anchor_troponin_csv=joinpath(WORKFLOW_PATHS.data_root, "MIMIC-IV", "NSTEMI_TroponinT.csv"),
     mimic_anchor_admission_csv=joinpath(WORKFLOW_PATHS.data_root, "MIMIC-IV", "NSTEMI_AdmissionInfo.csv"),
-    bump_beta_split=0.5,
-    low_beta_bump_color=:darkorange2,
-    high_beta_bump_color=:dodgerblue3,
+    use_bump_beta_threshold=false,
+    bump_beta_threshold=0.5,
+    bump_color=:mediumpurple3,
+    low_beta_bump_color=:mediumpurple3,
+    high_beta_bump_color=:seagreen3,
     no_bump_point_color=:gray45,
     grid_curve_color=:gray70,
     grid_curve_alpha=0.30,
