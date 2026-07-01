@@ -125,6 +125,7 @@ Run the scripts in numerical order when building results from scratch.
 | 03c | `scripts/03c_run_systematic_truncation.jl` | Run systematic truncation stress tests and overlays. |
 | 04a | `scripts/04a_run_symbolic_regression.jl` | Fit a symbolic surrogate for the selected cUDE correction function. |
 | 04b | `scripts/04b_evaluate_symbolic_formula.jl` | Evaluate the manually promoted symbolic surrogate formula on test cohorts. |
+| 04c | `scripts/04c_run_neural_correction_bump_analysis.jl` | Describe early non-monotonicity in the selected cUDE neural correction. |
 
 ## Command Reference
 
@@ -260,6 +261,8 @@ julia --project=. scripts/04a_run_symbolic_regression.jl inspection
 julia --project=. scripts/04a_run_symbolic_regression.jl inspection 2400 18
 julia --project=. scripts/04a_run_symbolic_regression.jl report
 JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
+julia --project=. scripts/04c_run_neural_correction_bump_analysis.jl
+julia --project=. scripts/04c_run_neural_correction_bump_analysis.jl plots
 ```
 
 Symbolic regression can be computationally expensive and stochastic. Step 04a
@@ -301,6 +304,12 @@ Before running step 04b:
 
 Step 04b evaluates only this manually promoted formula and writes both
 beta-labelled and normalized `T_eff`-labelled correction plots.
+
+Step 04c is a descriptive post-processing analysis of the selected cUDE neural
+correction. It checks whether early non-monotonicity occurs for beta values
+occupied by patients, writes observed-domain and extended-domain CSV summaries,
+and regenerates figures from those CSVs in `plots` mode. It does not train,
+fit, or optimize any model.
 
 ## Output Trees
 

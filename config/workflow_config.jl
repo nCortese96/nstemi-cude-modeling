@@ -29,7 +29,7 @@ const WORKFLOW_PATHS = (
 # =============================================================================
 
 const WORKFLOW_RUN_MODE = (
-    test_mode=false,
+    test_mode=true,
     progress_bars=true,
 )
 
@@ -543,6 +543,59 @@ const SYMBOLIC_FORMULA_EVALUATION_SETTINGS = (
     correction_comparison_png_px_per_unit=3,
 )
 
+# =============================================================================
+# NEURAL CORRECTION BUMP ANALYSIS SETTINGS
+# Settings controlling workflow step 04c.
+#
+# This descriptive step characterizes early non-monotonicity in the selected
+# cUDE neural correction. It consumes existing cUDE artifacts only.
+# =============================================================================
+
+const NEURAL_CORRECTION_BUMP_ANALYSIS_SETTINGS = (
+    mimic_dataset_key=:mimic_iv,
+    external_dataset_key=:umg,
+    model_selection_dataset_key=:mimic_iv,
+    model_selection_dir=CUDE_MODEL_SELECTION_SETTINGS.output_dir,
+    selected_model_path=nothing,
+    cude_training_input_dir=CUDE_TRAINING_SETTINGS.output_dir,
+    cude_evaluation_input_dir=CUDE_EVALUATION_SETTINGS.output_dir,
+    cude_external_test_input_dir=CUDE_EXTERNAL_TEST_SETTINGS.output_dir,
+    output_dir=joinpath(WORKFLOW_OUTPUT_DIRS.symbolic_surrogate, "04c_neural_correction_bump_analysis"),
+    input_dim=CUDE_EVALUATION_SETTINGS.input_dim,
+    observed_tnorm_min=0.0,
+    observed_tnorm_max=1.0,
+    observed_tnorm_points=501,
+    t_scale=WORKFLOW_MODEL_SETTINGS.t_scale,
+    feature_window_tau=(0.0, 850.0),
+    feature_tnorm_points=1001,
+    feature_min_curve_range=0.02,
+    feature_min_abs_drop=0.01,
+    feature_min_rel_drop=0.02,
+    extended_analysis=true,
+    extended_tnorm_min=0.0,
+    extended_tnorm_max=maximum(SYMBOLIC_REGRESSION_SETTINGS.t_grid) / WORKFLOW_MODEL_SETTINGS.t_scale,
+    extended_tnorm_points=1001,
+    beta_grid_points=200,
+    early_window_tnorm=3.5,
+    min_curve_range=0.02,
+    min_abs_drop=0.01,
+    min_rel_drop=0.05,
+    anchoring_analysis=true,
+    mimic_anchor_patient_file=joinpath(WORKFLOW_PATHS.data_root, WORKFLOW_DATASETS.mimic_iv.dataset_path),
+    mimic_anchor_troponin_csv=joinpath(WORKFLOW_PATHS.data_root, "MIMIC-IV", "NSTEMI_TroponinT.csv"),
+    mimic_anchor_admission_csv=joinpath(WORKFLOW_PATHS.data_root, "MIMIC-IV", "NSTEMI_AdmissionInfo.csv"),
+    bump_beta_split=0.5,
+    low_beta_bump_color=:darkorange2,
+    high_beta_bump_color=:dodgerblue3,
+    no_bump_point_color=:gray45,
+    grid_curve_color=:gray70,
+    grid_curve_alpha=0.30,
+    highlight_curve_linewidth=2.2,
+    plotting=true,
+    display_plots=false,
+    png_px_per_unit=3,
+)
+
 const WORKFLOW_CONFIG = (
     paths=merge(WORKFLOW_PATHS, (active_results_root=ACTIVE_RESULTS_ROOT,)),
     run=WORKFLOW_RUN_MODE,
@@ -560,4 +613,5 @@ const WORKFLOW_CONFIG = (
     systematic_truncation=SYSTEMATIC_TRUNCATION_SETTINGS,
     symbolic_regression=SYMBOLIC_REGRESSION_SETTINGS,
     symbolic_formula_evaluation=SYMBOLIC_FORMULA_EVALUATION_SETTINGS,
+    neural_correction_bump_analysis=NEURAL_CORRECTION_BUMP_ANALYSIS_SETTINGS,
 )

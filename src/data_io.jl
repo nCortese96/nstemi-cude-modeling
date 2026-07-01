@@ -1198,6 +1198,42 @@ function symbolic_regression_output_paths(output_root::AbstractString)
 end
 
 """
+    neural_correction_bump_analysis_output_paths(output_root)
+
+Return canonical step 04c output paths for the descriptive neural-correction
+early non-monotonicity analysis.
+"""
+# Used by: scripts/04c_run_neural_correction_bump_analysis.jl.
+function neural_correction_bump_analysis_output_paths(output_root::AbstractString)
+    fig_dir = joinpath(output_root, "figs")
+
+    return (
+        output_dir=output_root,
+        fig_dir=fig_dir,
+        patient_feature=joinpath(output_root, "patient_bump_analysis_feature.csv"),
+        patient_observed=joinpath(output_root, "patient_bump_analysis_observed.csv"),
+        patient_extended=joinpath(output_root, "patient_bump_analysis_extended.csv"),
+        cohort_summary_feature=joinpath(output_root, "cohort_bump_summary_feature.csv"),
+        cohort_summary_observed=joinpath(output_root, "cohort_bump_summary_observed.csv"),
+        cohort_summary_extended=joinpath(output_root, "cohort_bump_summary_extended.csv"),
+        beta_grid_feature=joinpath(output_root, "beta_grid_bump_analysis_feature.csv"),
+        beta_grid_observed=joinpath(output_root, "beta_grid_bump_analysis_observed.csv"),
+        beta_grid_extended=joinpath(output_root, "beta_grid_bump_analysis_extended.csv"),
+        patient_curve_feature=joinpath(output_root, "patient_beta_curves_feature.csv"),
+        patient_curve_observed=joinpath(output_root, "patient_beta_curves_observed.csv"),
+        patient_curve_extended=joinpath(output_root, "patient_beta_curves_extended.csv"),
+        anchor_source_mimic=joinpath(output_root, "anchor_source_bump_analysis_MIMIC-IV.csv"),
+        anchor_note=joinpath(output_root, "anchor_source_note.txt"),
+        fig_feature_svg=joinpath(fig_dir, "neural_correction_bump_analysis_feature.svg"),
+        fig_feature_png=joinpath(fig_dir, "neural_correction_bump_analysis_feature.png"),
+        fig_observed_svg=joinpath(fig_dir, "neural_correction_bump_analysis_observed.svg"),
+        fig_observed_png=joinpath(fig_dir, "neural_correction_bump_analysis_observed.png"),
+        fig_extended_svg=joinpath(fig_dir, "neural_correction_bump_analysis_extended.svg"),
+        fig_extended_png=joinpath(fig_dir, "neural_correction_bump_analysis_extended.png"),
+    )
+end
+
+"""
     save_symbolic_regression_tables(paths; teacher, frontier)
 
 Write the stable step 04a CSV artifacts.

@@ -2561,6 +2561,179 @@ function save_symbolic_sr_plot(
     return plot_obj
 end
 
+"""
+    save_neural_correction_bump_analysis_plot(grid_df, patient_curve_df, patient_df, svg_path, png_path; ...)
+
+Save the step 04c descriptive plot for early non-monotonicity in the selected
+cUDE neural correction. The plot visualizes a local neural-network feature and
+the patient-specific beta values occupying that feature space.
+"""
+# Used by: scripts/04c_run_neural_correction_bump_analysis.jl.
+function save_neural_correction_bump_analysis_plot(
+    grid_df::DataFrame,
+    patient_curve_df::DataFrame,
+    patient_df::DataFrame,
+    svg_path::AbstractString,
+    png_path::AbstractString;
+    anchor_df=nothing,
+    plotting::Bool=true,
+    display_plots::Bool=false,
+    png_px_per_unit::Real=3,
+    time_scale=nothing,
+    feature_window_tau=nothing,
+    bump_beta_split::Real=0.5,
+    low_beta_bump_color=:darkorange2,
+    high_beta_bump_color=:dodgerblue3,
+    no_bump_point_color=:gray45,
+    grid_curve_color=:gray70,
+    grid_curve_alpha::Real=0.30,
+    highlight_curve_linewidth::Real=2.2,
+)
+    plotting || return nothing
+    mkpath(dirname(svg_path))
+    mkpath(dirname(png_path))
+
+    isempty(grid_df.tnorm) && error("Cannot plot neural-correction bump analysis from an empty grid table.")
+    isempty(patient_curve_df.tnorm) && error("Cannot plot neural-correction bump analysis from an empty patient-curve table.")
+    isempty(patient_df.beta) && error("Cannot plot neural-correction bump analysis from an empty patient table.")
+
+    beta_values = sort(unique(Float64.(grid_df.beta)))
+    use_tau_axis = time_scale !== nothing
+    x_label = use_tau_axis ? "τ" : "τ̃"
+    bump_color(beta::Real) = Float64(beta) < Float64(bump_beta_split) ? low_beta_bump_color : high_beta_bump_color
+    anchor_lookup = Dict{String,String}()
+    if anchor_df !== nothing && :patient_id in propertynames(anchor_df) && :anchor_source in propertynames(anchor_df)
+        for row in eachrow(anchor_df)
+            !ismissing(row.patient_id) && !ismissing(row.anchor_source) || continue
+            anchor_lookup[String(row.patient_id)] = String(row.anchor_source)
+        end
+    end
+    marker_for_patient(row) = begin
+        cohort = String(row.cohort)
+        if cohort == "MIMIC-IV"
+            source = get(anchor_lookup, String(row.patient_id), "")
+            source == "admittime" && return :utriangle
+            source == "edregtime" && return :circle
+            return :rect
+        end
+        return :diamond
+    end
+
+    fig = CairoMakie.Figure(size=(1180, 500), fontsize=18)
+    ax_curve = CairoMakie.Axis(
+        fig[1, 1],
+        title="(a) Neural correction profiles",
+        xlabel=x_label,
+        ylabel="Nϕ(τ̃, β)",
+    )
+    ax_beta = CairoMakie.Axis(
+        fig[1, 2],
+        title="(b) Patient-specific β values",
+        ylabel="β",
+        ylabelrotation=0,
+    )
+
+    if feature_window_tau !== nothing
+        window = Tuple(Float64.(feature_window_tau))
+        length(window) == 2 && window[1] < window[2] ||
+            error("feature_window_tau must be a two-value increasing tuple.")
+        CairoMakie.vspan!(ax_curve, window[1], window[2]; color=(:gray70, 0.18))
+    end
+
+    for (idx, beta_value) in enumerate(beta_values)
+        sub = grid_df[grid_df.beta .== beta_value, :]
+        sub_x = use_tau_axis ? Float64.(sub.tnorm) .* Float64(time_scale) : Float64.(sub.tnorm)
+        CairoMakie.lines!(
+            ax_curve,
+            sub_x,
+            Float64.(sub.y_nn);
+            color=(grid_curve_color, grid_curve_alpha),
+            linewidth=1.0,
+        )
+    end
+
+    for beta_value in sort(unique(Float64.(patient_curve_df.beta)))
+        sub = patient_curve_df[patient_curve_df.beta .== beta_value, :]
+        any(Bool.(sub.bump_flag)) || continue
+        sub_x = use_tau_axis ? Float64.(sub.tnorm) .* Float64(time_scale) : Float64.(sub.tnorm)
+        CairoMakie.lines!(
+            ax_curve,
+            sub_x,
+            Float64.(sub.y_nn);
+            color=(bump_color(beta_value), 0.95),
+            linewidth=highlight_curve_linewidth,
+        )
+    end
+
+    cohorts = unique(String.(patient_df.cohort))
+    palette = Dict(
+        cohort => color
+        for (cohort, color) in zip(cohorts, (:steelblue3, :darkorange2, :seagreen3, :mediumpurple3))
+    )
+    x_positions = length(cohorts) == 1 ? [1.0] : collect(range(0.88, 1.12; length=length(cohorts)))
+    box_width = length(cohorts) <= 2 ? 0.13 : 0.45
+    jitter_width = length(cohorts) <= 2 ? 0.035 : 0.12
+
+    for (idx, cohort) in enumerate(cohorts)
+        sub = patient_df[patient_df.cohort .== cohort, :]
+        vals = Float64.(sub.beta)
+        xpos = x_positions[idx]
+        CairoMakie.boxplot!(
+            ax_beta,
+            fill(xpos, length(vals)),
+            vals;
+            color=(palette[cohort], 0.45),
+            strokecolor=:black,
+            whiskercolor=:black,
+            mediancolor=:black,
+            width=box_width,
+        )
+        offsets = [jitter_width * sin(1.618 * point_idx) for point_idx in eachindex(vals)]
+        for (point_idx, row) in enumerate(eachrow(sub))
+            beta_value = Float64(row.beta)
+            point_color = Bool(row.bump_flag) ? bump_color(beta_value) : no_bump_point_color
+            CairoMakie.scatter!(
+                ax_beta,
+                [xpos + offsets[point_idx]],
+                [beta_value];
+                color=point_color,
+                marker=marker_for_patient(row),
+                markersize=9,
+                alpha=0.90,
+            )
+        end
+    end
+
+    ax_beta.xticks = (x_positions, cohorts)
+    ax_beta.xticklabelrotation = 0
+    ax_beta.xticklabelalign = (:center, :top)
+    CairoMakie.xlims!(ax_beta, minimum(x_positions) - 0.22, maximum(x_positions) + 0.22)
+
+    legend_elements = [
+        CairoMakie.LineElement(color=low_beta_bump_color, linewidth=highlight_curve_linewidth),
+        CairoMakie.LineElement(color=high_beta_bump_color, linewidth=highlight_curve_linewidth),
+        CairoMakie.MarkerElement(color=no_bump_point_color, marker=:circle, markersize=11),
+        CairoMakie.MarkerElement(color=:black, marker=:circle, markersize=11),
+        CairoMakie.MarkerElement(color=:black, marker=:utriangle, markersize=11),
+        CairoMakie.MarkerElement(color=:black, marker=:diamond, markersize=11),
+    ]
+    legend_labels = [
+        "β < $(bump_beta_split) bump",
+        "β ≥ $(bump_beta_split) bump",
+        "no bump",
+        "MIMIC-IV ED anchor",
+        "MIMIC-IV admission anchor",
+        "UMG",
+    ]
+    CairoMakie.Legend(fig[1, 3], legend_elements, legend_labels; framevisible=false, tellheight=false)
+
+    CairoMakie.colgap!(fig.layout, 18)
+    display_plots && display(fig)
+    CairoMakie.save(svg_path, fig)
+    CairoMakie.save(png_path, fig, px_per_unit=png_px_per_unit)
+    return svg_path
+end
+
 # =============================================================================
 # Training Loss Plots
 # =============================================================================
