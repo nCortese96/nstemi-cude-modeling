@@ -67,14 +67,20 @@ using Dates
 using CSV
 using DataFrames
 
+include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
+
 # ==============================================================================
 # CONSTANTS
 # ==============================================================================
-# Constant from symbolic regression (from sr_outputs_extended_2026-03-24)
-const c_val = 0.0006774434799252378
-const T_SCALE_SI = 240.0
+# Constants from the promoted symbolic surrogate in src/models.jl.
+const PROMOTED_SYMBOLIC_SURROGATE_C1 = 0.0007780399162888297
+const PROMOTED_SYMBOLIC_SURROGATE_C2 = 1.0553531103104006
+const PROMOTED_SYMBOLIC_SURROGATE_C = 1 / PROMOTED_SYMBOLIC_SURROGATE_C2
+const PROMOTED_SYMBOLIC_SURROGATE_C_BETA =
+    PROMOTED_SYMBOLIC_SURROGATE_C1 * PROMOTED_SYMBOLIC_SURROGATE_C2
+const T_SCALE_SI = WORKFLOW_MODEL_SETTINGS.t_scale
 
-report_dir = "res/structural"
+report_dir = joinpath(WORKFLOW_OUTPUT_DIRS.symbolic_surrogate, "04d_structural_identifiability")
 mkpath(report_dir)
 
 println("=" ^ 70)
@@ -98,16 +104,15 @@ println("=" ^ 70)
 # To assess the identifiability of ALL model parameters including β, we
 # represent the NN correction using its symbolic regression (SR) surrogate:
 #
-#   f_θ*(τ, β) ≈ τ^4 / (τ^4 + β²/c)
+#   f_θ*(τ, β) ≈ C * τ^4 / (τ^4 + β²/(C1*C2))
 #
-# where c = 0.0006774434799252378 is a known constant from SR fitting.
-# This surrogate was shown to faithfully approximate the NN output across
-# the training domain (see test_formula.jl validation results).
+# where C=1/C2 and C1,C2 are known constants from the manually promoted
+# symbolic surrogate used by workflow step 04b.
 #
-# Since c is a KNOWN constant (not a free parameter), it does not affect
-# the structural identifiability of β. Formally:
-#   β is identifiable in τ^4/(τ^4 + β²/c) ⟺ β is identifiable in τ^4/(τ^4 + β²)
-# because dividing by a known nonzero constant is an invertible transformation.
+# Since these constants are KNOWN, nonzero, and not fitted parameters, they do
+# not affect the structural identifiability of β. Formally, β identifiability
+# in C*τ^4/(τ^4 + β²/(C1*C2)) is represented by the same rational dependency
+# as β identifiability in τ^4/(τ^4 + β²), up to known invertible scalings.
 # We therefore use the simplified form τ^4/(τ^4 + beta²) in the @ODEmodel.
 #
 # The @ODEmodel macro requires RHS to be rational in states and parameters
@@ -129,7 +134,8 @@ println("\n--- Model 1: cUDE (SR surrogate with explicit β) ---")
 
 # Parameters: a, b, beta. States: Cs, Cc, Cp, tau.
 # Initial conditions Cs(0)=Cs0, Cc(0)=Cc0 are implicitly tested via state identifiability.
-# Correction: tau^4 / (tau^4 + beta^2), where the known constant 1/c is absorbed.
+# Correction: tau^4 / (tau^4 + beta^2), where known constants from the promoted
+# symbolic surrogate are absorbed for structural-identifiability purposes.
 
 ode_cude = @ODEmodel(
     Cs'(t) = -(Cs(t) - Cc(t)) * tau(t)^4 / (tau(t)^4 + beta^2),
@@ -154,12 +160,13 @@ println(" Done.")
 # The surrogate replaces the NN with a closed-form rational function derived
 # via symbolic regression (SymbolicRegression.jl / PySR):
 #
-#   correction(t, β) = (t/T_SCALE)^4 / ((t/T_SCALE)^4 + β²/c)
+#   correction(t, β) = C * (t/T_SCALE)^4 /
+#                      ((t/T_SCALE)^4 + β²/(C1*C2))
 #
-# where c = 0.0006774434799252378 is a fixed constant from SR.
+# where C=1/C2 and C1,C2 are fixed promoted-formula constants.
 #
-# Here we use a LUMPED parameter K_surr that absorbs β, c, and T_SCALE:
-#   K_surr = (β²/c) * T_SCALE^4
+# Here we use a LUMPED parameter K_surr that absorbs β, C1*C2, and T_SCALE:
+#   K_surr = (β²/(C1*C2)) * T_SCALE^4
 # The correction simplifies to: tau^4 / (tau^4 + K_surr)
 #
 # This tests whether K_surr (as a single lumped parameter) is identifiable.
@@ -286,8 +293,11 @@ open(report_path, "w") do io
     println(io, "MODEL 1: cUDE (SR surrogate with explicit β)")
     println(io, "-" ^ 70)
     println(io, "Structure: Cs' = -(Cs-Cc)*φ, Cc' = (Cs-Cc)*φ - a*(Cc-Cp), Cp' = a*(Cc-Cp) - b*Cp")
-    println(io, "Correction: φ(t,β) = t⁴ / (t⁴ + β²)")
-    println(io, "  (known constant c = $c_val absorbed; does not affect β identifiability)")
+    println(io, "Promoted correction: φ(t_norm,β) = C*t_norm⁴ / (t_norm⁴ + β²/(C1*C2))")
+    println(io, "  C1 = $PROMOTED_SYMBOLIC_SURROGATE_C1")
+    println(io, "  C2 = $PROMOTED_SYMBOLIC_SURROGATE_C2")
+    println(io, "Structural proxy: φ(τ,β) = τ⁴ / (τ⁴ + β²)")
+    println(io, "  known nonzero constants are absorbed and do not affect β identifiability")
     println(io, "Parameters: {a, b, β, Cs0, Cc0}")
     println(io, "Observation: y(t) = Cp(t)\n")
     for row in eachrow(df_cude)
@@ -298,7 +308,8 @@ open(report_path, "w") do io
     println(io, "MODEL 2: Surrogate (Symbolic Regression, lumped K_surr)")
     println(io, "-" ^ 70)
     println(io, "Correction: φ(t) = t⁴ / (t⁴ + K_surr)")
-    println(io, "  where K_surr = (β²/c) · T_SCALE⁴, c = $c_val, T_SCALE = $T_SCALE_SI h")
+    println(io, "  where K_surr = (β²/(C1*C2)) · T_SCALE⁴")
+    println(io, "  C1 = $PROMOTED_SYMBOLIC_SURROGATE_C1, C2 = $PROMOTED_SYMBOLIC_SURROGATE_C2, T_SCALE = $T_SCALE_SI h")
     println(io, "Parameters: {a, b, K_surr, Cs0, Cc0}")
     println(io, "Observation: y(t) = Cp(t)\n")
     for row in eachrow(df_surr)

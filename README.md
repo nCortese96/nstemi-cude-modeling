@@ -187,6 +187,23 @@ parameter/metric figures, and `plots_profiles` to regenerate only
 `profiles_comparison`. These modes do not rewrite diagnostic CSVs or
 `delta_smape_report.txt`.
 
+Step 03a also writes an exploratory post-processing diagnostic linking baseline
+ODE error to cUDE gain. For each cohort, cUDE gain is computed patient by
+patient as `error_ODE - error_cUDE`, so positive values indicate lower cUDE
+error. The workflow reports Spearman correlations between baseline ODE sMAPE
+and cUDE sMAPE gain, with the same calculation for RMSLE when available. The
+stable outputs are:
+
+```text
+results*/03_comparison_analyses/03a_diagnostics/cude_gain_correlation_summary.csv
+results*/03_comparison_analyses/03a_diagnostics/figs/metrics_comparison_paper/cude_gain_vs_ode_baseline.svg
+results*/03_comparison_analyses/03a_diagnostics/figs/metrics_comparison_paper/cude_gain_vs_ode_baseline.png
+```
+
+This analysis is descriptive only. A positive Spearman coefficient means that
+cUDE gains tend to be larger in patients with higher baseline ODE error; it is
+not a causal test.
+
 For the ODE MIMIC-IV quartile profile plots only, the config field
 `WORKFLOW_CONFIG.model_diagnostics.ode_mimic_quartile_profile_source` controls
 whether `ODE_Q_MIMIC` is selected from the validation/test ODE CSV
@@ -263,6 +280,7 @@ julia --project=. scripts/04a_run_symbolic_regression.jl report
 JULIA_NUM_THREADS=auto julia --project=. scripts/04b_evaluate_symbolic_formula.jl
 julia --project=. scripts/04c_run_neural_correction_bump_analysis.jl
 julia --project=. scripts/04c_run_neural_correction_bump_analysis.jl plots
+julia --project=. scripts/extra_structural_identifiability_test.jl
 ```
 
 Symbolic regression can be computationally expensive and stochastic. Step 04a
@@ -306,10 +324,63 @@ Step 04b evaluates only this manually promoted formula and writes both
 beta-labelled and normalized `T_eff`-labelled correction plots.
 
 Step 04c is a descriptive post-processing analysis of the selected cUDE neural
-correction. It checks whether early non-monotonicity occurs for beta values
-occupied by patients, writes observed-domain and extended-domain CSV summaries,
-and regenerates figures from those CSVs in `plots` mode. It does not train,
-fit, or optimize any model.
+correction. It checks whether a local early non-monotonicity appears for beta
+values occupied by patients. The analysis evaluates the already trained neural
+correction on patient-specific beta values and on a regular beta grid; it does
+not train, fit, or optimize any model.
+
+The primary 04c output is the configurable feature-window analysis. Observed
+and extended domains are written separately so the local neural-network feature
+can be distinguished from the clinically observed time window and from broader
+visualization/distillation ranges. The stable outputs include:
+
+```text
+results*/04_symbolic_surrogate/04c_neural_correction_bump_analysis/
+  patient_bump_analysis_feature.csv
+  patient_bump_analysis_observed.csv
+  patient_bump_analysis_extended.csv
+  cohort_bump_summary_feature.csv
+  cohort_bump_summary_observed.csv
+  cohort_bump_summary_extended.csv
+  beta_grid_bump_analysis_feature.csv
+  beta_grid_bump_analysis_observed.csv
+  beta_grid_bump_analysis_extended.csv
+  anchor_source_note.txt
+  figs/
+    neural_correction_bump_analysis_feature.svg
+    neural_correction_bump_analysis_feature.png
+    neural_correction_bump_analysis_observed.svg
+    neural_correction_bump_analysis_observed.png
+    neural_correction_bump_analysis_extended.svg
+    neural_correction_bump_analysis_extended.png
+```
+
+If `WORKFLOW_CONFIG.neural_correction_bump_analysis.anchoring_analysis` is
+enabled, step 04c also attempts a fail-safe MIMIC-IV anchor-source diagnostic
+and writes `anchor_source_bump_analysis_MIMIC-IV.csv` when the required metadata
+are available. The optional anchoring output is exploratory and should be
+checked through its match-status columns before interpretation.
+
+The optional structural-identifiability script evaluates a rational proxy of
+the promoted symbolic correction with `StructuralIdentifiability.jl`. It is not
+a fitting or training step. It tests whether the mechanistic parameters are
+structurally identifiable from ideal continuous-time output data under three
+symbolic model variants: cUDE-like proxy with explicit beta, symbolic surrogate
+with lumped `K_surr`, and the pure ODE Td-sigmoid model. Outputs are written to:
+
+```text
+results*/04_symbolic_surrogate/04d_structural_identifiability/
+  identifiability_report.txt
+  identifiability_results_cude.csv
+  identifiability_results_surrogate.csv
+  identifiability_results_ode.csv
+  identifiability_results_combined.csv
+```
+
+The cUDE-like identifiability model intentionally uses a rational proxy
+preserving the promoted surrogate's qualitative dependency on time and beta;
+known nonzero constants from the promoted formula are absorbed because they do
+not affect structural identifiability.
 
 ## Output Trees
 
