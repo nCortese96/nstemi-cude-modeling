@@ -73,8 +73,8 @@ are:
   supported long-running steps.
 - `WORKFLOW_CONFIG.model.t_scale`: shared analysis/model time scale in hours.
 - `WORKFLOW_CONFIG.datasets`: dataset registry.
-- Step-specific settings such as `cude_training`, `cude_evaluation`,
-  `profile_likelihood`, `systematic_truncation`, and
+- Step-specific settings such as `preprocessing`, `cude_training`,
+  `cude_evaluation`, `profile_likelihood`, `systematic_truncation`, and
   `symbolic_formula_evaluation`.
 
 The `results/` and `results_test/` trees are intentionally mirrored. Use
@@ -114,7 +114,7 @@ Run the scripts in numerical order when building results from scratch.
 
 | Step | Script | Purpose |
 | --- | --- | --- |
-| 00 | `scripts/00_run_preprocessing.jl` | Build preprocessed cohorts, reports, split artifacts, and gold-standard IDs. |
+| 00 | `scripts/00_run_preprocessing.jl` | Build preprocessed cohorts, reports, split artifacts, gold-standard IDs, and pre-trim temporal-sampling figures. |
 | 01 | `scripts/01_run_ode_tdsigmoid_fit.jl` | Fit the mechanistic ODE Td-sigmoid model. |
 | 02a | `scripts/02a_run_cude_training.jl` | Train cUDE candidates. |
 | 02b | `scripts/02b_evaluate_cude_nn.jl` | Evaluate cUDE candidates on MIMIC-IV validation/test data. |
@@ -143,6 +143,28 @@ julia --project=. scripts/02c_grid_search.jl plots
 JULIA_NUM_THREADS=auto julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl
 julia --project=. scripts/02d_evaluate_cude_nn_external_test.jl plots
 ```
+
+Step 00 describes the acquisition-time distribution after duplicate timepoints
+are collapsed and before observations beyond `WORKFLOW_CONFIG.model.t_scale`
+are removed. It writes two cohort-specific figures and one paper-ready
+comparison:
+
+```text
+results*/00_cohorts/figs/
+  acquisition_time_distribution_MIMIC-IV.png
+  acquisition_time_distribution_UMG.png
+  acquisition_time_distribution_comparison.png
+```
+
+The cohort-specific figures show the complete pre-trim domain and a detailed
+view of the analysis window. The comparison reports both acquisition counts and
+the number of distinct patients contributing to each temporal bin. These plots
+are controlled by `WORKFLOW_CONFIG.preprocessing.plot_acquisition_distribution`.
+The comparison displays data up to
+`WORKFLOW_CONFIG.preprocessing.acquisition_comparison_max_time` (480 h by
+default); set this field to `nothing` to use the complete observed domain. Plot
+generation is descriptive and does not change preprocessing filters, cohort
+membership, train/test splits, or saved CSV/JLD2 artifacts.
 
 The step 01 `plots` mode regenerates ODE patient profiles from existing
 `params_out.csv` files and step 00 cohorts. It does not refit ODE parameters or

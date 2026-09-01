@@ -40,6 +40,311 @@ function _savefig_with_png_companion(plot_obj, output_path::AbstractString)
 end
 
 # =============================================================================
+# Preprocessing Plots
+# =============================================================================
+
+"""
+    save_pretrim_acquisition_time_distribution(timepoints, output_path; ...)
+
+Save the acquisition-time distribution after duplicate collapse and before the
+preprocessing time restriction. The full-domain panel retains finite negative
+times, while the detail panel shows the configured nonnegative analysis window.
+"""
+function save_pretrim_acquisition_time_distribution(
+    timepoints::AbstractVector{<:Real},
+    output_path::AbstractString;
+    dataset_name::AbstractString,
+    cutoff::Real,
+    bin_width::Real,
+    png_px_per_unit::Real,
+)
+    cutoff > 0 || throw(ArgumentError("cutoff must be positive"))
+    bin_width > 0 || throw(ArgumentError("bin_width must be positive"))
+    png_px_per_unit > 0 || throw(ArgumentError("png_px_per_unit must be positive"))
+
+    finite_times = Float64[time for time in timepoints if isfinite(time)]
+    isempty(finite_times) && throw(ArgumentError("No finite acquisition times are available for $(dataset_name)"))
+
+    full_start = floor(min(minimum(finite_times), 0.0) / bin_width) * bin_width
+    full_stop = ceil(max(maximum(finite_times), cutoff) / bin_width) * bin_width
+    full_stop <= full_start && (full_stop = full_start + bin_width)
+
+    full_edges = sort!(unique!(vcat(
+        collect(full_start:bin_width:full_stop),
+        [0.0, Float64(cutoff), Float64(full_stop)],
+    )))
+    zoom_edges = filter(edge -> 0.0 <= edge <= cutoff, full_edges)
+    first(zoom_edges) == 0.0 || pushfirst!(zoom_edges, 0.0)
+    last(zoom_edges) == cutoff || push!(zoom_edges, Float64(cutoff))
+
+    within_times = filter(time -> time <= cutoff, finite_times)
+    beyond_times = filter(time -> time > cutoff, finite_times)
+    zoom_times = filter(time -> 0.0 <= time <= cutoff, finite_times)
+
+    n_total = length(finite_times)
+    n_within = length(within_times)
+    within_percentage = 100 * n_within / n_total
+    cutoff_label = isinteger(cutoff) ? string(round(Int, cutoff)) : string(cutoff)
+
+    fig = CairoMakie.Figure(size=(1400, 600), fontsize=18)
+    CairoMakie.Label(
+        fig[1, 1:2],
+        "$(dataset_name): acquisition-time distribution before temporal restriction";
+        fontsize=24,
+        font=:bold,
+    )
+
+    ax_full = CairoMakie.Axis(
+        fig[2, 1];
+        title="(a) Full pre-trim distribution",
+        xlabel="Acquisition time (h)",
+        ylabel="Number of acquisitions",
+    )
+    ax_zoom = CairoMakie.Axis(
+        fig[2, 2];
+        title="(b) Detail within the analysis window",
+        xlabel="Acquisition time (h)",
+        ylabel="Number of acquisitions",
+    )
+
+    CairoMakie.hist!(
+        ax_full,
+        within_times;
+        bins=full_edges,
+        color=:steelblue3,
+        strokecolor=:white,
+        strokewidth=0.5,
+        label="≤$(cutoff_label) h",
+    )
+    if !isempty(beyond_times)
+        CairoMakie.hist!(
+            ax_full,
+            beyond_times;
+            bins=full_edges,
+            color=:gray70,
+            strokecolor=:white,
+            strokewidth=0.5,
+            label=">$(cutoff_label) h",
+        )
+    end
+    CairoMakie.vlines!(ax_full, [cutoff]; color=:firebrick3, linewidth=2.5, linestyle=:dash)
+    CairoMakie.axislegend(ax_full; position=:rt, framevisible=false)
+
+    CairoMakie.hist!(
+        ax_zoom,
+        zoom_times;
+        bins=zoom_edges,
+        color=:steelblue3,
+        strokecolor=:white,
+        strokewidth=0.5,
+    )
+    CairoMakie.vlines!(ax_zoom, [cutoff]; color=:firebrick3, linewidth=2.5, linestyle=:dash)
+    CairoMakie.xlims!(ax_zoom, 0.0, Float64(cutoff + 0.05 * bin_width))
+
+    CairoMakie.Label(
+        fig[3, 1:2],
+        "Total acquisitions: $(n_total)   |   Acquisitions ≤ $(cutoff_label) h: $(n_within) ($(round(within_percentage; digits=1))%)";
+        fontsize=17,
+    )
+
+    mkpath(dirname(output_path))
+    CairoMakie.save(output_path, fig; px_per_unit=png_px_per_unit)
+
+    return (
+        path=output_path,
+        n_total=n_total,
+        n_within=n_within,
+        within_percentage=within_percentage,
+    )
+end
+
+"""
+    save_pretrim_acquisition_time_comparison(cohorts, output_path; ...)
+
+Compare pre-trim temporal sampling across two cohorts. The upper row counts
+acquisitions per time bin; the lower row counts distinct patients contributing
+at least one acquisition to each bin.
+"""
+function save_pretrim_acquisition_time_comparison(
+    cohorts,
+    output_path::AbstractString;
+    cutoff::Real,
+    bin_width::Real,
+    max_time::Union{Nothing,Real},
+    png_px_per_unit::Real,
+)
+    length(cohorts) == 2 || throw(ArgumentError("The comparison figure requires exactly two cohorts"))
+    cutoff > 0 || throw(ArgumentError("cutoff must be positive"))
+    bin_width > 0 || throw(ArgumentError("bin_width must be positive"))
+    png_px_per_unit > 0 || throw(ArgumentError("png_px_per_unit must be positive"))
+
+    for cohort in cohorts
+        length(cohort.timepoints) == length(cohort.patient_ids) ||
+            throw(ArgumentError("Timepoints and patient IDs are not aligned for $(cohort.dataset_name)"))
+    end
+
+    all_times = Float64[
+        time
+        for cohort in cohorts
+        for time in cohort.timepoints
+        if isfinite(time)
+    ]
+    isempty(all_times) && throw(ArgumentError("No finite acquisition times are available for comparison"))
+
+    display_start = floor(min(minimum(all_times), 0.0) / bin_width) * bin_width
+    display_stop = if max_time === nothing
+        ceil(maximum(all_times) / bin_width) * bin_width
+    else
+        Float64(max_time)
+    end
+    display_stop >= cutoff || throw(ArgumentError("max_time must be at least equal to the cutoff"))
+    display_stop > display_start || throw(ArgumentError("The comparison time domain is empty"))
+
+    edges = collect(display_start:bin_width:display_stop)
+    isempty(edges) && push!(edges, display_start)
+    last(edges) < display_stop && push!(edges, display_stop)
+    length(edges) >= 2 || push!(edges, display_stop)
+    centers = (edges[1:end-1] .+ edges[2:end]) ./ 2
+    widths = 0.92 .* diff(edges)
+    n_bins = length(centers)
+    cutoff_label = isinteger(cutoff) ? string(round(Int, cutoff)) : string(cutoff)
+    stop_label = isinteger(display_stop) ? string(round(Int, display_stop)) : string(display_stop)
+
+    summaries = NamedTuple[]
+    fig = CairoMakie.Figure(size=(1500, 950), fontsize=18)
+    CairoMakie.Label(
+        fig[1, 1:2],
+        "Temporal sampling before the $(cutoff_label)-h restriction";
+        fontsize=25,
+        font=:bold,
+    )
+
+    axes = CairoMakie.Axis[]
+    for (column, cohort) in enumerate(cohorts)
+        finite_indices = findall(isfinite, cohort.timepoints)
+        times = Float64[cohort.timepoints[index] for index in finite_indices]
+        patient_ids = String[cohort.patient_ids[index] for index in finite_indices]
+
+        acquisition_counts = zeros(Int, n_bins)
+        patient_counts = zeros(Int, n_bins)
+        for bin_index in 1:n_bins
+            lower = edges[bin_index]
+            upper = edges[bin_index + 1]
+            selected = if bin_index == n_bins
+                findall(time -> lower <= time <= upper, times)
+            else
+                findall(time -> lower <= time < upper, times)
+            end
+            acquisition_counts[bin_index] = length(selected)
+            patient_counts[bin_index] = length(unique(patient_ids[selected]))
+        end
+
+        n_acquisitions = length(times)
+        n_within = count(time -> time <= cutoff, times)
+        within_percentage = 100 * n_within / n_acquisitions
+        all_patient_ids = unique(patient_ids)
+        patients_beyond_cutoff = unique(patient_ids[findall(time -> time > cutoff, times)])
+        acquisitions_beyond_display = count(time -> time > display_stop, times)
+
+        ax_acquisitions = CairoMakie.Axis(
+            fig[2, column];
+            title="($(Char('a' + column - 1))) $(cohort.dataset_name)",
+            ylabel="Number of acquisitions",
+        )
+        ax_patients = CairoMakie.Axis(
+            fig[3, column];
+            xlabel="Acquisition time (h)",
+            ylabel="Patients with acquisitions",
+        )
+        append!(axes, [ax_acquisitions, ax_patients])
+
+        for axis in (ax_acquisitions, ax_patients)
+            CairoMakie.vspan!(axis, cutoff, display_stop; color=(:gray70, 0.24))
+        end
+        CairoMakie.barplot!(
+            ax_acquisitions,
+            centers,
+            acquisition_counts;
+            width=widths,
+            color=:steelblue3,
+            strokecolor=:white,
+            strokewidth=0.5,
+        )
+        CairoMakie.barplot!(
+            ax_patients,
+            centers,
+            patient_counts;
+            width=widths,
+            color=:darkorange2,
+            strokecolor=:white,
+            strokewidth=0.5,
+        )
+
+        for axis in (ax_acquisitions, ax_patients)
+            CairoMakie.vlines!(axis, [cutoff]; color=:firebrick3, linewidth=2.5, linestyle=:dash)
+            CairoMakie.xlims!(axis, display_start, display_stop)
+        end
+
+        acquisition_ymax = max(maximum(acquisition_counts), 1) * 1.18
+        patient_ymax = max(maximum(patient_counts), 1) * 1.18
+        CairoMakie.ylims!(ax_acquisitions, 0, acquisition_ymax)
+        CairoMakie.ylims!(ax_patients, 0, patient_ymax)
+
+        omitted_label = acquisitions_beyond_display > 0 ?
+            "; $(acquisitions_beyond_display) acquisitions >$(stop_label) h" : ""
+        CairoMakie.text!(
+            ax_acquisitions,
+            display_start + 0.025 * (display_stop - display_start),
+            0.95 * acquisition_ymax;
+            text="$(round(within_percentage; digits=1))% of acquisitions ≤$(cutoff_label) h$(omitted_label)",
+            align=(:left, :top),
+            fontsize=16,
+            color=:gray25,
+        )
+        CairoMakie.text!(
+            ax_patients,
+            display_start + 0.025 * (display_stop - display_start),
+            0.95 * patient_ymax;
+            text="$(length(patients_beyond_cutoff))/$(length(all_patient_ids)) patients observed >$(cutoff_label) h",
+            align=(:left, :top),
+            fontsize=16,
+            color=:gray25,
+        )
+
+        push!(summaries, (
+            dataset_name=String(cohort.dataset_name),
+            n_acquisitions=n_acquisitions,
+            n_within=n_within,
+            within_percentage=within_percentage,
+            n_patients=length(all_patient_ids),
+            patients_beyond_cutoff=length(patients_beyond_cutoff),
+            acquisitions_beyond_display=acquisitions_beyond_display,
+            acquisition_counts=acquisition_counts,
+            patient_counts=patient_counts,
+        ))
+    end
+
+    CairoMakie.linkxaxes!(axes...)
+    CairoMakie.Label(
+        fig[4, 1:2],
+        "Bars use $(bin_width)-h intervals; the shaded region contains acquisitions beyond $(cutoff_label) h.";
+        fontsize=16,
+        color=:gray35,
+    )
+
+    mkpath(dirname(output_path))
+    CairoMakie.save(output_path, fig; px_per_unit=png_px_per_unit)
+
+    return (
+        path=output_path,
+        display_start=display_start,
+        display_stop=display_stop,
+        bin_edges=edges,
+        cohorts=summaries,
+    )
+end
+
+# =============================================================================
 # Patient Fit Plots
 # =============================================================================
 

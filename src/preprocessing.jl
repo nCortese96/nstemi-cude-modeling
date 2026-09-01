@@ -681,6 +681,19 @@ function run_dataset_report(;
     report_step!(reporter, "Duplicate timepoints collapsed", patients;
         extra_info="Modified patients: $(nmod), removed duplicate points: $(nrm)")
 
+    pretrim_acquisition_times = Float64[
+        time
+        for patient in patients
+        for time in patient.timepoints
+        if isfinite(time)
+    ]
+    pretrim_acquisition_patient_ids = String[
+        patient.id
+        for patient in patients
+        for time in patient.timepoints
+        if isfinite(time)
+    ]
+
     trimmed_patients = trim_time(patients, T_SCALE)
     raw_n = length(trimmed_patients)
 
@@ -727,6 +740,8 @@ function run_dataset_report(;
     return merge(saved_sets, (
         report_path=report_path,
         all_eligible_patients=cleaned_patients,
+        pretrim_acquisition_times=pretrim_acquisition_times,
+        pretrim_acquisition_patient_ids=pretrim_acquisition_patient_ids,
         raw_loaded_n=raw_loaded_n,
         raw_n=raw_n,
         eligible_n=length(cleaned_patients),

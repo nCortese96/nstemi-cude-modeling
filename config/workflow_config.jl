@@ -94,6 +94,10 @@ const PREPROCESSING_SETTINGS = (
     output_dir=WORKFLOW_OUTPUT_DIRS.cohorts,
     train_fraction=0.8,
     split_seed=1234,
+    plot_acquisition_distribution=true,
+    acquisition_time_bin_width=24.0,
+    acquisition_comparison_max_time=480.0, #720.0,
+    acquisition_plot_png_px_per_unit=3,
 )
 
 # =============================================================================

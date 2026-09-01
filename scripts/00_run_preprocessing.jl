@@ -8,8 +8,9 @@ Pipeline:
 1. Read preprocessing configuration from `config/workflow_config.jl`.
 2. Resolve input/output paths.
 3. Load raw Excel datasets through dedicated preprocessing helpers.
-4. Collapse duplicate timepoints, trim, filter anomalies, and report each step.
-5. Save all-eligible IDs, validation IDs, gold-standard IDs, and JLD2 artifacts.
+4. Collapse duplicate timepoints and plot their pre-trim temporal distribution.
+5. Trim, filter anomalies, and report each preprocessing step.
+6. Save all-eligible IDs, validation IDs, gold-standard IDs, and JLD2 artifacts.
 
 Command-line usage:
   julia --project=. scripts/00_run_preprocessing.jl
@@ -32,6 +33,7 @@ using Logging
 
 include(joinpath(@__DIR__, "..", "src", "data_io.jl"))
 include(joinpath(@__DIR__, "..", "src", "preprocessing.jl"))
+include(joinpath(@__DIR__, "..", "src", "plotting.jl"))
 include(joinpath(@__DIR__, "..", "config", "workflow_config.jl"))
 
 # =============================================================================
@@ -57,7 +59,11 @@ data_root = config.paths.data_root
 # Files and folders produced by this run.
 # =============================================================================
 
-preprocessing_output_dirs = (cohorts=preprocessing.output_dir,)
+preprocessing_fig_dir = joinpath(preprocessing.output_dir, "figs")
+preprocessing_output_dirs = (
+    cohorts=preprocessing.output_dir,
+    figs=preprocessing_fig_dir,
+)
 
 # =============================================================================
 # DERIVED SETTINGS
@@ -104,12 +110,33 @@ for dataset in datasets
 
     results[dataset.dataset_name] = dataset_result
 
+    acquisition_figure_path = joinpath(
+        preprocessing_fig_dir,
+        "acquisition_time_distribution_$(dataset.dataset_name).png",
+    )
+    if preprocessing.plot_acquisition_distribution
+        plot_summary = save_pretrim_acquisition_time_distribution(
+            dataset_result.pretrim_acquisition_times,
+            acquisition_figure_path;
+            dataset_name=dataset.dataset_name,
+            cutoff=config.model.t_scale,
+            bin_width=preprocessing.acquisition_time_bin_width,
+            png_px_per_unit=preprocessing.acquisition_plot_png_px_per_unit,
+        )
+        @info "Pre-trim acquisition distribution saved" dataset=dataset.dataset_name total_acquisitions=plot_summary.n_total within_cutoff=plot_summary.n_within within_percentage=round(plot_summary.within_percentage; digits=1)
+    end
+
     dataset_output_paths = preprocessing_output_paths(
         dataset.dataset_name,
         preprocessing.output_dir;
         train_fraction=preprocessing.train_fraction,
         report_path=dataset_result.report_path,
     )
+    if preprocessing.plot_acquisition_distribution
+        dataset_output_paths = merge(dataset_output_paths, (
+            acquisition_time_distribution=acquisition_figure_path,
+        ))
+    end
     log_output_paths(dataset_output_paths; header="$(dataset.dataset_name) saved output paths")
 end
 
@@ -117,6 +144,37 @@ mimic_dataset = config.datasets[gold_standard.mimic_dataset_key].dataset_name
 external_dataset = config.datasets[gold_standard.external_dataset_key].dataset_name
 
 if haskey(results, mimic_dataset) && haskey(results, external_dataset)
+    if preprocessing.plot_acquisition_distribution
+        comparison_figure_path = joinpath(
+            preprocessing_fig_dir,
+            "acquisition_time_distribution_comparison.png",
+        )
+        comparison_summary = save_pretrim_acquisition_time_comparison(
+            (
+                (
+                    dataset_name=mimic_dataset,
+                    timepoints=results[mimic_dataset].pretrim_acquisition_times,
+                    patient_ids=results[mimic_dataset].pretrim_acquisition_patient_ids,
+                ),
+                (
+                    dataset_name=external_dataset,
+                    timepoints=results[external_dataset].pretrim_acquisition_times,
+                    patient_ids=results[external_dataset].pretrim_acquisition_patient_ids,
+                ),
+            ),
+            comparison_figure_path;
+            cutoff=config.model.t_scale,
+            bin_width=preprocessing.acquisition_time_bin_width,
+            max_time=preprocessing.acquisition_comparison_max_time,
+            png_px_per_unit=preprocessing.acquisition_plot_png_px_per_unit,
+        )
+        @info "Pre-trim acquisition comparison saved" path=comparison_summary.path displayed_until=comparison_summary.display_stop
+        log_output_paths(
+            (acquisition_time_comparison=comparison_figure_path,);
+            header="Preprocessing comparison figure",
+        )
+    end
+
     @info "Writing gold-standard cohort artifacts for $(gold_standard.run_dataset_name)."
 
     mimic_validation_id_set = Set(patient.id for patient in results[mimic_dataset].test)
